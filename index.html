@@ -3233,7 +3233,6 @@ function calculateTimeToNextCategory(age, category) {
   // Signup
   const signupBtn = document.getElementById('signupBtn');
   if (signupBtn) signupBtn.addEventListener('click', async function(){
-    const alertEl = document.getElementById('signupAlert');
     
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
@@ -3281,10 +3280,7 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  // Use explicit redirect URL to ensure Supabase sends the user to the GitHub Pages reset page
-  const { data, error } = await client.auth.resetPasswordForEmail(email,{
-    redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html'
-  });
+  const { data, error } = await client.auth.resetPasswordForEmail(email,{ redirectTo: window.location.href });
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
       else showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد','success');
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }

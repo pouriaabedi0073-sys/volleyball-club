@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>بازیابی رمز عبور</title>
+    <style>
+      body{font-family:Tahoma, Arial, sans-serif;direction:rtl;text-align:right;color:#111}
+      .btn{display:inline-block;padding:10px 14px;background:#136a61;color:#fff;border-radius:6px;text-decoration:none}
+      .muted{color:#666;font-size:13px}
+      code{background:#f3f4f6;padding:2px 6px;border-radius:4px}
+    </style>
+  </head>
+  <body>
+    <p>سلام،</p>
+
+    <p>درخواست بازیابی رمز برای حساب شما دریافت شد. برای انتخاب رمز جدید روی دکمهٔ زیر کلیک کنید:</p>
+
+    <p>
+      <a class="btn" href="https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}">
+        انتخاب رمز جدید
+      </a>
+    </p>
+
+    <p class="muted">اگر دکمه کار نکرد، این لینک را در مرورگر باز کنید:</p>
+    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}</pre>
+
+    <p class="muted">اگر این درخواست از طرف شما نبوده، این ایمیل را نادیده بگیرید.</p>
+
+    <p class="muted">نکته: اگر لینک دستکاری شد یا توکن‌ها ارسال نشدند، می‌توانید مقدار <code>access_token</code> را از لینک کپی کنید و در صفحهٔ بازیابی به صورت دستی وارد کنید.</p>
+
+    <p>با احترام،<br/>تیم شما</p>
+  </body>
+</html>
