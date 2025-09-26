@@ -12,32 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <!-- Ensure Supabase library is loaded early for auth UI -->
-<script>
-  // Ethereum shim to reduce errors from extension-injected scripts
-  try {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      if (typeof window.ethereum.initializeProvider !== 'function') {
-        window.ethereum.initializeProvider = function(){ console.warn('shim: ethereum.initializeProvider called'); };
-      }
-      if (typeof window.ethereum.setExternalProvider !== 'function') {
-        window.ethereum.setExternalProvider = function(){ console.warn('shim: ethereum.setExternalProvider called'); };
-      }
-    }
-  } catch(e){ console.warn('ethereum shim failed', e); }
-
-  // Try to load UMD bundle; if it fails, try the alternative path
-  (function loadSupabase(){
-    var u = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-    var s = document.createElement('script'); s.src = u; s.async = false;
-    s.onerror = function(){
-      console.warn('Supabase UMD failed to load, trying alternative CDN');
-      var u2 = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
-      var s2 = document.createElement('script'); s2.src = u2; s2.async = false;
-      document.head.appendChild(s2);
-    };
-    document.head.appendChild(s);
-  })();
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // Inline Supabase client initialization for embedded auth.
   (function(){
@@ -75,6 +50,152 @@
     }
   })();
 </script>
+  <!-- Supabase recovery helper: parse tokens from URL fragment and set session when client is ready -->
+  <script>
+    (function(){
+      // Parse fragment like #access_token=...&refresh_token=...&expires_at=...
+      function parseFragment(hash) {
+        const out = {};
+        if (!hash) return out;
+        const str = hash.replace(/^#/, '');
+        str.split('&').forEach(pair => {
+          if (!pair) return;
+          const idx = pair.indexOf('=');
+          const key = idx === -1 ? decodeURIComponent(pair) : decodeURIComponent(pair.slice(0, idx));
+          const val = idx === -1 ? '' : decodeURIComponent(pair.slice(idx + 1));
+          out[key] = val;
+        });
+        return out;
+      }
+
+      function createPanel() {
+        if (document.getElementById('recovery-panel')) return document.getElementById('recovery-panel');
+        const panel = document.createElement('div');
+        panel.id = 'recovery-panel';
+        panel.style.position = 'fixed';
+        panel.style.zIndex = 99999;
+        panel.style.left = '12px';
+        panel.style.bottom = '12px';
+        panel.style.maxWidth = '420px';
+        panel.style.width = 'calc(100% - 24px)';
+        panel.style.background = 'rgba(255,255,255,0.98)';
+        panel.style.border = '1px solid rgba(0,0,0,0.06)';
+        panel.style.padding = '10px';
+        panel.style.borderRadius = '10px';
+        panel.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+        panel.style.fontSize = '13px';
+        panel.style.direction = 'ltr';
+
+        panel.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong style="font-size:13px;">Supabase: بازیابی نشست</strong>
+            <button id="recovery-close" style="background:transparent;border:none;cursor:pointer;font-size:14px">✕</button>
+          </div>
+          <div style="margin-bottom:8px;">این پنل توکن‌ها را از fragment URL می‌خواند و تلاش می‌کند نشست را با Supabase تنظیم کند. اگر پیام خطا دیدید، می‌توانید توکن‌ها را دستی وارد کنید.</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input id="recovery-access" placeholder="access_token" style="flex:1;padding:8px;border:1px solid rgba(0,0,0,0.08);border-radius:6px" />
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input id="recovery-refresh" placeholder="refresh_token (اختیاری)" style="flex:1;padding:8px;border:1px solid rgba(0,0,0,0.08);border-radius:6px" />
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button id="recovery-set" class="btn">Set session</button>
+          </div>
+          <pre id="recovery-log" style="max-height:160px;overflow:auto;margin-top:8px;background:rgba(0,0,0,0.02);padding:8px;border-radius:6px;font-size:12px"></pre>
+        `;
+
+        document.body.appendChild(panel);
+        document.getElementById('recovery-close').addEventListener('click', ()=> panel.remove());
+        return panel;
+      }
+
+      function log(message) {
+        console.log(message);
+        try {
+          const el = document.getElementById('recovery-log') || createPanel().querySelector('#recovery-log');
+          if (!el) return;
+          const time = new Date().toLocaleTimeString();
+          el.textContent = `${time} - ${typeof message === 'string' ? message : JSON.stringify(message, null, 2)}\n` + el.textContent;
+        } catch (e) { /* ignore */ }
+      }
+
+      async function trySetSession(tokens) {
+        const panel = createPanel();
+        document.getElementById('recovery-access').value = tokens.access_token || '';
+        document.getElementById('recovery-refresh').value = tokens.refresh_token || '';
+
+        if (!tokens.access_token) {
+          log('no access_token found in fragment');
+          return;
+        }
+
+        // Wait for supabase client to be ready
+        let tries = 0;
+        const maxTries = 20;
+        const delay = 300;
+        log('در تلاش برای پیدا کردن Supabase client...');
+        while (tries < maxTries) {
+          if (window.supabase && window.supabase.auth && typeof window.supabase.auth.setSession === 'function') break;
+          tries++;
+          await new Promise(r => setTimeout(r, delay));
+        }
+
+        if (!(window.supabase && window.supabase.auth && typeof window.supabase.auth.setSession === 'function')) {
+          log('خطا: Supabase client در دسترس نیست. لطفاً مطمئن شوید کتابخانه Supabase بارگذاری شده و در تنظیمات صفحه قرار دارد.');
+          return;
+        }
+
+        log('Supabase client پیدا شد؛ تنظیم نشست...');
+        try {
+          const { data, error } = await window.supabase.auth.setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token });
+          if (error) {
+            log({ error: error.message || error });
+          } else {
+            log('نشست با موفقیت تنظیم شد.');
+            log({ data });
+            // Optionally clear the fragment so tokens aren't visible in URL
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+          }
+        } catch (e) {
+          log({ error: e && e.message ? e.message : String(e) });
+        }
+      }
+
+      // Attach manual button handler
+      function attachManualHandler() {
+        const panel = createPanel();
+        const btn = panel.querySelector('#recovery-set');
+        btn.addEventListener('click', async ()=>{
+          const a = panel.querySelector('#recovery-access').value.trim();
+          const r = panel.querySelector('#recovery-refresh').value.trim();
+          await trySetSession({ access_token: a, refresh_token: r });
+        });
+      }
+
+      // Run on load
+      document.addEventListener('DOMContentLoaded', ()=>{
+        const frag = location.hash || '';
+        const tokens = parseFragment(frag);
+        if (tokens && tokens.access_token) {
+          log('توکن‌ها از fragment تشخیص داده شد. تلاش برای تنظیم نشست...');
+          attachManualHandler();
+          trySetSession(tokens);
+        } else {
+          // create panel but keep it collapsed (user can open by calling createPanel in console)
+          // show small unobtrusive button to open panel
+          const openBtn = document.createElement('button');
+          openBtn.textContent = 'بازیابی نشست';
+          openBtn.style.position = 'fixed';
+          openBtn.style.left = '12px';
+          openBtn.style.bottom = '12px';
+          openBtn.style.zIndex = 99998;
+          openBtn.className = 'btn';
+          openBtn.addEventListener('click', ()=>{ createPanel(); attachManualHandler(); openBtn.remove(); });
+          document.body.appendChild(openBtn);
+        }
+      });
+    })();
+  </script>
 <link rel="manifest" href="./manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3258,7 +3379,7 @@ function calculateTimeToNextCategory(age, category) {
   // Signup
   const signupBtn = document.getElementById('signupBtn');
   if (signupBtn) signupBtn.addEventListener('click', async function(){
-    const alertEl = document.getElementById('signupAlert');
+    
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
@@ -3272,11 +3393,7 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  const { data, error } = await client.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/index.html' }
-  });
+  const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.href } });
       if (error) showAlert(alertEl, error.message || 'خطا در ثبت نام','danger');
       else {
         showAlert(alertEl,'ثبت نام انجام شد، ایمیل خود را بررسی کنید','success');
@@ -3309,25 +3426,9 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  const { data, error } = await client.auth.resetPasswordForEmail(email,{
-    redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html'
-  });
-      console.debug('resetPasswordForEmail result', { data, error });
-      try {
-        // show a small debug block on the page so it's easier to copy the response when testing
-        let dbg = document.getElementById('recoveryDebug');
-        if (!dbg) {
-          dbg = document.createElement('pre');
-          dbg.id = 'recoveryDebug';
-          dbg.style = 'background:#f7f7f8;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-top:8px;max-height:220px;overflow:auto;font-size:12px';
-          alertEl && alertEl.parentNode && alertEl.parentNode.insertBefore(dbg, alertEl.nextSibling);
-        }
-        dbg.textContent = JSON.stringify({ data, error }, null, 2);
-      } catch(_){ }
+  const { data, error } = await client.auth.resetPasswordForEmail(email, { redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html' });
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
-      else {
-        showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد — صندوق ورودی یا پوشه هرزنامه را بررسی کنید. اگر لینک کار نکرد، مقدار access_token از لینک را کپی کرده و در صفحهٔ بازیابی وارد کنید.','success');
-      }
+      else showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد','success');
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }
   });
 
@@ -3781,15 +3882,8 @@ function saveState() {
   // also attempt to store an online backup of the current profile/state
   try {
     if (typeof backupNow === 'function') {
-      // fire-and-forget; only run backup if user is signed in to avoid 'Not signed in' errors
-      (async ()=>{
-        try {
-          const client = getSupabaseClient(); if (!client) return;
-          const { data: userData } = await client.auth.getUser(); const user = userData?.user;
-          if (!user) return; // not signed in, skip background backup
-          await backupNow();
-        } catch(e) { console.warn('background backup failed', e); }
-      })();
+      // fire-and-forget; update UI status on completion inside backupNow
+      backupNow().catch(e => { console.warn('background backup failed', e); });
     }
   } catch(e){ console.debug('backup call from saveState failed', e); }
 }
@@ -8060,28 +8154,21 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
   updateCategoryReferenceDate();  // اضافه شده اینجا
   if ('serviceWorker' in navigator) {
-    // Only register the service worker if the script actually exists.
-    // This avoids trying to register a missing sw (which can cause 404s)
-    // and avoids having a service worker accidentally cache chrome-extension:// requests.
-    fetch('./sw.js', { method: 'HEAD' }).then(res => {
-      if (!res.ok) throw new Error('sw.js not found');
-      return navigator.serviceWorker.register('./sw.js');
-    }).then(reg => {
-      console.log('Service Worker registered');
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            if (confirm('نسخه جدید موجود است. بروزرسانی کنید؟')) {
-              newWorker.postMessage({ action: 'skipWaiting' });
+    navigator.serviceWorker.register("./sw.js")
+      .then(reg => {
+        console.log('Service Worker registered');
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              if (confirm('نسخه جدید موجود است. بروزرسانی کنید؟')) {
+                newWorker.postMessage({ action: 'skipWaiting' });
+              }
             }
-          }
+          });
         });
-      });
-    }).catch(err => {
-      // Non-fatal: log as warning so devs can inspect but users don't see noisy errors
-      console.warn('Service Worker not registered or unavailable:', err && err.message ? err.message : err);
-    });
+      })
+      .catch(err => console.error('Service Worker registration failed:', err));
   }
 
   // PWA install prompt

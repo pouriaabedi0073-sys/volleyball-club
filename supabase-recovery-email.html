@@ -5,41 +5,50 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>بازیابی رمز عبور</title>
     <style>
-      body{font-family:Tahoma, Arial, sans-serif;direction:rtl;text-align:right;color:#111}
-      .btn{display:inline-block;padding:10px 14px;background:#136a61;color:#fff;border-radius:6px;text-decoration:none}
-      .muted{color:#666;font-size:13px}
-      code{background:#f3f4f6;padding:2px 6px;border-radius:4px}
+      body { font-family: Tahoma, Arial, sans-serif; background:#f6f7f8; color:#111; padding:20px }
+      .card { max-width:640px; margin:18px auto; background:#fff; padding:20px; border-radius:10px; border:1px solid #eceff1 }
+      h1 { font-size:20px; margin:0 0 8px }
+      p { margin:8px 0; color:#333 }
+      a.btn { display:inline-block; background:#0ea5e9; color:#fff; padding:12px 18px; border-radius:8px; text-decoration:none; font-weight:700 }
+      .muted { color:#666; font-size:13px }
+      pre { background:#f3f4f6; padding:10px; border-radius:6px; overflow:auto }
+      .footer { font-size:12px; color:#8a8f95; margin-top:16px }
+      .note { background:#fffbeb; border:1px solid #fde3b7; padding:10px; border-radius:6px; margin-top:12px }
     </style>
   </head>
   <body>
-    <p>سلام،</p>
+    <div class="card">
+      <h1>بازیابی رمز عبور</h1>
 
-    <p>درخواست بازیابی رمز برای حساب شما دریافت شد. برای انتخاب رمز جدید روی دکمهٔ زیر کلیک کنید:</p>
+      <p>سلام،</p>
+      <p>درخواست بازیابی رمز عبور برای حساب <strong>{{ .Email }}</strong> ثبت شده است. برای تنظیم رمز جدید روی دکمهٔ زیر کلیک کنید:</p>
 
-    <p>
-      <!-- Prefer Supabase's ActionLink if provided (safer) -->
-      <a class="btn" href="{{ .ActionLink }}">
-        انتخاب رمز جدید
-      </a>
-    </p>
+      <!-- Primary action: use the full confirmation URL that Supabase provides -->
+      <p style="margin:18px 0;text-align:center">
+        <a class="btn" href="{{ .ConfirmationURL }}">بازنشانی رمز عبور</a>
+      </p>
 
-    <p class="muted">اگر دکمهٔ بالا کار نکرد (یا ایمیل‌سرویس لینک را بازنویسی کرد)، از یکی از لینک‌های پشتیبان زیر استفاده کنید:</p>
-    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">-- Query param fallback (اگر سرویس ایمیل fragment را حذف کند):
-https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html?type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}
+      <p class="muted">اگر دکمه بالا کار نکرد، از لینک مستقیم زیر استفاده کنید یا آن را در مرورگر خود کپی و باز کنید:</p>
+      <pre>{{ .ConfirmationURL }}</pre>
 
--- Fragment fallback (سابق / سازگار با client-side parsers):
-https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}</pre>
+      <div class="note">
+        <strong>راهنمای پشتیبان (در صورت بروز مشکل)</strong>
+        <p class="muted">گاهی‌اوقات توکن‌ها در fragment (بعد از #) فرستاده می‌شوند و برخی سرویس‌دهنده‌ها یا نمایشگر ایمیل آن را حذف می‌کنند. در این حالت می‌توانید از دستورالعمل زیر استفاده کنید:</p>
+        <ul class="muted">
+          <li>توکن بازیابی: <code>{{ .Token }}</code></li>
+          <li>هَش توکن (TokenHash): <code>{{ .TokenHash }}</code></li>
+        </ul>
+        <p class="muted">در صورت مشاهده نکردن توکن در URL، آن را کپی کرده و در صفحهٔ بازنشانی رمز که قبلاً ساختید قرار دهید:</p>
+        <pre>https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html</pre>
+        <p class="muted">مثلاً در پنل بازنشانی رمز، فیلد <code>access_token</code> را با مقدار <code>{{ .Token }}</code> پر کنید و سپس رمز جدید را وارد کنید.</p>
+      </div>
 
-    <p class="muted">اگر هیچ‌یک از لینک‌ها توکن نداشتند، متن زیر را کپی کنید و در صفحهٔ بازیابی به صورت دستی وارد کنید:</p>
-    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">access_token: {{ .AccessToken }}
-refresh_token: {{ .RefreshToken }}</pre>
+      <hr />
+      <p class="muted">این ایمیل از طرف سایت: <a href="{{ .SiteURL }}">{{ .SiteURL }}</a></p>
 
-    <p class="muted">توجه: بعضی سرویس‌های ایمیل (مثلاً وقتی کلیک-تِرکینگ روشن است) لینک‌ها را بازنویسی می‌کنند و fragment را حذف می‌کنند. در این صورت از لینک Query param استفاده کنید یا مطمئن شوید که Redirect URL در Supabase تنظیم شده و از <code>{{ .ActionLink }}</code> استفاده کنید.</p>
-
-    <p class="muted">اگر این درخواست از طرف شما نبوده، این ایمیل را نادیده بگیرید.</p>
-
-    <p class="muted">نکته: اگر لینک دستکاری شد یا توکن‌ها ارسال نشدند، می‌توانید مقدار <code>access_token</code> را از لینک کپی کنید و در صفحهٔ بازیابی به صورت دستی وارد کنید.</p>
-
-    <p>با احترام،<br/>تیم شما</p>
+      <div class="footer">
+        <p>اگر شما این درخواست را نفرستاده‌اید، می‌توانید این ایمیل را نادیده بگیرید. لینک بازیابی پس از مدت کوتاهی منقضی می‌شود.</p>
+      </div>
+    </div>
   </body>
 </html>
