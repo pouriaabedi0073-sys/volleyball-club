@@ -3287,6 +3287,7 @@ function calculateTimeToNextCategory(age, category) {
   const { data, error } = await client.auth.resetPasswordForEmail(email,{
     redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html'
   });
+      console.debug('resetPasswordForEmail result', { data, error });
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
       else {
         showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد — صندوق ورودی یا پوشه هرزنامه را بررسی کنید. اگر لینک کار نکرد، مقدار access_token از لینک را کپی کرده و در صفحهٔ بازیابی وارد کنید.','success');
@@ -3744,8 +3745,15 @@ function saveState() {
   // also attempt to store an online backup of the current profile/state
   try {
     if (typeof backupNow === 'function') {
-      // fire-and-forget; update UI status on completion inside backupNow
-      backupNow().catch(e => { console.warn('background backup failed', e); });
+      // fire-and-forget; only run backup if user is signed in to avoid 'Not signed in' errors
+      (async ()=>{
+        try {
+          const client = getSupabaseClient(); if (!client) return;
+          const { data: userData } = await client.auth.getUser(); const user = userData?.user;
+          if (!user) return; // not signed in, skip background backup
+          await backupNow();
+        } catch(e) { console.warn('background backup failed', e); }
+      })();
     }
   } catch(e){ console.debug('backup call from saveState failed', e); }
 }
@@ -8016,21 +8024,28 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
   updateCategoryReferenceDate();  // اضافه شده اینجا
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register("./sw.js")
-      .then(reg => {
-        console.log('Service Worker registered');
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              if (confirm('نسخه جدید موجود است. بروزرسانی کنید؟')) {
-                newWorker.postMessage({ action: 'skipWaiting' });
-              }
+    // Only register the service worker if the script actually exists.
+    // This avoids trying to register a missing sw (which can cause 404s)
+    // and avoids having a service worker accidentally cache chrome-extension:// requests.
+    fetch('./sw.js', { method: 'HEAD' }).then(res => {
+      if (!res.ok) throw new Error('sw.js not found');
+      return navigator.serviceWorker.register('./sw.js');
+    }).then(reg => {
+      console.log('Service Worker registered');
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            if (confirm('نسخه جدید موجود است. بروزرسانی کنید؟')) {
+              newWorker.postMessage({ action: 'skipWaiting' });
             }
-          });
+          }
         });
-      })
-      .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }).catch(err => {
+      // Non-fatal: log as warning so devs can inspect but users don't see noisy errors
+      console.warn('Service Worker not registered or unavailable:', err && err.message ? err.message : err);
+    });
   }
 
   // PWA install prompt
