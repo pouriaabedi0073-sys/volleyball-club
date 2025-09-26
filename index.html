@@ -3233,7 +3233,7 @@ function calculateTimeToNextCategory(age, category) {
   // Signup
   const signupBtn = document.getElementById('signupBtn');
   if (signupBtn) signupBtn.addEventListener('click', async function(){
-    
+    const alertEl = document.getElementById('signupAlert');
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
@@ -3247,7 +3247,11 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.href } });
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/index.html' }
+  });
       if (error) showAlert(alertEl, error.message || 'خطا در ثبت نام','danger');
       else {
         showAlert(alertEl,'ثبت نام انجام شد، ایمیل خود را بررسی کنید','success');
@@ -3280,9 +3284,13 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  const { data, error } = await client.auth.resetPasswordForEmail(email,{ redirectTo: window.location.href });
+  const { data, error } = await client.auth.resetPasswordForEmail(email,{
+    redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html'
+  });
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
-      else showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد','success');
+      else {
+        showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد — صندوق ورودی یا پوشه هرزنامه را بررسی کنید. اگر لینک کار نکرد، مقدار access_token از لینک را کپی کرده و در صفحهٔ بازیابی وارد کنید.','success');
+      }
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }
   });
 
