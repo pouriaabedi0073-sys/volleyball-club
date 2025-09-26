@@ -17,12 +17,13 @@
     <p>درخواست بازیابی رمز برای حساب شما دریافت شد. برای انتخاب رمز جدید روی دکمهٔ زیر کلیک کنید:</p>
 
     <p>
-      <a class="btn" href="https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}">
+      <!-- Prefer Supabase's ActionLink if provided (safer) -->
+      <a class="btn" href="{{ .ActionLink }}">
         انتخاب رمز جدید
       </a>
     </p>
 
-    <p class="muted">اگر دکمه کار نکرد، این لینک را در مرورگر باز کنید:</p>
+    <p class="muted">اگر دکمهٔ بالا کار نکرد یا سرویس ایمیل لینک کامل را قرار نداد، از لینکِ پشتیبان استفاده کنید:</p>
     <pre style="background:#f7f7f8;padding:10px;border-radius:6px">https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}</pre>
 
     <p class="muted">اگر این درخواست از طرف شما نبوده، این ایمیل را نادیده بگیرید.</p>

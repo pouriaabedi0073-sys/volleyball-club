@@ -12,7 +12,32 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <!-- Ensure Supabase library is loaded early for auth UI -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // Ethereum shim to reduce errors from extension-injected scripts
+  try {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      if (typeof window.ethereum.initializeProvider !== 'function') {
+        window.ethereum.initializeProvider = function(){ console.warn('shim: ethereum.initializeProvider called'); };
+      }
+      if (typeof window.ethereum.setExternalProvider !== 'function') {
+        window.ethereum.setExternalProvider = function(){ console.warn('shim: ethereum.setExternalProvider called'); };
+      }
+    }
+  } catch(e){ console.warn('ethereum shim failed', e); }
+
+  // Try to load UMD bundle; if it fails, try the alternative path
+  (function loadSupabase(){
+    var u = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    var s = document.createElement('script'); s.src = u; s.async = false;
+    s.onerror = function(){
+      console.warn('Supabase UMD failed to load, trying alternative CDN');
+      var u2 = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
+      var s2 = document.createElement('script'); s2.src = u2; s2.async = false;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  })();
+</script>
 <script>
   // Inline Supabase client initialization for embedded auth.
   (function(){

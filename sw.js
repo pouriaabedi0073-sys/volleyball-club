@@ -1,3 +1,26 @@
+// Minimal service worker stub to avoid caching chrome-extension:// requests
+// This SW intentionally does not pre-cache arbitrary assets.
+self.addEventListener('install', (event) => {
+  // Activate immediately
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = event.request && event.request.url;
+  // Ignore non-http(s) schemes (e.g., chrome-extension://)
+  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    return; // let browser handle it
+  }
+  // Default: perform network fetch, no caching behaviour here
+  event.respondWith(fetch(event.request).catch(err => {
+    // network fallback: try to return a generic Response
+    return new Response('', { status: 504, statusText: 'Network error in SW' });
+  }));
+});
 const CACHE_NAME = 'app-cache-v2';
 const PRECACHE_URLS = [
   './',

@@ -1,3 +1,9 @@
+// This file exists so index.html can safely include <script src="sw-register.js"></script>
+// Registration logic for the service worker is handled inline in index.html (guarded),
+// so this file intentionally remains empty. It prevents 404s when loading locally.
+
+// If you want to perform registration from this file instead, move the code from
+// index.html's guarded registration here and remove the inline registration.
 // Fast Service Worker registration for PWABuilder
 (function() {
   if (!('serviceWorker' in navigator)) return;
