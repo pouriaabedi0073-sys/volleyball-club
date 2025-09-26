@@ -3288,6 +3288,17 @@ function calculateTimeToNextCategory(age, category) {
     redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html'
   });
       console.debug('resetPasswordForEmail result', { data, error });
+      try {
+        // show a small debug block on the page so it's easier to copy the response when testing
+        let dbg = document.getElementById('recoveryDebug');
+        if (!dbg) {
+          dbg = document.createElement('pre');
+          dbg.id = 'recoveryDebug';
+          dbg.style = 'background:#f7f7f8;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-top:8px;max-height:220px;overflow:auto;font-size:12px';
+          alertEl && alertEl.parentNode && alertEl.parentNode.insertBefore(dbg, alertEl.nextSibling);
+        }
+        dbg.textContent = JSON.stringify({ data, error }, null, 2);
+      } catch(_){ }
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
       else {
         showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد — صندوق ورودی یا پوشه هرزنامه را بررسی کنید. اگر لینک کار نکرد، مقدار access_token از لینک را کپی کرده و در صفحهٔ بازیابی وارد کنید.','success');
