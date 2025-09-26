@@ -23,8 +23,18 @@
       </a>
     </p>
 
-    <p class="muted">اگر دکمهٔ بالا کار نکرد یا سرویس ایمیل لینک کامل را قرار نداد، از لینکِ پشتیبان استفاده کنید:</p>
-    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}</pre>
+    <p class="muted">اگر دکمهٔ بالا کار نکرد (یا ایمیل‌سرویس لینک را بازنویسی کرد)، از یکی از لینک‌های پشتیبان زیر استفاده کنید:</p>
+    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">-- Query param fallback (اگر سرویس ایمیل fragment را حذف کند):
+https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html?type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}
+
+-- Fragment fallback (سابق / سازگار با client-side parsers):
+https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html#type=recovery&access_token={{ .AccessToken }}&refresh_token={{ .RefreshToken }}</pre>
+
+    <p class="muted">اگر هیچ‌یک از لینک‌ها توکن نداشتند، متن زیر را کپی کنید و در صفحهٔ بازیابی به صورت دستی وارد کنید:</p>
+    <pre style="background:#f7f7f8;padding:10px;border-radius:6px">access_token: {{ .AccessToken }}
+refresh_token: {{ .RefreshToken }}</pre>
+
+    <p class="muted">توجه: بعضی سرویس‌های ایمیل (مثلاً وقتی کلیک-تِرکینگ روشن است) لینک‌ها را بازنویسی می‌کنند و fragment را حذف می‌کنند. در این صورت از لینک Query param استفاده کنید یا مطمئن شوید که Redirect URL در Supabase تنظیم شده و از <code>{{ .ActionLink }}</code> استفاده کنید.</p>
 
     <p class="muted">اگر این درخواست از طرف شما نبوده، این ایمیل را نادیده بگیرید.</p>
 
