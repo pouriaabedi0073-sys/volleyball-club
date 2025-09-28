@@ -1,0 +1,90 @@
+-- Supabase schema for profiles and backups
+
+-- profiles table stores user public profile info
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  first_name text,
+  last_name text,
+  phone text,
+  avatar_url text,
+  updated_at timestamptz default now()
+);
+
+-- backups table stores JSON snapshots per user
+create table if not exists public.backups (
+  id bigserial primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+
+-- enable Row Level Security
+alter table public.profiles enable row level security;
+alter table public.backups enable row level security;
+
+-- profiles RLS: users can select/update their own profile
+-- Create profiles policy only if it doesn't exist
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_self'
+  ) then
+    execute '
+      create policy "profiles_self" on public.profiles
+        for all
+        using ( auth.role() = ''authenticated'' and id = auth.uid() )
+        with check ( auth.role() = ''authenticated'' and id = auth.uid() )
+    ';
+  end if;
+end$$;
+
+-- backups RLS: users can insert/select their own backups
+-- Create backups policy only if it doesn't exist
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='backups' and policyname='backups_self'
+  ) then
+    execute '
+      create policy "backups_self" on public.backups
+        for all
+        using ( auth.role() = ''authenticated'' and user_id = auth.uid() )
+        with check ( auth.role() = ''authenticated'' and user_id = auth.uid() )
+    ';
+  end if;
+end$$;
+
+-- Index for backups by user
+-- Create index for backups by user only if `created_at` exists (idempotent)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='backups' and column_name='created_at'
+  ) then
+    execute 'create index if not exists backups_user_idx on public.backups (user_id, created_at desc)';
+  end if;
+end$$;
+
+-- Function to create profile on auth.user sign up (trigger)
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  -- Use the email column if present, otherwise try raw_user_meta_data
+  insert into public.profiles (id, email, updated_at)
+  values (new.id, coalesce(new.email, (new.raw_user_meta_data->>'email') ), now())
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Create trigger only if it doesn't exist to avoid duplicate trigger errors
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'on_auth_user_created') then
+    execute 'create trigger on_auth_user_created
+      after insert on auth.users
+      for each row execute procedure public.handle_new_user()';
+  end if;
+end$$;
