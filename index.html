@@ -419,6 +419,25 @@
   .inline-spinner.running::after { animation: dot 1s infinite ease-in-out 0.3s; }
   .inline-spinner.running { visibility:visible; opacity:1; }
   @keyframes dot { 0%,80%,100% { transform: translateY(0); opacity:0.3; } 40% { transform: translateY(-6px); opacity:1; } }
+  /* Make account action buttons horizontal and responsive */
+  #accountProfileContainer .card > div > div:last-child { display:flex; gap:8px; align-items:center; }
+  #accountProfileContainer .card > div > div:last-child button { min-width:90px; }
+  @media (max-width:320px) {
+    .auth-form-container { padding:8px !important; }
+    .form-tabs { gap:6px !important; }
+    #embeddedAuthBox { padding:6px !important; }
+    .form-content .form-group label { font-size:13px; }
+    .form-content .form-control { font-size:14px; }
+    #accountProfileContainer .card > div > div:last-child { flex-direction:row; gap:6px; }
+  }
+  /* Stack avatar above info and show action buttons in one row on small screens */
+  @media (max-width:480px) {
+    #accountProfileContainer .card > div { flex-direction: column !important; align-items: center; }
+    #accountProfileContainer img#accountAvatar { width:96px !important; height:96px !important; margin-bottom:8px; }
+    #accountProfileContainer .card > div > div:first-of-type { width:100%; text-align:center; }
+    #accountProfileContainer .card > div > div:last-child { flex-direction:row !important; width:100%; justify-content:center; margin-top:10px; }
+    #accountProfileContainer .card > div > div:last-child button { flex:1 1 auto; min-width:0; }
+  }
   .btn {
   background: var(--card);
   border: 1px solid rgba(0,0,0,0.06);
@@ -2629,13 +2648,19 @@ async function renderShareCanvasFromData(m, opts = {}) {
                  <div class="form-group"><label for="signupEmail">ایمیل</label><input list="recentEmails" type="email" id="signupEmail" class="form-control" placeholder="ایمیل خود را وارد کنید"></div>
                  <div class="form-group"><label for="signupPassword">رمز عبور</label><input type="password" id="signupPassword" class="form-control" placeholder="رمز عبور خود را وارد کنید"></div>
                  <div class="form-group"><label for="confirmPassword">تکرار رمز عبور</label><input type="password" id="confirmPassword" class="form-control" placeholder="رمز عبور خود را تکرار کنید"></div>
-                 <button id="signupBtn" class="btn primary" style="width:100%;margin-top:8px;">ثبت نام</button>
+                 <button id="signupBtn" class="btn primary" style="width:100%;margin-top:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
+                   <span class="inline-spinner" aria-hidden="true" style="width:18px;height:18px;border-radius:50%;"></span>
+                   <span class="signup-label">ثبت نام</span>
+                 </button>
                </div>
 
                <div id="recoveryFormEmbedded" class="form-content">
                  <div id="recoveryAlert" class="alert"></div>
                  <div class="form-group"><label for="recoveryEmail">ایمیل</label><input type="email" id="recoveryEmail" class="form-control" placeholder="ایمیل خود را وارد کنید"></div>
-                 <button id="recoveryBtn" class="btn primary" style="width:100%;margin-top:8px;">ارسال لینک بازیابی</button>
+                 <button id="recoveryBtn" class="btn primary" style="width:100%;margin-top:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
+                   <span class="inline-spinner" aria-hidden="true" style="width:18px;height:18px;border-radius:50%;"></span>
+                   <span class="recovery-label">ارسال لینک بازیابی</span>
+                 </button>
                </div>
              </div>
            </div>
@@ -2789,6 +2814,22 @@ function on(sel, evt, fn, root = document) {
 
 function qsa(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 function uid(prefix) { return (prefix || 'id') + '_' + Date.now() + '_' + Math.floor(Math.random() * 900); }
+// Persistent device identifier (used for backups/devices registration)
+function getDeviceId() {
+  try {
+    const key = 'vb_device_id_v1';
+    let did = localStorage.getItem(key);
+    if (!did) {
+      // use a stable uuid-like value (not RFC4122) but good enough for client id
+      did = 'dev_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+      localStorage.setItem(key, did);
+    }
+    return did;
+  } catch (e) { return 'dev_unknown'; }
+}
+function getDeviceName() {
+  try { return localStorage.getItem('vb_device_name') || (navigator.userAgent || 'unknown'); } catch(e){ return 'unknown'; }
+}
 function escapeHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
 // Map internal kind keys to Persian display labels
 function mapKindToPersian(kind) {
@@ -3252,7 +3293,9 @@ function calculateTimeToNextCategory(age, category) {
 ;(function(){
   // fallbacks for showAlert / showLoading if not defined in scope yet
   function _showAlert(el, msg, type){
-    if (!el) return; el.textContent = msg; el.className = 'alert alert-' + type; el.style.display = 'block'; setTimeout(()=>el.style.display='none',5000);
+    if (!el) return; el.textContent = msg; el.className = 'alert alert-' + type; el.style.display = 'block';
+    // longer display time (8s)
+    setTimeout(()=>el.style.display='none',8000);
   }
   function _showLoading(el, show){ if (!el) return; el.style.display = show ? 'block' : 'none'; }
 
@@ -3338,7 +3381,9 @@ function calculateTimeToNextCategory(age, category) {
           if (window.loadProfile) await window.loadProfile(data.user);
           // Hide only the auth forms (keep account/profile card visible)
           try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
-          try { if (typeof backupNow === 'function') backupNow().catch(e=>console.warn('post-login sync failed',e)); } catch(_){ }
+          // automatic background backup disabled to avoid unexpected POST errors
+          // (call backupNow manually via the "همگام‌سازی الآن" button)
+          try { console.debug('post-login sync skipped (automatic backup disabled)'); } catch(_){ }
         } catch(e) { console.warn('post-login show profile failed', e); }
       }
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }
@@ -3371,6 +3416,7 @@ function calculateTimeToNextCategory(age, category) {
   // Signup
   const signupBtn = document.getElementById('signupBtn');
   if (signupBtn) signupBtn.addEventListener('click', async function(){
+    const alertEl = document.getElementById('signupAlert');
     
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
@@ -3382,26 +3428,46 @@ function calculateTimeToNextCategory(age, category) {
     TA.querySelector('[data-tab="signup"]').classList.add('active');
     ['loginFormEmbedded','signupFormEmbedded','recoveryFormEmbedded'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('active'); });
     document.getElementById('signupFormEmbedded').classList.add('active');
+    // start spinner and disable
+    const spinner = signupBtn.querySelector('.inline-spinner'); if (spinner) spinner.classList.add('running'); signupBtn.disabled = true;
     try {
   const client = getSupabaseClient();
-  if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
+  if (!client) { setEmbeddedStatus(false); if (spinner) spinner.classList.remove('running'); signupBtn.disabled = false; return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
   const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.href } });
       if (error) showAlert(alertEl, error.message || 'خطا در ثبت نام','danger');
       else {
         showAlert(alertEl,'ثبت نام انجام شد، ایمیل خود را بررسی کنید','success');
-        // If Supabase returned an authenticated user (depends on project settings), show profile immediately
+        // If Supabase returned an authenticated user (depends on project settings), show profile or instruct to verify
         try {
           if (data && data.user) {
-            try { addRecentEmail(email); } catch(_){}
+            try { addRecentEmail(email); } catch(_){ }
+            // check for common confirmation flags on the returned user object
+            const u = data.user || {};
+            const isConfirmed = Boolean(u.confirmed_at || u.email_confirmed_at || u.email_confirmed);
+            // hide auth forms
             try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
-            try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(_){ }
-            try { if (typeof backupNow === 'function') backupNow().catch(e=>console.warn('post-signup sync failed',e)); } catch(_){}
-            if (window.loadProfile) await window.loadProfile(data.user);
-            try { const f = document.getElementById('profileFirst'); if (f) f.focus(); } catch(_){ }
+            const pc = document.getElementById('accountProfileContainer');
+            if (pc) pc.style.display = 'block';
+            if (!isConfirmed) {
+              // show a verification prompt instead of editable profile
+              try { document.getElementById('accountName').textContent = 'لطفاً ایمیل خود را تأیید کنید'; } catch(_){ }
+              try { document.getElementById('accountEmail').textContent = email || ''; } catch(_){ }
+              // hide edit/save/backup buttons to avoid editing before confirmation
+              try { document.getElementById('editProfileToggle').style.display = 'none'; } catch(_){ }
+              try { document.getElementById('logoutBtn').style.display = 'inline-block'; } catch(_){ }
+              try { document.getElementById('backupNowBtn').style.display = 'none'; } catch(_){ }
+            } else {
+              // confirmed - load profile and show editable UI
+              // automatic post-signup backup disabled to avoid unexpected POST errors
+              try { console.debug('post-signup sync skipped (automatic backup disabled)'); } catch(_){ }
+              if (window.loadProfile) await window.loadProfile(data.user);
+              try { const f = document.getElementById('profileFirst'); if (f) f.focus(); } catch(_){ }
+            }
           }
         } catch(e) { console.warn('post-signup show profile failed', e); }
       }
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }
+    finally { if (spinner) spinner.classList.remove('running'); signupBtn.disabled = false; }
   });
 
   // Recovery
@@ -3415,13 +3481,16 @@ function calculateTimeToNextCategory(age, category) {
     TA.querySelector('[data-tab="recovery"]').classList.add('active');
     ['loginFormEmbedded','signupFormEmbedded','recoveryFormEmbedded'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.remove('active'); });
     document.getElementById('recoveryFormEmbedded').classList.add('active');
+    // start spinner and disable
+    const rspinner = recoveryBtn.querySelector('.inline-spinner'); if (rspinner) rspinner.classList.add('running'); recoveryBtn.disabled = true;
     try {
   const client = getSupabaseClient();
-  if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
+  if (!client) { setEmbeddedStatus(false); if (rspinner) rspinner.classList.remove('running'); recoveryBtn.disabled = false; return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
   const { data, error } = await client.auth.resetPasswordForEmail(email, { redirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html' });
       if (error) showAlert(alertEl, error.message || 'خطا در درخواست','danger');
       else showAlert(alertEl,'لینک بازیابی به ایمیل شما ارسال شد','success');
     } catch(e){ showAlert(alertEl,'خطا در ارتباط','danger'); }
+    finally { if (rspinner) rspinner.classList.remove('running'); recoveryBtn.disabled = false; }
   });
 
   // reflect connection status if global function exists
@@ -3466,6 +3535,7 @@ function calculateTimeToNextCategory(age, category) {
       }
       // fetch profile row (first try selecting known columns)
       let profile = null;
+      let fetchFailed = false; // track whether profile fetch ultimately failed
       try {
         const res = await client.from('profiles').select('first_name,last_name,phone,avatar_url,email').eq('id', user.id).maybeSingle();
         console.debug('profiles select result:', res);
@@ -3483,6 +3553,7 @@ function calculateTimeToNextCategory(age, category) {
         } catch (err2) {
           console.warn('Fallback profile fetch also failed:', err2 && (err2.message || err2));
           console.debug('fallback detailed error object:', err2);
+          fetchFailed = true;
           try { const pm = document.getElementById('profileMsg'); if (pm) pm.textContent = 'پروفایل یافت نشد یا بازیابی نشد (خطای شبکه/پیکربندی)'; } catch(_){}
         }
       }
@@ -3516,10 +3587,11 @@ function calculateTimeToNextCategory(age, category) {
           }
         } catch (uerr) {
           console.warn('Auto-upsert profile failed:', uerr && (uerr.message || uerr));
+          fetchFailed = true;
         }
       }
-    // keep edit box closed by default; user toggles it with Edit button
-  try { const pe = document.getElementById('profileEditBox'); if (pe) pe.style.display = 'none'; } catch(_){ }
+    // Do not forcibly close the edit box here; let the user control it via the Edit button
+    // (previous behavior hid the box which could interfere with the Edit button UX)
     } catch (e) {
       console.error('loadProfile failed', e);
     }
@@ -3537,6 +3609,52 @@ function calculateTimeToNextCategory(age, category) {
       try { if (typeof backupNow === 'function') await backupNow(); } catch(e){ console.warn('backupNow failed', e); }
     });
   } catch(e){ console.warn('profile edit wiring failed', e); }
+
+  // Edit profile toggle: show the edit box and ensure fields are populated
+  try {
+    const editToggle = document.getElementById('editProfileToggle');
+    if (editToggle) editToggle.addEventListener('click', async function(){
+      try {
+        const pe = document.getElementById('profileEditBox');
+        if (!pe) { console.debug('edit toggle clicked but #profileEditBox not found'); return; }
+        const curr = window.getComputedStyle(pe).display;
+        console.debug('edit toggle clicked; current display:', curr);
+        if (curr === 'none' || curr === '') {
+          // open — apply robust inline styles to ensure visibility
+          pe.style.display = 'block';
+          try {
+            pe.style.visibility = 'visible'; pe.style.opacity = '1'; pe.style.zIndex = '9999';
+            if (!document.getElementById('forceOpenProfileEditStyle')) {
+              const s = document.createElement('style');
+              s.id = 'forceOpenProfileEditStyle';
+              s.textContent = '#profileEditBox.force-open{ display:block !important; visibility:visible !important; opacity:1 !important; z-index:9999 !important; position:relative !important; }';
+              (document.head || document.documentElement).appendChild(s);
+            }
+            pe.classList.add('force-open');
+            try {
+              // temporary highlight to make the box obvious during debugging
+              pe.style.outline = '3px solid rgba(220,20,60,0.9)';
+              pe.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
+              const prevBg = pe.style.backgroundColor;
+              pe.style.backgroundColor = 'rgba(255,250,240,0.95)';
+              setTimeout(()=>{
+                try { pe.style.outline = ''; pe.style.boxShadow = ''; pe.style.backgroundColor = prevBg; } catch(_){ }
+              }, 4000);
+            } catch(_){ }
+          } catch(_){ }
+          try { if (typeof window.loadProfile === 'function') await window.loadProfile(); } catch(e){ console.warn('loadProfile on edit toggle failed', e); }
+          try { const rect = pe.getBoundingClientRect(); console.debug('profileEditBox rect after open:', rect); } catch(_){ }
+          try { pe.scrollIntoView({behavior:'smooth', block:'start'}); } catch(_){ }
+          try { setTimeout(()=>{ const f = document.getElementById('profileFirst'); if (f) f.focus(); }, 120); } catch(_){ }
+          console.debug('profileEditBox opened');
+        } else {
+          // close
+          try { pe.style.display = 'none'; pe.style.visibility = 'hidden'; pe.classList.remove('force-open'); } catch(_){ }
+          console.debug('profileEditBox closed');
+        }
+      } catch(e) { console.warn('edit toggle handler failed', e); }
+    });
+  } catch(e){ console.warn('editProfileToggle wiring failed', e); }
 
   // Logout wiring
   const logoutBtn = document.getElementById('logoutBtn');
@@ -3729,23 +3847,32 @@ function imageFileToDataURL(file, maxKB) {
             }
           }
         } catch(e) { /* ignore */ }
-        // Try upsert on user_id (requires a unique constraint on backups.user_id in DB)
+        // Safer flow: attempt to update an existing backup row, otherwise insert a new one.
+        const deviceId = getDeviceId();
+        const deviceName = getDeviceName();
+        const nowIso = new Date().toISOString();
         try {
-          const up = await client.from('backups').upsert({ user_id: user.id, data: snapshot, created_at: new Date().toISOString() }, { onConflict: 'user_id', returning: 'representation' });
-          if (up && !up.error) {
+          const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
+          console.debug('backup update result:', updated);
+          if (updated && !updated.error && updated.data && updated.data.length > 0) {
             try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی به‌روز شد'; } catch(_){ }
             try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
-            return up.data;
+            return updated.data;
           }
-        } catch (upErr) {
-          console.debug('upsert by user_id failed or not supported (will fallback):', upErr);
+        } catch (updErr) {
+          console.debug('backup update failed (will try insert):', updErr);
         }
-        // Fallback: delete previous backup for user and insert new one (works without DB unique constraint)
+        // If update didn't apply, insert a new backup record (safe fallback)
         try {
-          await client.from('backups').delete().eq('user_id', user.id);
-        } catch (delErr) { console.debug('fallback: delete previous backups failed', delErr); }
-        const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, created_at: new Date().toISOString() }]);
-        if (ins && ins.error) throw ins.error;
+          const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
+          if (ins && ins.error) throw ins.error;
+          try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی انجام شد'; } catch(_){ }
+          try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
+          return ins.data;
+        } catch (insErr) {
+          console.debug('backup insert failed:', insErr);
+          throw insErr;
+        }
   try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی انجام شد'; } catch(_){ }
         try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
         return ins.data;
@@ -3761,12 +3888,18 @@ function imageFileToDataURL(file, maxKB) {
   (function(){
     try {
       const toggle = document.getElementById('editProfileToggle');
-      if (toggle) toggle.addEventListener('click', function(){
+      if (toggle) toggle.addEventListener('click', async function(){
         try {
           const pe = document.getElementById('profileEditBox');
-          if (!pe) return;
-          pe.style.display = (pe.style.display === 'block') ? 'none' : 'block';
-          if (pe.style.display === 'block') pe.scrollIntoView({behavior:'smooth', block:'start'});
+          if (!pe) { console.debug('edit toggle clicked but #profileEditBox not found'); return; }
+          const curr = window.getComputedStyle(pe).display;
+          if (curr === 'none' || curr === '') {
+            pe.style.display = 'block';
+            try { if (typeof window.loadProfile === 'function') await window.loadProfile(); } catch(e){ console.warn('loadProfile on edit toggle failed', e); }
+            try { pe.scrollIntoView({behavior:'smooth', block:'start'}); } catch(_){ }
+          } else {
+            pe.style.display = 'none';
+          }
         } catch(e){ console.warn('toggle edit failed', e); }
       });
     } catch(e) { /* ignore */ }

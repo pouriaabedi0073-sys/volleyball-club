@@ -67,6 +67,86 @@ begin
   end if;
 end$$;
 
+-- Add device_id, operation, revision, updated_at to backups for multi-device sync metadata
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='backups' and column_name='device_id'
+  ) then
+    execute 'alter table public.backups add column device_id text';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='backups' and column_name='operation'
+  ) then
+    execute 'alter table public.backups add column operation text default ''sync''';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='backups' and column_name='revision'
+  ) then
+    execute 'alter table public.backups add column revision bigint default 1';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='backups' and column_name='updated_at'
+  ) then
+    execute 'alter table public.backups add column updated_at timestamptz default now()';
+  end if;
+end$$;
+
+-- Create devices table for tracking client devices
+create table if not exists public.devices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  device_id text not null,
+  device_name text,
+  last_seen timestamptz default now()
+);
+
+alter table public.devices enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='devices' and policyname='devices_self'
+  ) then
+    execute '
+      create policy "devices_self" on public.devices
+        for all
+        using ( auth.role() = ''authenticated'' and user_id = auth.uid() )
+        with check ( auth.role() = ''authenticated'' and user_id = auth.uid() )
+    ';
+  end if;
+end$$;
+
+-- Create a simple notes table for app data sync
+create table if not exists public.notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  device_id text,
+  content text,
+  revision bigint default 1,
+  updated_at timestamptz default now()
+);
+
+alter table public.notes enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='notes' and policyname='notes_self'
+  ) then
+    execute '
+      create policy "notes_self" on public.notes
+        for all
+        using ( auth.uid() = user_id )
+        with check ( auth.uid() = user_id )
+    ';
+  end if;
+end$$;
+
 -- Function to create profile on auth.user sign up (trigger)
 create or replace function public.handle_new_user()
 returns trigger as $$
