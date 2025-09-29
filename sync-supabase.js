@@ -15,7 +15,13 @@
     return new Promise((resolve, reject) => {
       const t0 = Date.now();
       function check() {
-        if (window.supabase && typeof window.supabase.createClient === 'function') return resolve(window.supabase);
+        // support both the UMD library (which exposes createClient) and the already-created client
+        if (window.supabase) {
+          // if it's the library bundle
+          if (typeof window.supabase.createClient === 'function') return resolve(window.supabase);
+          // if it's already a client instance (has auth/from methods)
+          if (window.supabase.auth && typeof window.supabase.auth.getUser === 'function') return resolve(window.supabase);
+        }
         if (Date.now() - t0 > timeout) return reject(new Error('Supabase client not available'));
         setTimeout(check, 200);
       }

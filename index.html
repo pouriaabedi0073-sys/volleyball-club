@@ -3504,6 +3504,14 @@ function calculateTimeToNextCategory(age, category) {
     catch(_){}
   }
 
+  // If supabaseSync exists, initialize it for the app's primary table (notes) once client is ready
+  try {
+    const client = getSupabaseClient();
+    if (client && window.supabaseSync && typeof window.supabaseSync.init === 'function') {
+      try { window.supabaseSync._ctx.supabase = client; window.supabaseSync.init({ table: 'notes', key: 'id' }); } catch(e) { console.warn('init supabaseSync failed', e); }
+    }
+  } catch(e) {}
+
   // Global listener: when realtime events arrive via supabaseSync, mark backup icon green
   try {
     window.addEventListener('supabase:realtime', (e) => {
@@ -3645,13 +3653,27 @@ function calculateTimeToNextCategory(age, category) {
               // Try to read last_sync_payload from profiles (conservative single-table approach)
               const res = await client.from('profiles').select('last_sync_payload,last_sync_at,last_sync_device').eq('id', user.id).maybeSingle();
               if (res.error) throw res.error;
-              const payload = res.data && res.data.last_sync_payload;
+              let payload = res.data && res.data.last_sync_payload;
+              if (!payload) {
+                // fallback: try backups table (most recent for this user)
+                try {
+                  const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+                  if (bres && !bres.error && bres.data && bres.data.data) {
+                    payload = bres.data.data;
+                    // update lastSyncLine with backup info
+                    try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
+                  }
+                } catch(be) { console.warn('backup fallback read failed', be); }
+              }
               if (!payload) return alert('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد');
               // Expect payload to be an array of rows or object keyed by table
               let parsed = null;
               try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
               // If parsed is an object with tables, merge each row using supabaseSync.mergeRow
-              if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
+              // ensure supabaseSync exists or wait a short while
+              const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
+              const ok = await waitForSyncModule();
+              if (ok && window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
                 // support either { table: [rows] } or [ {table,row}, ... ]
                 if (Array.isArray(parsed)) {
                   parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(_){} });
