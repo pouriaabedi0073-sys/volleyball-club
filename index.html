@@ -860,6 +860,9 @@
     height: 100%;
     object-fit: cover;
   }
+  /* placeholder avatar when photo is missing: an inner gray circle sized to match thumb */
+  .avatar-placeholder-outer { width: 52px; height: 52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background: transparent }
+  .avatar-placeholder-inner { width: 44px; height: 44px; border-radius:50%; background:#e2e8f0 }
   .meta {
     flex: 1;
     min-width: 0;
@@ -883,8 +886,8 @@
   @media (min-width: 480px) {
     .list-thumb { width: 112px; height: 112px; flex: 0 0 112px; }
   }
-  /* place action buttons as two columns under meta on players list */
-  .player-row .action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; width: 100%; }
+  /* place action buttons side-by-side (inline) in coaches/player rows */
+  .player-row .action-buttons { display: flex; gap: 8px; align-items: center; }
   .badge {
     background: var(--accent);
     color: var(--text-inverse);
@@ -1773,6 +1776,44 @@ section:not(#view-home) {
 #shareCard .share-controls > * { flex:1 1 auto; }
 #shareCard .no-capture { visibility:visible; }
 
+/* Highlighted boxes: used on payments and sessions pages to make form areas
+   more prominent and easier to spot. Adjusts border, shadow and spacing. */
+.highlight-box {
+  border: 2px solid var(--accent);
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
+  box-shadow: 0 8px 20px rgba(10,20,30,0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.highlight-box:active, .highlight-box:focus-within {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(10,20,30,0.12);
+}
+/* Slightly wider and anchored on payments page */
+#view-payments .highlight-box {
+  max-width: 1100px; /* a bit wider to match other form areas */
+  margin: 8px auto;
+  border-left: 6px solid var(--accent);
+}
+@media (max-width: 900px) {
+  #view-payments .highlight-box { max-width: calc(100% - 28px); margin: 8px 14px; }
+}
+/* Slight visual difference for sessions area */
+#view-sessions .highlight-box {
+  border-style: solid;
+  border-color: rgba(99,102,241,0.95);
+  background: linear-gradient(90deg, rgba(99,102,241,0.04), rgba(255,255,255,0.02));
+}
+
+/* Make form controls inside highlight-box stretch to available width */
+.highlight-box .input, .highlight-box input, .highlight-box select, .highlight-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+</style>
+
 </style>
 <script>
 // Deterministic canvas renderer: draws the share card to a canvas and returns a PNG Blob
@@ -2167,7 +2208,7 @@ async function renderShareCanvasFromData(m, opts = {}) {
 
           <div id="tabManageSessionsPanel">
             <div class="topbar">
-              <div style="border:1px dashed rgba(0,0,0,0.08);padding:10px;border-radius:8px;">
+              <div class="highlight-box" style="padding:10px;">
                 <div style="font-weight:700;margin-bottom:8px;">ایجاد جلسه جدید</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                   <input id="sessionTitle" class="input" placeholder="عنوان جلسه (اختیاری)" />
@@ -2186,7 +2227,7 @@ async function renderShareCanvasFromData(m, opts = {}) {
               <div style="font-weight:700;margin-bottom:6px;">برنامهٔ تمرینات آینده</div>
             </div>
             <div style="margin-bottom:8px;">
-              <div style="border:1px dashed rgba(0,0,0,0.08);padding:12px;border-radius:8px;display:flex;flex-direction:column;gap:8px;">
+              <div class="highlight-box" style="display:flex;flex-direction:column;gap:8px;">
                 <div style="font-weight:700;margin-bottom:4px;">یادداشت برنامهٔ تمرین</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <input id="planTitle" class="input" placeholder="عنوان تمرین" style="flex:1;min-width:180px;" />
@@ -2329,7 +2370,7 @@ async function renderShareCanvasFromData(m, opts = {}) {
         </div>
         <div class="card">
           <div style="display: grid; gap: 12px; margin-top: 12px;">
-            <div style="border:1px solid rgba(0,0,0,0.06);padding:12px;border-radius:8px;background:var(--card);">
+            <div class="highlight-box">
               <div style="display:flex;flex-direction:column;gap:8px;">
                 <input id="paymentPlayerSearch" class="input" placeholder="جستجوی بازیکن..." />
                 <select id="paymentPlayer" class="input"><option value="">انتخاب بازیکن</option></select>
@@ -2350,7 +2391,7 @@ async function renderShareCanvasFromData(m, opts = {}) {
               </div>
             </div>
             <hr style="margin: 12px 0;" />
-            <div style="border:1px solid rgba(0,0,0,0.06);padding:12px;border-radius:8px;background:var(--card);display:flex;gap:8px;">
+            <div class="highlight-box" style="display:flex;gap:8px;">
               <button id="showDebtorsBtn" class="btn warning">نمایش بدهکاران آخرین دوره</button>
               <button id="reportPaymentsBtn" class="btn">گزارش پرداخت</button>
             </div>
@@ -4517,36 +4558,44 @@ function openMatchForm(editId) {
   const backBtn = qs('#backFromMatchEdit'); if (backBtn) { backBtn.onclick = ()=> showView('competitions'); }
   // save handler — collect fields and persist
   const saveBtnEl = qs('#saveMatchBtn'); if (saveBtnEl) {
-    saveBtnEl.addEventListener('click', (ev)=>{ try { ev.preventDefault();
-  obj.teamA = qs('#formTeamA').value.trim(); obj.teamB = qs('#formTeamB').value.trim(); obj.date = qs('#formDate').value.trim(); obj.time = qs('#formTime').value.trim(); obj.venue = qs('#formVenue').value.trim();
-  // status from radios
-  obj.status = (qs('#statusFinished') && qs('#statusFinished').checked) ? 'finished' : 'scheduled';
-  // kind/type from radios
-  let selType = null; typeIds.forEach(tid => { const e = qs('#'+tid); if (e && e.checked) selType = e.value || tid.replace('type','').toLowerCase(); });
-  if (!selType) { alert('لطفا نوع مسابقه را انتخاب کنید'); return; }
-  obj.kind = selType;
-  // hashtag
-  const hashtagInput = qs('#formHashtag'); if (hashtagInput) obj.hashtag = hashtagInput.value.trim().replace(/^#+/,'');
-  // logos: if user uploaded a file we stored a dataURL in the input; otherwise fallback to entered URL or defaults
-  obj.logoA = (qs('#formTeamALogo') && qs('#formTeamALogo').value.trim()) || defaultLogo;
-  obj.logoB = (qs('#formTeamBLogo') && qs('#formTeamBLogo').value.trim()) || '';
-    obj.notes = qs('#formNotes').value.trim();
-    obj.rules = qs('#formRules').value.trim();
-    obj.contact = qs('#formContact').value.trim();
-      // collect static sets 1..5
-      const newSets = [];
-      for (let i=1;i<=5;i++) {
-        const a = qs(`#formAset${i}`).value.trim(); const b = qs(`#formBset${i}`).value.trim();
-        if (a === '' && b === '') continue;
-        newSets.push([ a === '' ? null : Number(a), b === '' ? null : Number(b) ]);
-      }
-      obj.sets = newSets;
-      if (!obj.teamA || !obj.teamB) { alert('نام هر دو تیم لازم است'); return; }
-  if (isEdit) { let idx = state.competitions.findIndex(x=>x.id===editId); if (idx!==-1) state.competitions[idx]=obj; }
-      else state.competitions.unshift(obj);
-  // update hashtags datalist after save
-  try { const list = qs('#hashtagsList'); if (list && obj.hashtag) { const exists = Array.from(list.children).some(o=>o.value===obj.hashtag); if (!exists) { const o = document.createElement('option'); o.value = obj.hashtag; list.appendChild(o); } } } catch(e){}
-      saveState(); showView('competitions'); renderMatchesList(); } catch(err) { console.error('saveMatch failed', err); alert('خطا هنگام ذخیره مسابقه — کنسول را بررسی کنید.'); } }, false);
+    // overwrite any previous handlers and prevent double-submit by disabling the button during save
+    saveBtnEl.onclick = async function(ev) {
+      try {
+        ev.preventDefault();
+        // disable to avoid duplicate clicks
+        saveBtnEl.disabled = true;
+        obj.teamA = qs('#formTeamA').value.trim(); obj.teamB = qs('#formTeamB').value.trim(); obj.date = qs('#formDate').value.trim(); obj.time = qs('#formTime').value.trim(); obj.venue = qs('#formVenue').value.trim();
+        // status from radios
+        obj.status = (qs('#statusFinished') && qs('#statusFinished').checked) ? 'finished' : 'scheduled';
+        // kind/type from radios
+        let selType = null; typeIds.forEach(tid => { const e = qs('#'+tid); if (e && e.checked) selType = e.value || tid.replace('type','').toLowerCase(); });
+        if (!selType) { alert('لطفا نوع مسابقه را انتخاب کنید'); saveBtnEl.disabled = false; return; }
+        obj.kind = selType;
+        // hashtag
+        const hashtagInput = qs('#formHashtag'); if (hashtagInput) obj.hashtag = hashtagInput.value.trim().replace(/^#+/,'');
+        // logos: if user uploaded a file we stored a dataURL in the input; otherwise fallback to entered URL or defaults
+        obj.logoA = (qs('#formTeamALogo') && qs('#formTeamALogo').value.trim()) || defaultLogo;
+        obj.logoB = (qs('#formTeamBLogo') && qs('#formTeamBLogo').value.trim()) || '';
+        obj.notes = qs('#formNotes').value.trim();
+        obj.rules = qs('#formRules').value.trim();
+        obj.contact = qs('#formContact').value.trim();
+        // collect static sets 1..5
+        const newSets = [];
+        for (let i=1;i<=5;i++) {
+          const a = qs(`#formAset${i}`).value.trim(); const b = qs(`#formBset${i}`).value.trim();
+          if (a === '' && b === '') continue;
+          newSets.push([ a === '' ? null : Number(a), b === '' ? null : Number(b) ]);
+        }
+        obj.sets = newSets;
+        if (!obj.teamA || !obj.teamB) { alert('نام هر دو تیم لازم است'); saveBtnEl.disabled = false; return; }
+        if (isEdit) { let idx = state.competitions.findIndex(x=>x.id===editId); if (idx!==-1) state.competitions[idx]=obj; }
+        else state.competitions.unshift(obj);
+        // update hashtags datalist after save
+        try { const list = qs('#hashtagsList'); if (list && obj.hashtag) { const exists = Array.from(list.children).some(o=>o.value===obj.hashtag); if (!exists) { const o = document.createElement('option'); o.value = obj.hashtag; list.appendChild(o); } } } catch(e){}
+        saveState(); showView('competitions'); renderMatchesList();
+      } catch(err) { console.error('saveMatch failed', err); alert('خطا هنگام ذخیره مسابقه — کنسول را بررسی کنید.'); }
+      finally { try { saveBtnEl.disabled = false; } catch(_){} }
+    };
   }
 }
 
@@ -5771,12 +5820,18 @@ function renderCoaches() {
   state.coaches.forEach(c => {
     let node = document.createElement('div');
     node.className = 'player-row';
-    let imgHtml = c.photo ? `<img src="${c.photo}">` : `<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>`;
+    // use a larger placeholder circle to match the white outer thumb container
+    let imgHtml = c.photo ? `<img src="${c.photo}">` : `
+      <div class="avatar-placeholder-outer">
+        <div class="avatar-placeholder-inner"></div>
+      </div>`;
     node.innerHTML = `
       <div class="player-thumb">${imgHtml}</div>
       <div class="meta"><strong>${escapeHtml(c.name)}</strong><small>${c.title || '—'} • ${c.phone || '—'}</small></div>
-      <button class="btn small edit-coach">ویرایش</button>
-      <button class="btn small danger del-coach">حذف</button>
+      <div class="coach-actions">
+        <button class="btn small edit-coach">ویرایش</button>
+        <button class="btn small danger del-coach">حذف</button>
+      </div>
     `;
     node.querySelector('.edit-coach').addEventListener('click', () => showView('coach-form', {coach: c}));
     node.querySelector('.del-coach').addEventListener('click', () => {
@@ -7953,9 +8008,8 @@ function renderSettings() {
   </div>
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
   <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:6px;">
-    <button id="backupBtnInSettings" class="btn">ذخیره بک آپ در دستگاه</button>
-    <button id="shareBackupBtn" class="btn">اشتراک‌گذاری بک آپ</button>
-    <button id="restoreBtnInSettings" class="btn">وارد کردن بک‌آپ (ZIP/JSON)</button>
+  <button id="backupBtnInSettings" class="btn">ذخیره بک آپ در دستگاه</button>
+  <button id="restoreBtnInSettings" class="btn">وارد کردن بک‌آپ (ZIP/JSON)</button>
     <button id="clearAllData" class="btn danger">پاک کردن تمام داده‌ها</button>
   </div>
   <div class="form-actions" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
@@ -8038,65 +8092,7 @@ function renderSettings() {
     }
   });
 
-  // Share backup: create zip and call navigator.share if available, fallback to download
-  on('#shareBackupBtn', 'click', async () => {
-    try {
-      const zip = new JSZip();
-      zip.file('volleyball_backup.json', JSON.stringify(state, null, 2));
-      const imgFolder = zip.folder('player_images');
-      const imgs = [...new Set((state.players || []).map(p => p.photo).filter(Boolean))];
-      for (let i = 0; i < imgs.length; i++) {
-        const url = imgs[i];
-        try {
-          if (String(url).startsWith('data:')) {
-            const dataParts = url.split(',');
-            const b64 = dataParts[1];
-            const content = atob(b64);
-            const arr = new Uint8Array(content.length);
-            for (let j = 0; j < content.length; j++) arr[j] = content.charCodeAt(j);
-            imgFolder.file(`image_${i}.png`, arr);
-          } else {
-            const resp = await fetch(url);
-            const blob = await resp.blob();
-            imgFolder.file(`image_${i}${getExtensionFromContentType(blob.type)}`, blob);
-          }
-        } catch (e) { console.warn('image fetch failed', url, e); }
-      }
-      const content = await zip.generateAsync({type: 'blob'});
-      const file = new File([content], `volleyball_backup_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.zip`, { type: 'application/zip' });
-      // try navigator.share safely
-      let canShareFiles = false;
-      try {
-        canShareFiles = !!(navigator.canShare && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }));
-      } catch (e) { console.warn('navigator.canShare error', e); }
-      if (canShareFiles) {
-        try { await navigator.share({ files: [file], title: 'Backup Volleyball App', text: 'بک‌آپ داده‌های باشگاه' }); return; } catch(e) { console.warn('share files failed', e); }
-      } else {
-        // inform user that file-sharing is not available in this browser
-        alert('اشتراک‌گذاری فایل در این مرورگر پشتیبانی نمی‌شود. لطفاً از گوشی همراه استفاده کنید یا فایل را دانلود کنید.');
-      }
-      try {
-        if (navigator.share && typeof navigator.share === 'function') {
-          // some platforms don't support files but accept URLs
-          try {
-            await navigator.share({ title: 'Backup Volleyball App', text: 'بک‌آپ داده‌های باشگاه' });
-            // as a fallback, still offer download if share didn't include files
-          } catch (err) {
-            console.warn('navigator.share without files failed', err);
-          }
-        }
-      } catch (e) { console.warn('navigator.share error', e); }
-      // fallback to download with clear user notice
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(content);
-      a.download = `volleyball_backup_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')}.zip`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (e) {
-      console.error('Share backup failed', e);
-      alert('اشتراک‌گذاری ممکن نبود؛ فایل دانلود شد یا خطا رخ داده است');
-    }
-  });
+  // Share backup handler removed: 'اشتراک‌گذاری بک آپ' button no longer exists in settings UI.
   // logo preview handler (after elements exist)
   setTimeout(() => {
     const logoInput = qs('#settingsLogo');
