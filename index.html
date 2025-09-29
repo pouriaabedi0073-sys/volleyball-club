@@ -2674,16 +2674,20 @@ async function renderShareCanvasFromData(m, opts = {}) {
                   <div id="accountEmail" style="color:var(--muted);font-size:13px">—</div>
                   <div id="accountPhone" style="color:var(--muted);font-size:13px">—</div>
                   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;" />
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <div id="backupIcon" style="width:18px;height:18px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;"></div>
-                    <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <div id="backupIcon" style="width:14px;height:14px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,0.06);"></div>
+                      <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
+                    </div>
+                    <div id="lastSyncLine" style="font-size:12px;color:var(--muted);">آخرین همگام‌سازی: —</div>
                   </div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;">
                   <button id="editProfileToggle" class="btn">ویرایش</button>
                   <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;border:none;">خروج</button>
                   <div style="height:6px"></div>
-                  <button id="backupNowBtn" class="btn">همگام‌سازی الآن</button>
+                  <!-- Removed immediate sync button; replaced with Import Last Sync -->
+                  <button id="importLastSyncBtn" class="btn">وارد کردن آخرین همگام‌سازی</button>
                 </div>
               </div>
             </div>
@@ -3500,6 +3504,28 @@ function calculateTimeToNextCategory(age, category) {
     catch(_){}
   }
 
+  // Global listener: when realtime events arrive via supabaseSync, mark backup icon green
+  try {
+    window.addEventListener('supabase:realtime', (e) => {
+      try {
+        const detail = e.detail || {};
+        const backupIcon = document.getElementById('backupIcon');
+        const backupStatus = document.getElementById('backupStatus');
+        const lastSyncLine = document.getElementById('lastSyncLine');
+        if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
+        if (backupStatus) { backupStatus.textContent = 'همگام‌سازی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
+        // update last sync line with timestamp and optional device info
+        const when = new Date().toLocaleString();
+        let device = (detail.row && (detail.row.last_sync_device || detail.row.device)) || 'دستگاه دیگر';
+        if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${device}`;
+        // fade icon back to neutral after a few seconds
+        setTimeout(()=>{
+          try { if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; } if (backupStatus) { backupStatus.textContent = '--'; backupStatus.style.color='var(--muted)'; } } catch(_){ }
+        }, 6000);
+      } catch (err) { /* ignore */ }
+    });
+  } catch(e) { console.warn('supabase realtime listener install failed', e); }
+
   // local status updater for embedded box
   function setEmbeddedStatus(connected) {
     const ind = document.getElementById('statusIndicator');
@@ -3564,6 +3590,24 @@ function calculateTimeToNextCategory(age, category) {
   document.getElementById('accountEmail').textContent = displayEmail;
   document.getElementById('accountPhone').textContent = profile?.phone || '';
   if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+  // Render last sync info if available on profile
+  try {
+    const lastSyncLine = document.getElementById('lastSyncLine');
+    const backupStatus = document.getElementById('backupStatus');
+    const backupIcon = document.getElementById('backupIcon');
+    if (profile && (profile.last_sync_at || profile.last_sync_device)) {
+      const d = profile.last_sync_at ? new Date(profile.last_sync_at) : null;
+      const when = d ? d.toLocaleString() : '—';
+      const device = profile.last_sync_device || '—';
+      if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${device}`;
+      if (backupStatus) { backupStatus.textContent = 'همگام‌سازی انجام شده'; backupStatus.style.color = 'var(--accent)'; }
+      if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border = 'none'; }
+    } else {
+      if (lastSyncLine) lastSyncLine.textContent = 'آخرین همگام‌سازی: —';
+      if (backupStatus) { backupStatus.textContent = 'همگام‌سازی نشده'; backupStatus.style.color = 'var(--muted)'; }
+      if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border = '1px solid rgba(0,0,0,0.06)'; }
+    }
+  } catch(e) { console.warn('render last sync info failed', e); }
   // populate edit fields if present (fallback to auth user when profile read fails)
   try { document.getElementById('profileFirst').value = (!fetchFailed && profile && profile.first_name) ? profile.first_name : ''; } catch(_){ }
   try { document.getElementById('profileLast').value = (!fetchFailed && profile && profile.last_name) ? profile.last_name : ''; } catch(_){ }
@@ -3590,6 +3634,47 @@ function calculateTimeToNextCategory(age, category) {
           fetchFailed = true;
         }
       }
+      // Attach Import Last Sync button handler (id: importLastSyncBtn)
+      try {
+        const importBtn = document.getElementById('importLastSyncBtn');
+        if (importBtn) {
+          importBtn.addEventListener('click', async function(){
+            const client = getSupabaseClient();
+            if (!client) return alert('کلاینت Supabase آماده نیست');
+            try {
+              // Try to read last_sync_payload from profiles (conservative single-table approach)
+              const res = await client.from('profiles').select('last_sync_payload,last_sync_at,last_sync_device').eq('id', user.id).maybeSingle();
+              if (res.error) throw res.error;
+              const payload = res.data && res.data.last_sync_payload;
+              if (!payload) return alert('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد');
+              // Expect payload to be an array of rows or object keyed by table
+              let parsed = null;
+              try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
+              // If parsed is an object with tables, merge each row using supabaseSync.mergeRow
+              if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
+                // support either { table: [rows] } or [ {table,row}, ... ]
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(_){} });
+                } else if (typeof parsed === 'object') {
+                  // object keyed by table
+                  Object.keys(parsed).forEach(tbl => {
+                    const rows = parsed[tbl];
+                    if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(_){} });
+                  });
+                }
+                alert('همگام‌سازی وارد شد. برای نمایش، صفحه را دوباره بارگذاری یا بخش مربوطه را رندر کنید.');
+                // mark icon green
+                try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
+              } else {
+                alert('ماژول همگام‌سازی در دسترس نیست');
+              }
+            } catch (err) {
+              console.warn('import last sync failed', err);
+              alert('خطا در وارد کردن همگام‌سازی: ' + (err && err.message ? err.message : String(err)));
+            }
+          });
+        }
+      } catch(e) { console.warn('attach import btn handler failed', e); }
     // Do not forcibly close the edit box here; let the user control it via the Edit button
     // (previous behavior hid the box which could interfere with the Edit button UX)
     } catch (e) {
@@ -8748,6 +8833,7 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
 });
 
 </script>
+  <script src="sync-supabase.js"></script>
   <script src="sw-register.js"></script>
 </body>
 </html>

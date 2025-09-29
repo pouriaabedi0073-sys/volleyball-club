@@ -11,6 +11,29 @@ create table if not exists public.profiles (
   updated_at timestamptz default now()
 );
 
+-- add last_sync metadata fields to profiles for client-side sync tracking
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='profiles' and column_name='last_sync_at'
+  ) then
+    execute 'alter table public.profiles add column last_sync_at timestamptz';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='profiles' and column_name='last_sync_device'
+  ) then
+    execute 'alter table public.profiles add column last_sync_device text';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='profiles' and column_name='last_sync_payload'
+  ) then
+    execute 'alter table public.profiles add column last_sync_payload jsonb';
+  end if;
+end$$;
+
 -- backups table stores JSON snapshots per user
 create table if not exists public.backups (
   id bigserial primary key,
