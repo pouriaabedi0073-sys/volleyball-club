@@ -119,6 +119,65 @@ begin
   end if;
 end$$;
 
+-- Create shared_backups table for group/email-based shared snapshots
+create table if not exists public.shared_backups (
+  id bigserial primary key,
+  group_email text not null,
+  data jsonb not null,
+  device_id text,
+  last_sync_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+alter table public.shared_backups enable row level security;
+
+-- Policy: allow authenticated users to operate on shared_backups for their email
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='shared_backups' and policyname='shared_backups_group_email'
+  ) then
+    execute '
+      create policy "shared_backups_group_email" on public.shared_backups
+        for all
+        using ( auth.role() = ''authenticated'' and lower(current_setting(''jwt.claims.email'', true)) = lower(group_email) )
+        with check ( auth.role() = ''authenticated'' and lower(current_setting(''jwt.claims.email'', true)) = lower(group_email) )
+    ';
+  end if;
+end$$;
+
+-- Ensure group_email is stored in lowercase: trigger function and trigger
+do $$
+begin
+  if not exists ( select 1 from pg_proc where proname = 'shared_backups_normalize_email' ) then
+    execute $fn$
+      create function public.shared_backups_normalize_email()
+      returns trigger as $pl$
+      begin
+        if new.group_email is not null then
+          new.group_email := lower(new.group_email);
+        end if;
+        return new;
+      end;
+      $pl$ language plpgsql security definer;
+    $fn$;
+  end if;
+  if not exists (select 1 from pg_trigger where tgname = 'trg_shared_backups_normalize') then
+    execute 'create trigger trg_shared_backups_normalize before insert or update on public.shared_backups for each row execute procedure public.shared_backups_normalize_email()';
+  end if;
+end$$;
+
+-- Index for fast lookup by group_email and recency
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='shared_backups' and column_name='group_email'
+  ) then
+    execute 'create index if not exists shared_backups_group_email_idx on public.shared_backups (group_email, last_sync_at desc)';
+  end if;
+end$$;
+
 -- Create devices table for tracking client devices
 create table if not exists public.devices (
   id uuid primary key default gen_random_uuid(),

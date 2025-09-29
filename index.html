@@ -432,12 +432,37 @@
   }
   /* Stack avatar above info and show action buttons in one row on small screens */
   @media (max-width:480px) {
-    #accountProfileContainer .card > div { flex-direction: column !important; align-items: center; }
+    #accountProfileContainer .card > div { flex-direction: column !important; align-items: center; text-align:center; }
     #accountProfileContainer img#accountAvatar { width:96px !important; height:96px !important; margin-bottom:8px; }
     #accountProfileContainer .card > div > div:first-of-type { width:100%; text-align:center; }
-    #accountProfileContainer .card > div > div:last-child { flex-direction:row !important; width:100%; justify-content:center; margin-top:10px; }
-    #accountProfileContainer .card > div > div:last-child button { flex:1 1 auto; min-width:0; }
+    /* Ensure action buttons stretch full width on mobile */
+    #accountProfileContainer .card .profile-actions > div { flex-direction:column; }
+    #accountProfileContainer .card .profile-actions > div button { width:100%; }
+    /* Make profile action buttons and sync controls stack on narrow screens */
+    #accountProfileContainer .card .profile-actions { width:100%; display:flex; flex-direction:column; gap:8px; }
+    #accountProfileContainer .card .profile-actions > div { display:flex; gap:8px; width:100%; }
+    /* Make each action row stack vertically and prevent overflow */
+    #accountProfileContainer .card .action-row { flex-direction:column; }
+    #accountProfileContainer .card { overflow: hidden; }
   }
+
+  /* Ensure profile text fields (name, email, phone) are stacked vertically */
+  #accountProfileContainer .card > div > div > #accountName,
+  #accountProfileContainer .card > div > div > #accountEmail,
+  #accountProfileContainer .card > div > div > #accountPhone {
+    display:block; width:100%;
+  }
+
+  /* Keep avatar on top and center all profile content across sizes */
+  #accountProfileContainer .card > div { display:flex; flex-direction:column; align-items:center; text-align:center; }
+  #accountProfileContainer .card > div > div > #accountName,
+  #accountProfileContainer .card > div > div > #accountEmail,
+  #accountProfileContainer .card > div > div > #accountPhone { display:block; width:100%; }
+  
+    /* FORCE vertical stacking for profile action rows and sync controls (all breakpoints) */
+    #accountProfileContainer .card .action-row { display:flex; flex-direction:column !important; width:100%; gap:8px; }
+    #accountProfileContainer .card .action-row .btn, #accountProfileContainer .card .profile-actions .btn { width:100%; }
+    #accountProfileContainer .card #profileSyncControls { width:100%; display:flex; flex-direction:column; gap:8px; align-items:center; }
   .btn {
   background: var(--card);
   border: 1px solid rgba(0,0,0,0.06);
@@ -1507,6 +1532,24 @@
     align-items: center;
     justify-content: center;
   }
+  /* Image reliability helpers: reserve space, avoid layout shift and provide fallback */
+  img.reserved, img[id^="app"], img[id^="shareLogo"], img[id^="pcClubLogoImg"], img[id^="accountAvatar"], img[id^="profileImg"] {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    background-color: rgba(0,0,0,0.03);
+  }
+  /* ensure small icons keep fixed size to avoid shifting the menu */
+  img.icon-fixed, img.small-icon {
+    width: 36px; height: 36px; min-width:36px; min-height:36px; object-fit:contain; display:inline-block;
+  }
+  /* placeholder when image fails */
+  .img-placeholder {
+    display:inline-flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-weight:700;border-radius:6px;border:1px solid rgba(0,0,0,0.04);
+  }
   .player-card .player-thumb img {
     width: 100% !important;
     height: 100% !important;
@@ -1771,7 +1814,8 @@ section:not(#view-home) {
 .muted-small {color:var(--muted);font-size:13px}
 
 /* Share preview tweaks: keep controls out of the printed/captured card */
-#shareCard input[type="color"], #shareCard button { -webkit-appearance: none; appearance: none; }
+#shareCard button { -webkit-appearance: none; appearance: none; }
+#shareCard input[type="color"] { /* keep native color picker UI */ border: 0; padding: 0; background: transparent; }
 #shareCard .share-controls { margin-top:12px; display:flex; gap:8px; width:100%; }
 #shareCard .share-controls > * { flex:1 1 auto; }
 #shareCard .no-capture { visibility:visible; }
@@ -1824,21 +1868,24 @@ async function renderShareCanvasFromData(m, opts = {}) {
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
   // background gradient
-  // optionally draw court background image first (low opacity)
+  // draw background gradient first
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0, colorA);
+  g.addColorStop(1, colorB);
+  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+  // then optionally draw the court background image on top with low opacity so it shows through
   try {
     const court = new Image(); court.crossOrigin = 'anonymous';
     const courtSrc = (opts.courtImage) ? opts.courtImage : 'icons/court.png';
     await new Promise((res, rej) => { court.onload = res; court.onerror = () => rej(new Error('court load failed')); court.src = courtSrc; });
     const cw = Math.floor(w * 0.7); const ch = Math.floor(h * 0.7);
     const cx = Math.floor((w - cw) / 2); const cy = Math.floor(h * 0.08);
-    ctx.globalAlpha = 0.18; ctx.drawImage(court, cx, cy, cw, ch); ctx.globalAlpha = 1;
+    ctx.save(); ctx.globalAlpha = 0.18; ctx.drawImage(court, cx, cy, cw, ch); ctx.restore();
   } catch (e) {
     console.debug('court bg not available', e);
   }
-  const g = ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0, colorA);
-  g.addColorStop(1, colorB);
-  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+  // ensure webfonts are loaded before drawing text
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e) { /* ignore */ }
   // draw top padding spacer (visual offset)
   const topOffset = Math.floor(h * 0.08);
   // logos row
@@ -1922,6 +1969,15 @@ async function renderShareCanvasFromData(m, opts = {}) {
   // convert to blob
   return await new Promise((res, rej) => { canvas.toBlob(b => { if (b) res(b); else rej(new Error('toBlob failed')); }, 'image/png'); });
 }
+
+// helper to read share color inputs from the DOM (used by multiple share flows)
+function readShareColors() {
+  try {
+    const a = (qs('#shareColorA') && qs('#shareColorA').value) || '#ff6b6b';
+    const b = (qs('#shareColorB') && qs('#shareColorB').value) || '#ff9ac2';
+    return { colorA: a, colorB: b };
+  } catch (e) { return { colorA: '#ff6b6b', colorB: '#ff9ac2' }; }
+}
 </script>
 </head>
 <body class="mobile-active sports-bg">
@@ -1941,7 +1997,39 @@ async function renderShareCanvasFromData(m, opts = {}) {
               <div class="actions">
                 <button id="addPlayerBtn" class="btn primary" title="بازیکن جدید" style="padding:8px 12px;white-space:nowrap;">بازیکن جدید</button>
               </div>
-            </div>
+              </div>
+              <script>
+              // Global image fallback: replace broken images with an inline SVG placeholder and ensure reserved sizing
+              function setGlobalImageFallback() {
+                const placeholderSvg = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24"><rect width="100%" height="100%" fill="#f8fafc"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="10">?</text></svg>');
+                function applyTo(img) {
+                  if (!img) return;
+                  // avoid re-wrapping
+                  img.classList.add('reserved');
+                  img.addEventListener('error', function onerr() {
+                    try {
+                      img.removeEventListener('error', onerr);
+                      // set a neutral placeholder src so layout stays
+                      img.src = placeholderSvg;
+                      img.alt = img.alt || 'تصویر در دسترس نیست';
+                      img.style.objectFit = img.style.objectFit || 'contain';
+                    } catch (e) { console.warn('img fallback failed', e); }
+                  });
+                  // if already failed to load (cached), and naturalWidth is 0, trigger fallback
+                  setTimeout(()=>{ try { if (img.naturalWidth === 0) img.dispatchEvent(new Event('error')); } catch(e){} }, 120);
+                }
+                // apply to existing images
+                Array.from(document.querySelectorAll('img')).forEach(img => applyTo(img));
+                // observe future images
+                const obs = new MutationObserver(muts => {
+                  muts.forEach(m => {
+                    m.addedNodes && m.addedNodes.forEach(n => { if (n && n.tagName === 'IMG') applyTo(n); if (n && n.querySelectorAll) Array.from(n.querySelectorAll('img')).forEach(i=>applyTo(i)); });
+                  });
+                });
+                obs.observe(document.body, { childList: true, subtree: true });
+              }
+              try { window.addEventListener('load', setGlobalImageFallback); } catch(e) { setTimeout(setGlobalImageFallback, 500); }
+              </script>
             <div id="playersPreview" class="players-preview"></div>
             <div style="margin-top: 12px; text-align: center;">
               <button id="showAllPlayersBtn" class="btn icon-right" style="padding:10px 18px;direction:ltr;min-width:220px;">
@@ -2347,7 +2435,7 @@ async function renderShareCanvasFromData(m, opts = {}) {
             <div class="share-actions-wrap" style="width:100%;display:flex;padding:8px 6px;flex:0 0 auto;">
               <div style="flex:1;display:flex;gap:10px;align-items:center;justify-content:space-between;">
                 <button id="closeShareOverlay" class="btn" style="flex:1 1 auto;max-width:160px;">بستن</button>
-                <button id="shareToSocialBtn" class="btn primary birthday-share-btn" style="flex:1 1 auto;max-width:420px;">اشتراک به صورت عکس</button>
+                <button id="shareToSocialBtn" class="btn primary birthday-share-btn" style="flex:1 1 auto;max-width:420px;">اشتراک کارت بازی</button>
               </div>
             </div>
             </div>
@@ -2708,27 +2796,36 @@ async function renderShareCanvasFromData(m, opts = {}) {
           <!-- Account profile container (populated after login) -->
           <div id="accountProfileContainer" style="margin-top:12px;display:none;">
             <div class="card" style="padding:12px;border-radius:10px;">
-                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                <img id="accountAvatar" src="icons/icon-maskable-192.png" alt="avatar" style="width:72px;height:72px;border-radius:50%;object-fit:cover;" />
-                  <div style="flex:1;min-width:0;">
-                  <div id="accountName" style="font-weight:700;color:var(--text)">—</div>
-                  <div id="accountEmail" style="color:var(--muted);font-size:13px">—</div>
-                  <div id="accountPhone" style="color:var(--muted);font-size:13px">—</div>
-                  <hr style="border:none;border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;" />
-                  <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <div id="backupIcon" style="width:14px;height:14px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,0.06);"></div>
-                      <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
-                    </div>
-                    <div id="lastSyncLine" style="font-size:12px;color:var(--muted);">آخرین همگام‌سازی: —</div>
-                  </div>
+              <div style="display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;">
+                <img id="accountAvatar" src="icons/icon-maskable-192.png" alt="avatar" style="width:88px;height:88px;border-radius:50%;object-fit:cover;" />
+                <div id="accountName" style="font-weight:700;color:var(--text);font-size:18px;margin-top:4px;">—</div>
+                <div id="accountEmail" style="color:var(--muted);font-size:14px;margin-top:2px;">—</div>
+                <div id="accountPhone" style="color:var(--muted);font-size:14px;margin-top:2px;">—</div>
+
+                <hr style="border:none;border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;width:100%;" />
+
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div id="backupIcon" style="width:14px;height:14px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,0.06);"></div>
+                  <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
+
+                <div id="profileSyncControls" style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:420px;">
+                  <div class="action-row" style="display:flex;gap:8px;width:100%;">
+                    <button id="importNowBtn" class="btn" style="flex:1;">واردسازی الآن</button>
+                    <button id="forceSyncBtn" class="btn" style="flex:1;background:#2563eb;color:#fff;border:none;">ارسال همگام‌سازی</button>
+                  </div>
+
+                  <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="autoImportToggle" />
+                    <span>واردسازی خودکار از دستگاه‌های دیگر</span>
+                  </label>
+
+                  <div id="lastSyncLine" style="font-size:12px;color:var(--muted);width:100%;text-align:center;">آخرین همگام‌سازی: —</div>
+                </div>
+
+                <div class="action-row" style="display:flex;gap:8px;justify-content:center;width:100%;margin-top:6px;">
                   <button id="editProfileToggle" class="btn">ویرایش</button>
                   <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;border:none;">خروج</button>
-                  <div style="height:6px"></div>
-                  <!-- Removed immediate sync button; replaced with Import Last Sync -->
-                  <button id="importLastSyncBtn" class="btn">وارد کردن آخرین همگام‌سازی</button>
                 </div>
               </div>
             </div>
@@ -2948,8 +3045,8 @@ async function captureAndShareModal(m) {
       console.warn('logo conversion failed', e);
     }
 
-    const colorA = (qs('#shareColorA') && qs('#shareColorA').value) || '#ff6b6b';
-    const colorB = (qs('#shareColorB') && qs('#shareColorB').value) || '#ff9ac2';
+  // read live selected colors from the UI (use helper for consistency)
+  const { colorA, colorB } = readShareColors();
 
     // If logos are missing from the match data, fall back to the visible image elements in the modal
     try {
@@ -3561,19 +3658,56 @@ function calculateTimeToNextCategory(age, category) {
         const backupIcon = document.getElementById('backupIcon');
         const backupStatus = document.getElementById('backupStatus');
         const lastSyncLine = document.getElementById('lastSyncLine');
-        if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
-        if (backupStatus) { backupStatus.textContent = 'همگام‌سازی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
+  try { updateSyncStatusUI('group-received', when + ' • ' + device); } catch(_){ }
         // update last sync line with timestamp and optional device info
         const when = new Date().toLocaleString();
         let device = (detail.row && (detail.row.last_sync_device || detail.row.device)) || 'دستگاه دیگر';
         if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${device}`;
         // fade icon back to neutral after a few seconds
-        setTimeout(()=>{
-          try { if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; } if (backupStatus) { backupStatus.textContent = '--'; backupStatus.style.color='var(--muted)'; } } catch(_){ }
-        }, 6000);
+        setTimeout(()=>{ try { updateSyncStatusUI('default', '--'); } catch(_){ } }, 6000);
       } catch (err) { /* ignore */ }
     });
   } catch(e) { console.warn('supabase realtime listener install failed', e); }
+
+  // Subscribe to shared_backups changes for a given email (fires realtime events when other devices update)
+  function subscribeToSharedBackups(email) {
+    try {
+      const client = getSupabaseClient();
+      if (!client || !email) return;
+      // Avoid duplicate subscriptions: store on window
+      window.__shared_backups_sub = window.__shared_backups_sub || {};
+      if (window.__shared_backups_sub[email]) return; // already subscribed
+      try {
+        // Use PostgREST/Realtime subscribe via client.channel for Supabase JS v2
+        if (client && client.channel) {
+          const ch = client.channel('public:shared_backups:email:' + email).on('postgres_changes', { event: '*', schema: 'public', table: 'shared_backups', filter: `group_email=eq.${email}` }, (payload) => {
+            try {
+              console.debug('shared_backups realtime payload', payload);
+              // Extract device info and emit a synthetic global event that other handlers can use
+              const record = payload.record || payload.new || payload;
+              // prefer last_sync_device -> device_id -> device
+              const deviceInfo = (record && (record.last_sync_device || record.device_id || record.device)) || 'دستگاه دیگر';
+              const ev = new CustomEvent('supabase:realtime', { detail: { source: 'shared_backups', row: record, device: deviceInfo } });
+              window.dispatchEvent(ev);
+              // Additionally update profile UI last sync line
+              try {
+                const backupIcon = document.getElementById('backupIcon');
+                const backupStatus = document.getElementById('backupStatus');
+                const lastSyncLine = document.getElementById('lastSyncLine');
+                if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
+                if (backupStatus) { backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
+                const when = new Date().toLocaleString();
+                if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${deviceInfo}`;
+              } catch(_){ }
+              // Auto-import payload into local state (throttled)
+              try { autoImportSharedPayload(payload.record || payload.new || payload); } catch(_){ }
+            } catch(err) { console.warn('shared_backups payload handler error', err); }
+          }).subscribe();
+          window.__shared_backups_sub[email] = ch;
+        }
+      } catch(e) { console.warn('subscribeToSharedBackups failed', e); }
+    } catch(e) { console.warn('subscribeToSharedBackups outer fail', e); }
+  }
 
   // local status updater for embedded box
   function setEmbeddedStatus(connected) {
@@ -3589,6 +3723,79 @@ function calculateTimeToNextCategory(age, category) {
       txt.textContent = 'آفلاین';
       txt.style.color = 'var(--muted)';
     }
+  }
+
+  // Update the profile sync status UI with a short status and optional reason
+  function updateSyncStatusUI(status, reason) {
+    try {
+      const backupIcon = document.getElementById('backupIcon');
+      const backupStatus = document.getElementById('backupStatus');
+      const lastSyncLine = document.getElementById('lastSyncLine');
+      if (!backupStatus) return;
+      if (status === 'ok') {
+        if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
+        backupStatus.textContent = 'همگام‌سازی انجام شده'; backupStatus.style.color = 'var(--accent)';
+        if (reason && lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+      } else if (status === 'group-received') {
+        if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
+        backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)';
+        if (reason && lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+      } else if (status === 'pending') {
+        if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; }
+        backupStatus.textContent = 'همگام‌سازی در صف'; backupStatus.style.color = 'var(--muted)';
+        if (reason && lastSyncLine) lastSyncLine.textContent = reason;
+      } else {
+        // default: not synced
+        if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; }
+        backupStatus.textContent = 'همگام‌سازی نشده'; backupStatus.style.color = 'var(--muted)';
+        if (reason && lastSyncLine) lastSyncLine.textContent = reason;
+      }
+    } catch(e) { console.warn('updateSyncStatusUI failed', e); }
+  }
+
+  // Auto-import shared payloads (throttled). payload may be a record or object containing .data (jsonb)
+  const __shared_import_throttle = new Map();
+  async function autoImportSharedPayload(payload) {
+    try {
+      // Respect user preference: only auto-import when toggle enabled
+      try {
+        const autoToggle = document.getElementById('autoImportToggle');
+        if (autoToggle && !autoToggle.checked) return; // user disabled auto-import
+        // Fallback to localStorage (in case controls not yet wired)
+        if (!autoToggle) {
+          try { const v = localStorage.getItem('autoImportToggle'); if (v !== '1') return; } catch(_){ }
+        }
+      } catch(_){ }
+      if (!payload) return;
+      const key = (payload.id || payload.group_email || 'shared') + ':' + ((payload.last_sync_at || payload.updated_at) || 't');
+      const now = Date.now();
+      const last = __shared_import_throttle.get(key) || 0;
+      if (now - last < 5000) return; // throttle 5s per payload key
+      __shared_import_throttle.set(key, now);
+      // Extract data field
+      let raw = payload.data || payload;
+      // If record shape contains nested .data (from realtime), normalize
+      if (payload && payload.record && payload.record.data) raw = payload.record.data;
+      let parsed = null;
+      try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch(e){ parsed = raw; }
+      // Wait for supabaseSync module availability
+      const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
+      const ok = await waitForSyncModule();
+      if (!ok) {
+        try { updateSyncStatusUI('pending', 'ماژول همگام‌سازی در دسترس نیست'); } catch(_){ }
+        return;
+      }
+      // Apply parsed payload to supabaseSync
+      if (Array.isArray(parsed)) {
+        parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(e){ console.warn('mergeRow failed', e); } });
+      } else if (typeof parsed === 'object') {
+        Object.keys(parsed).forEach(tbl => {
+          const rows = parsed[tbl];
+          if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(e){ console.warn('mergeRow failed', e); } });
+        });
+      }
+      try { updateSyncStatusUI('ok', 'واردسازی گروهی انجام شد'); } catch(_){ }
+    } catch(e) { console.warn('autoImportSharedPayload error', e); }
   }
 
   // Load and render the current user's profile into the account area
@@ -3635,8 +3842,9 @@ function calculateTimeToNextCategory(age, category) {
   // Render minimal fields and populate the editable form
   const accountEl = document.getElementById('accountProfileContainer'); if (accountEl) accountEl.style.display = 'block';
   document.getElementById('accountName').textContent = (profile && (profile.first_name || profile.last_name)) ? `${profile.first_name||''} ${profile.last_name||''}`.trim() : (user.email || 'کاربر');
-  const displayEmail = (profile && profile.email) ? profile.email : (user.email || '');
-  document.getElementById('accountEmail').textContent = displayEmail;
+  const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+  const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
+  document.getElementById('accountEmail').textContent = displayEmailLower || displayEmail;
   document.getElementById('accountPhone').textContent = profile?.phone || '';
   if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
   // Render last sync info if available on profile
@@ -3683,61 +3891,102 @@ function calculateTimeToNextCategory(age, category) {
           fetchFailed = true;
         }
       }
-      // Attach Import Last Sync button handler (id: importLastSyncBtn)
+      // Replace old import button handler with new sync controls wiring
       try {
-        const importBtn = document.getElementById('importLastSyncBtn');
-        if (importBtn) {
-          importBtn.addEventListener('click', async function(){
-            const client = getSupabaseClient();
-            if (!client) return alert('کلاینت Supabase آماده نیست');
+        async function performImportLastSync() {
+          const client = getSupabaseClient();
+          if (!client) return alert('کلاینت Supabase آماده نیست');
+          try {
+            // Confirm once per email: store confirmation in localStorage
             try {
-              // Try to read last_sync_payload from profiles (conservative single-table approach)
+              const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+              const key = 'import_confirmed:' + (displayEmail ? displayEmail.toLowerCase() : '');
+              if (displayEmail) {
+                const was = localStorage.getItem(key);
+                if (!was) {
+                  const ok = confirm('آیا می‌خواهید اولین بار همگام‌سازی مشترک برای این حساب را وارد کنید؟ (این عملیات داده‌های محلی را تغییر می‌دهد)');
+                  if (!ok) return; // user cancelled
+                  try { localStorage.setItem(key, '1'); } catch(_){ }
+                }
+              }
+            } catch(_){ }
+            let payload = null;
+            try {
+              const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+              const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
+              if (displayEmailLower) {
+                const sres = await client.from('shared_backups').select('data,last_sync_at,device_id').eq('group_email', displayEmailLower).order('last_sync_at', { ascending: false }).limit(1).maybeSingle();
+                if (sres && !sres.error && sres.data && sres.data.data) {
+                  payload = sres.data.data;
+                  try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(sres.data.last_sync_at || sres.data.created_at).toLocaleString()} • ${sres.data.device_id || 'دستگاه دیگر'}`; } catch(_){ }
+                }
+              }
+            } catch (sharedErr) { console.warn('shared_backups read failed', sharedErr); }
+            if (!payload) {
               const res = await client.from('profiles').select('last_sync_payload,last_sync_at,last_sync_device').eq('id', user.id).maybeSingle();
-              if (res.error) throw res.error;
-              let payload = res.data && res.data.last_sync_payload;
+              if (res && res.error) throw res.error;
+              payload = res.data && res.data.last_sync_payload;
               if (!payload) {
-                // fallback: try backups table (most recent for this user)
                 try {
                   const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
                   if (bres && !bres.error && bres.data && bres.data.data) {
                     payload = bres.data.data;
-                    // update lastSyncLine with backup info
                     try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
                   }
                 } catch(be) { console.warn('backup fallback read failed', be); }
               }
-              if (!payload) return alert('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد');
-              // Expect payload to be an array of rows or object keyed by table
-              let parsed = null;
-              try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
-              // If parsed is an object with tables, merge each row using supabaseSync.mergeRow
-              // ensure supabaseSync exists or wait a short while
-              const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
-              const ok = await waitForSyncModule();
-              if (ok && window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
-                // support either { table: [rows] } or [ {table,row}, ... ]
-                if (Array.isArray(parsed)) {
-                  parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(_){} });
-                } else if (typeof parsed === 'object') {
-                  // object keyed by table
-                  Object.keys(parsed).forEach(tbl => {
-                    const rows = parsed[tbl];
-                    if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(_){} });
-                  });
-                }
-                alert('همگام‌سازی وارد شد. برای نمایش، صفحه را دوباره بارگذاری یا بخش مربوطه را رندر کنید.');
-                // mark icon green
-                try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
-              } else {
-                alert('ماژول همگام‌سازی در دسترس نیست');
-              }
-            } catch (err) {
-              console.warn('import last sync failed', err);
-              alert('خطا در وارد کردن همگام‌سازی: ' + (err && err.message ? err.message : String(err)));
             }
-          });
+            if (!payload) return alert('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد');
+            let parsed = null; try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
+            const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
+            const ok = await waitForSyncModule();
+            if (ok && window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
+              if (Array.isArray(parsed)) {
+                parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(_){} });
+              } else if (typeof parsed === 'object') {
+                Object.keys(parsed).forEach(tbl => {
+                  const rows = parsed[tbl];
+                  if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(_){} });
+                });
+              }
+              alert('همگام‌سازی وارد شد. برای نمایش، صفحه را دوباره بارگذاری یا بخش مربوطه را رندر کنید.');
+              try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
+            } else {
+              alert('ماژول همگام‌سازی در دسترس نیست');
+            }
+          } catch (err) {
+            console.warn('import last sync failed', err);
+            alert('خطا در وارد کردن همگام‌سازی: ' + (err && err.message ? err.message : String(err)));
+          }
         }
-      } catch(e) { console.warn('attach import btn handler failed', e); }
+
+        function attachSyncControls(){
+          try {
+            const autoToggle = document.getElementById('autoImportToggle');
+            const importBtn = document.getElementById('importNowBtn');
+            const forceSync = document.getElementById('forceSyncBtn');
+            const hint = document.getElementById('syncHint');
+            if (autoToggle) {
+              // default on if previously enabled in localStorage
+              try { const v = localStorage.getItem('autoImportToggle'); autoToggle.checked = v === '1'; } catch(_){ }
+              autoToggle.addEventListener('change', ()=>{ try { localStorage.setItem('autoImportToggle', autoToggle.checked ? '1' : '0'); } catch(_){ } });
+            }
+            if (importBtn) importBtn.addEventListener('click', async ()=>{ await performImportLastSync(); });
+            if (forceSync) forceSync.addEventListener('click', async ()=>{ try { if (typeof backupNow === 'function') await backupNow(); alert('درخواست ارسال همگام‌سازی فرستاده شد'); } catch(e){ console.warn('force sync failed', e); alert('ارسال همگام‌سازی ناموفق'); } });
+            // update hint from existing lastSyncLine if present
+            try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine && hint) hint.textContent = lastSyncLine.textContent; } catch(_){ }
+          } catch(e) { console.warn('attachSyncControls failed', e); }
+        }
+
+        // wire controls now (loadProfile calls subscribeToSharedBackups later, which will call autoImportSharedPayload)
+        try { attachSyncControls(); } catch(_){ }
+      } catch(e) { console.warn('attach sync controls failed', e); }
+      // After profile is loaded, subscribe to shared backups by email so other devices using same email trigger realtime
+      try {
+  const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+  const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
+  if (displayEmailLower) subscribeToSharedBackups(displayEmailLower);
+      } catch(_){ }
     // Do not forcibly close the edit box here; let the user control it via the Edit button
     // (previous behavior hid the box which could interfere with the Edit button UX)
     } catch (e) {
@@ -4003,8 +4252,7 @@ function imageFileToDataURL(file, maxKB) {
           const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
           console.debug('backup update result:', updated);
           if (updated && !updated.error && updated.data && updated.data.length > 0) {
-            try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی به‌روز شد'; } catch(_){ }
-            try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
+            try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
             return updated.data;
           }
         } catch (updErr) {
@@ -4014,20 +4262,36 @@ function imageFileToDataURL(file, maxKB) {
         try {
           const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
           if (ins && ins.error) throw ins.error;
-          try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی انجام شد'; } catch(_){ }
-          try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
+          try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
           return ins.data;
         } catch (insErr) {
           console.debug('backup insert failed:', insErr);
           throw insErr;
         }
-  try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی انجام شد'; } catch(_){ }
-        try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'linear-gradient(90deg,#16a34a,#10b981)'; } catch(_){ }
-        return ins.data;
+        // Additionally, try to upsert a shared backup keyed by the user's email so devices using the same email can sync
+        try {
+          const email = (profile && profile.email) ? profile.email : (user.email || null);
+          const emailLower = email ? email.toLowerCase() : null;
+          if (emailLower) {
+            const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_at: nowIso };
+            // try update then insert
+            try {
+              const supd = await client.from('shared_backups').update(sharedPayload).eq('group_email', emailLower).select();
+              if (supd && !supd.error && supd.data && supd.data.length > 0) {
+                console.debug('shared_backups updated');
+              } else {
+                const sins = await client.from('shared_backups').insert([Object.assign({}, sharedPayload, { created_at: nowIso })]);
+                if (sins && sins.error) console.debug('shared_backups insert error', sins.error);
+                else console.debug('shared_backups inserted');
+              }
+            } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
+          }
+        } catch(sbErr) { console.debug('shared backup write failed', sbErr); }
+  try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
+  return ins.data;
       } catch (e) {
         console.error('backupNow error', e);
-  try { const b = document.getElementById('backupStatus'); if (b) b.textContent = 'همگام‌سازی تکمیل نشد — دستی انجام دهید'; } catch(_){ }
-        try { const ic = document.getElementById('backupIcon'); if (ic) ic.style.background = 'transparent'; } catch(_){ }
+        try { updateSyncStatusUI('default', 'اتصال برقرار نیست یا خطا — مجدداً تلاش کنید'); } catch(_){ }
         throw e;
       }
     }
@@ -4620,7 +4884,16 @@ function openShareOverlay(matchId) {
   if (tA) tA.textContent = m.teamA || '';
   if (tB) tB.textContent = m.teamB || '';
   // show overlay
-  qs('#shareOverlay').classList.remove('hide');
+  const overlayEl = qs('#shareOverlay');
+  if (overlayEl) overlayEl.classList.remove('hide');
+  // make sure backdrop is below modal content and content accepts pointer events
+  try {
+    const backdropEl = qs('#shareOverlayBackdrop');
+    const modalOuter = overlayEl && overlayEl.querySelector('.share-modal-outer');
+    if (backdropEl) { backdropEl.style.zIndex = '10000'; backdropEl.style.pointerEvents = 'auto'; }
+    if (modalOuter) { modalOuter.style.zIndex = '10001'; modalOuter.style.pointerEvents = 'auto'; }
+    if (overlayEl) { overlayEl.dataset.activeShareMatch = matchId; overlayEl.style.zIndex = 10000; }
+  } catch (e) { console.warn('failed adjust share overlay stacking', e); }
   // apply current colors to the visible card (live preview)
   const card = qs('#shareCard');
   const colorAInput = qs('#shareColorA'); const colorBInput = qs('#shareColorB');
@@ -4630,7 +4903,8 @@ function openShareOverlay(matchId) {
     if (card) card.style.background = `linear-gradient(180deg, ${a}, ${b})`;
   }
   applyCardColors();
-  if (colorAInput) colorAInput.oninput = applyCardColors; if (colorBInput) colorBInput.oninput = applyCardColors;
+  if (colorAInput) { colorAInput.disabled = false; colorAInput.oninput = applyCardColors; }
+  if (colorBInput) { colorBInput.disabled = false; colorBInput.oninput = applyCardColors; }
   // insert court image behind the gradient if available
   const courtImgPath = 'icons/court.png';
   if (card) {
@@ -4658,8 +4932,8 @@ function openShareOverlay(matchId) {
         console.warn('capture flow failed, falling back to renderer', e);
         try { await shareToSocial(m); } catch(err) { console.error('share action failed', err); alert('خطا در اشتراک‌گذاری'); }
       }
-      socialBtn.disabled = false;
-      socialBtn.textContent = 'اشتراک به\u200cصورت عکس';
+  socialBtn.disabled = false;
+  socialBtn.textContent = 'اشتراک کارت بازی';
     });
   }
 }
