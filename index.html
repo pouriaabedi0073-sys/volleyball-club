@@ -50,6 +50,36 @@
     }
   })();
 </script>
+<!-- Lightweight global toast stub (defined early so other scripts can call showToast safely) -->
+<script>
+  // Provide a minimal, safe global toast function early so scripts that run
+  // before the full app code can still call showToast without throwing.
+  window.showToast = window.showToast || function(msg, timeout = 1800) {
+    try {
+      let t = document.getElementById('__app_toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = '__app_toast';
+        t.style.position = 'fixed';
+        t.style.bottom = '90px';
+        t.style.left = '50%';
+        t.style.transform = 'translateX(-50%)';
+        t.style.background = 'rgba(0,0,0,0.75)';
+        t.style.color = '#fff';
+        t.style.padding = '8px 12px';
+        t.style.borderRadius = '8px';
+        t.style.zIndex = 3000;
+        document.body && document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.opacity = '1';
+      clearTimeout(t._to);
+      t._to = setTimeout(() => { try { t.style.opacity = '0'; } catch(_){} }, timeout);
+    } catch (e) {
+      try { console.log('[toast]', msg); } catch(_){}
+    }
+  };
+</script>
   <!-- Supabase recovery helper: parse tokens from URL fragment and set session when client is ready -->
   <script>
     (function(){
@@ -1570,6 +1600,8 @@
     margin-bottom: 22px !important;
     text-align: center;
   }
+  /* Allow long player names to wrap to next line to avoid breaking card layout */
+  .player-card .player-info-block .player-name { display:block; max-width:100%; white-space:normal; overflow-wrap:break-word; word-break:break-word; }
   .player-card .action-buttons {
     margin-top: 10px !important;
     margin-bottom: 4px;
@@ -1705,8 +1737,38 @@
     margin-bottom: 12px;
   }
   .view-header .back-btn {
-    position: static;
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    margin: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--card);
+    box-shadow: 0 2px 4px var(--shadow);
   }
+
+  /* header home button: circular like back button and placed to the left of it */
+  .view-header .home-btn {
+    position: absolute;
+    right: 56px; /* sits left of back button */
+    top: 12px;
+    width: 40px;
+    height: 40px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:50%;
+    background: var(--card);
+    box-shadow: 0 2px 4px var(--shadow);
+    border: none;
+    transition: transform .08s ease, background .12s ease;
+  }
+  .view-header .home-btn:hover { transform: translateY(-1px); }
+  .view-header .home-btn svg { width:20px; height:20px; }
   /* competitions-specific: pin back button to left edge and keep it flush */
   #view-competitions .view-header { padding-left: 12px; }
   #view-competitions .view-header .back-btn { position: absolute; left: 12px; top: 12px; margin: 0; }
@@ -1875,9 +1937,10 @@ async function renderShareCanvasFromData(m, opts = {}) {
   ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
   // then optionally draw the court background image on top with low opacity so it shows through
   try {
-    const court = new Image(); court.crossOrigin = 'anonymous';
-    const courtSrc = (opts.courtImage) ? opts.courtImage : 'icons/court.png';
-    await new Promise((res, rej) => { court.onload = res; court.onerror = () => rej(new Error('court load failed')); court.src = courtSrc; });
+  const court = new Image();
+  const courtSrc = (opts.courtImage) ? opts.courtImage : 'icons/court.png';
+  try { if (typeof courtSrc === 'string' && (courtSrc.startsWith('http://') || courtSrc.startsWith('https://'))) court.crossOrigin = 'anonymous'; } catch(_) {}
+  await new Promise((res, rej) => { court.onload = res; court.onerror = () => rej(new Error('court load failed')); court.src = courtSrc; });
     const cw = Math.floor(w * 0.7); const ch = Math.floor(h * 0.7);
     const cx = Math.floor((w - cw) / 2); const cy = Math.floor(h * 0.08);
     ctx.save(); ctx.globalAlpha = 0.18; ctx.drawImage(court, cx, cy, cw, ch); ctx.restore();
@@ -1897,9 +1960,9 @@ async function renderShareCanvasFromData(m, opts = {}) {
   async function drawLogo(src, dx, dy, dSize) {
     if (!src) return;
     try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('logo load failed')); img.src = src; });
+  const img = new Image();
+  try { if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) img.crossOrigin = 'anonymous'; } catch(_) {}
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('logo load failed')); img.src = src; });
       // draw with rounded rect mask
       const r = Math.max(12, Math.floor(dSize * 0.12));
       roundRect(ctx, dx, dy, dSize, dSize, r, true, false);
@@ -2699,6 +2762,12 @@ function readShareColors() {
              <button id="settingsFromAccount" class="btn" style="background:transparent;border:none;color:#111;font-weight:700;">تنظیمات</button>
            </div>
          </div>
+         <!-- Notifications quick action: shown above login box so users can view notifications before signing in -->
+         <div style="margin:12px 12px 0 12px;">
+           <div style="display:flex;justify-content:center;">
+             <button id="notificationsFromAccountTop" class="btn notifications-action" style="display:flex;align-items:center;gap:8px;">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
+           </div>
+         </div>
          <!-- Login / Signup card (separate) -->
          <div id="embeddedAuthBox" class="card" style="padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:var(--card);border-radius:10px;margin:12px 12px 0 12px;">
            <div id="authDebug" style="font-size:13px;color:var(--muted);margin-bottom:8px;">وضعیت احراز هویت: بررسی...</div>
@@ -2823,10 +2892,14 @@ function readShareColors() {
                   <div id="lastSyncLine" style="font-size:12px;color:var(--muted);width:100%;text-align:center;">آخرین همگام‌سازی: —</div>
                 </div>
 
-                <div class="action-row" style="display:flex;gap:8px;justify-content:center;width:100%;margin-top:6px;">
-                  <button id="editProfileToggle" class="btn">ویرایش</button>
-                  <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;border:none;">خروج</button>
-                </div>
+                  <div style="width:100%;display:flex;justify-content:center;margin-top:8px;">
+                    <button class="btn notifications-action" style="display:flex;align-items:center;gap:8px;margin-right:8px;">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
+                  </div>
+
+                  <div class="action-row" style="display:flex;gap:8px;justify-content:center;width:100%;margin-top:6px;">
+                    <button id="editProfileToggle" class="btn">ویرایش</button>
+                    <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;border:none;">خروج</button>
+                  </div>
               </div>
             </div>
           </div>
@@ -3024,7 +3097,9 @@ window.testCaptureShare = async function(matchId) {
 }
 
 // Capture the visible share modal quickly using html2canvas (MVP):
-async function captureAndShareModal(m) {
+// simple lock to prevent concurrent share flows
+window.__shareLock = window.__shareLock || false;
+async function _captureAndShareModalImpl(m) {
   const overlay = qs('#shareOverlay');
   const card = qs('#shareCard');
   if (!overlay || !card) throw new Error('Share overlay or card not found');
@@ -3064,9 +3139,10 @@ async function captureAndShareModal(m) {
     if (blob) {
       // attempt native share with files
       const file = new File([blob], (safeM.title||'match') + '.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: safeM.title || 'مسابقه', text: safeM.teamA + ' vs ' + safeM.teamB }); return; } catch (e) { console.warn('navigator.share(files) failed', e); }
-      }
+        if (!window.__shareLock && navigator.canShare && navigator.canShare({ files: [file] })) {
+          window.__shareLock = true;
+          try { await navigator.share({ files: [file], title: safeM.title || 'مسابقه', text: safeM.teamA + ' vs ' + safeM.teamB }); window.__shareLock = false; return; } catch (e) { console.warn('navigator.share(files) failed', e); window.__shareLock = false; }
+        }
       // fallback: download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = (safeM.title||'match') + '.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
@@ -3115,8 +3191,12 @@ async function captureAndShareModal(m) {
   }
 }
 
-// Keep a stable reference to the primary capture implementation so wrapper can delegate
-window._captureAndShareModalImpl = captureAndShareModal;
+// Allow external code to install a primary capture implementation by setting
+// window._captureAndShareModalImpl = function(match) { ... }
+// Do NOT assign the wrapper to itself (that caused infinite recursion).
+try { if (typeof window._captureAndShareModalImpl === 'undefined') window._captureAndShareModalImpl = undefined; } catch(_) {}
+// by default, register our internal implementation so the wrapper can delegate to it
+try { if (typeof window._captureAndShareModalImpl === 'undefined' || window._captureAndShareModalImpl === undefined) window._captureAndShareModalImpl = _captureAndShareModalImpl; } catch(_) {}
 
 /* ================================================================
   SECTION: Date Utilities (Jalali <-> Gregorian)
@@ -4230,7 +4310,13 @@ function imageFileToDataURL(file, maxKB) {
     async function backupNow() {
       try {
         const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
-        const { data: userData } = await client.auth.getUser(); const user = userData?.user; if (!user) throw new Error('Not signed in');
+        const { data: userData } = await client.auth.getUser(); const user = userData?.user;
+        if (!user) {
+          // Not signed in: skip remote backups. Keep local save behavior only.
+          console.debug('backupNow: user not signed in — skipping remote backup');
+          try { updateSyncStatusUI && updateSyncStatusUI('default', 'محلی'); } catch(_){}
+          return null;
+        }
         // snapshot the entire app state (players, coaches, sessions, payments, etc.)
         // `state` is the in-memory app state persisted to localStorage
         let snapshot = JSON.parse(JSON.stringify(window.state || {}));
@@ -4905,6 +4991,25 @@ function openShareOverlay(matchId) {
   applyCardColors();
   if (colorAInput) { colorAInput.disabled = false; colorAInput.oninput = applyCardColors; }
   if (colorBInput) { colorBInput.disabled = false; colorBInput.oninput = applyCardColors; }
+  // Make the visible swatches clickable (larger tap target): clicking their parent opens native color input
+  try {
+    const swA = colorAInput && colorAInput.parentNode;
+    const swB = colorBInput && colorBInput.parentNode;
+      if (swA && colorAInput) {
+        swA.style.cursor = 'pointer';
+        swA.addEventListener('click', (ev) => { ev.stopPropagation(); try { colorAInput.focus(); colorAInput.click(); } catch(e) { colorAInput.dispatchEvent(new MouseEvent('click')); } });
+        // ensure wrapper doesn't block pointer events from the input
+        swA.style.pointerEvents = 'auto';
+      }
+      if (swB && colorBInput) {
+        swB.style.cursor = 'pointer';
+        swB.addEventListener('click', (ev) => { ev.stopPropagation(); try { colorBInput.focus(); colorBInput.click(); } catch(e) { colorBInput.dispatchEvent(new MouseEvent('click')); } });
+        swB.style.pointerEvents = 'auto';
+      }
+    // Ensure the live inputs accept pointer events while overlay is active
+    if (colorAInput) colorAInput.style.pointerEvents = 'auto';
+    if (colorBInput) colorBInput.style.pointerEvents = 'auto';
+  } catch (e) { console.debug('swatch click wiring failed', e); }
   // insert court image behind the gradient if available
   const courtImgPath = 'icons/court.png';
   if (card) {
@@ -5123,7 +5228,12 @@ async function captureAndShareModal(match) {
       if (candidate) match = candidate; else { console.debug('captureAndShareModal: no match inferred'); return; }
     } catch (e) { console.debug('capture wrapper infer failed', e); return; }
   }
-  if (typeof window._captureAndShareModalImpl === 'function') return await window._captureAndShareModalImpl(match);
+  // If an external implementation is registered, call it -- but guard against self-delegation.
+  try {
+    if (typeof window._captureAndShareModalImpl === 'function' && window._captureAndShareModalImpl !== captureAndShareModal) {
+      return await window._captureAndShareModalImpl(match);
+    }
+  } catch(e) { console.debug('external capture impl failed', e); }
   // fallback: nothing to do
   console.debug('No capture implementation available');
 }
@@ -5298,6 +5408,17 @@ function renderRankEditor() {
         #rankEditorContent .delete-rank { width:20px; height:20px; padding:2px 4px; font-size:10px; }
         #rankEditorContent .rank-name { max-width:140px; }
         #rankEditorContent .rank-min, #rankEditorContent .rank-max { width:52px; }
+      }
+      @media (max-width:300px){
+        /* Stack fields vertically to avoid breaking columns on very small screens */
+        #rankEditorContent .rank-row { flex-direction:column; align-items:flex-start; gap:6px; }
+        #rankEditorContent .rank-name { flex:1 1 100%; min-width:0; max-width:100%; font-size:12px; }
+        #rankEditorContent .rank-min, #rankEditorContent .rank-max { width:44px; flex:0 0 auto; }
+        /* Make delete button smaller and less intrusive */
+        #rankEditorContent .delete-rank { width:18px; height:18px; padding:0 4px; font-size:10px; }
+        /* Reduce spacing for control buttons */
+        #rankEditorContent .controls-row .buttons { gap:4px; }
+        #rankEditorContent .controls-row button { padding:6px 4px; font-size:12px; }
       }
       #rankEditorContent .ref-box { border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px;background:#fff; }
       #rankEditorContent .controls-row { display:block; }
@@ -5981,8 +6102,8 @@ function renderPlayersPage() {
           <div class="player-thumb list-thumb">
             <img src="${imgSrc}" />
           </div>
-          <div class="player-info-block" style="text-align:center;">
-            <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</div>
+            <div class="player-info-block" style="text-align:center;">
+            <div class="player-name" style="font-weight:700;">${escapeHtml(p.name)}</div>
             <div style="font-size:13px;color:var(--muted);">${p.category || '—'} • ${ageText}</div>
           </div>
         </div>
@@ -6006,7 +6127,7 @@ function renderPlayersPage() {
             <img src="${imgSrc}" />
           </div>
           <div class="player-info-block" style="text-align:center;">
-            <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</div>
+            <div class="player-name" style="font-weight:700;">${escapeHtml(p.name)}</div>
             <div style="font-size:13px;color:var(--muted);">${p.category || '—'} • امتیاز: ${avgScore} • ${ageText}</div>
           </div>
         </div>
@@ -6477,6 +6598,8 @@ function renderPaymentsPage() {
         <div>
           <strong>${player ? escapeHtml(player.name) : '—'}</strong>
           <div class="transaction-meta">${isoToJalali(pay.date)} • ${Number(pay.amount).toLocaleString()} تومان • دوره: ${pay.paymentMonth}/${pay.paymentYear}</div>
+          <button id="notificationsFromAccount" class="btn" style="display:flex;align-items:center;gap:8px;">اعلان‌ها <span id="notificationsBadge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
+        </div>
         </div>
         <div class="transaction-meta" style="min-width:80px;text-align:right">${pay.type || '—'}</div>
       </div>
@@ -8760,6 +8883,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Listen for Cordova/Capacitor/Android backbutton event if available
+  try {
+    document.addEventListener('backbutton', (ev) => {
+      // If any modal open, let its handler manage back; otherwise defer to goBack
+      try {
+        const handled = goBack();
+        if (!handled) {
+          // Not handled by app (double-press detected), allow default to close
+          return true;
+        }
+      } catch(e) { console.warn('backbutton handler error', e); }
+    });
+  } catch(e) { /* not running in Cordova-like environment */ }
+
+  // Helper: inject a small home button beside existing back buttons in view headers
+  function ensureHeaderHomeButtons() {
+    try {
+      document.querySelectorAll('.view-header').forEach(h => {
+        if (h.querySelector('.home-btn')) return; // already added
+        const btn = document.createElement('button');
+        btn.className = 'home-btn';
+        btn.title = 'خانه';
+        // prettier house icon (filled) for better visibility
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="20" height="20"><path d="M12 3l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10l9-7z"/></svg>';
+        btn.addEventListener('click', (e) => { e.stopPropagation(); showView('home'); });
+        // Try to insert immediately after back button if present so it visually sits next to it
+        const backBtn = h.querySelector('.back-btn');
+        if (backBtn && backBtn.parentNode) {
+          backBtn.parentNode.insertBefore(btn, backBtn.nextSibling);
+          // no inline positioning: CSS handles circular visuals and spacing
+        } else {
+          // fallback: append to header
+          h.appendChild(btn);
+        }
+      });
+    } catch(e) { console.warn('ensureHeaderHomeButtons failed', e); }
+  }
+  // run now and on DOM mutations that may add headers later
+  ensureHeaderHomeButtons();
+  const mo = new MutationObserver(() => ensureHeaderHomeButtons());
+  try { mo.observe(document.body, { childList:true, subtree:true }); } catch(_){}
+
+  // --- Notifications view and account link ---
+  // add notifications view skeleton near other sections
+
   // basic toast helper
   function showToast(msg, timeout = 1800) {
     let t = qs('#__app_toast');
@@ -8782,6 +8950,65 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(t._to);
     t._to = setTimeout(() => { t.style.opacity = '0'; }, timeout);
   }
+
+  // Notifications store (in-memory) — you can replace with persisted storage or server sync
+  if (!state.notifications) state.notifications = [];
+
+  function updateNotificationsBadge() {
+    try {
+      const badge = document.getElementById('notificationsBadge');
+      if (!badge) return;
+      const unread = (state.notifications || []).filter(n => !n.read).length;
+      if (unread > 0) { badge.style.display = 'inline-block'; badge.textContent = String(unread > 99 ? '99+' : unread); }
+      else badge.style.display = 'none';
+    } catch (e) { console.warn('updateNotificationsBadge failed', e); }
+  }
+
+  function renderNotifications() {
+    try {
+      const el = document.getElementById('notificationsContent');
+      if (!el) return;
+      el.innerHTML = '';
+      const arr = state.notifications || [];
+      if (!arr.length) {
+        el.innerHTML = '<div class="muted" style="padding:12px;">هیچ اعلانی وجود ندارد</div>';
+        return;
+      }
+      arr.forEach(n => {
+        const r = document.createElement('div');
+        r.className = 'notification-item card';
+        r.style.padding = '10px';
+        r.style.marginBottom = '8px';
+        r.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="flex:1"><div style="font-weight:700">${escapeHtml(n.title||'بدون عنوان')}</div><div style="color:var(--muted);font-size:13px;margin-top:6px;">${escapeHtml(n.body||'')}</div></div><div style="flex:0 0 auto;margin-left:8px;color:var(--muted);font-size:12px;">${new Date(n.ts||Date.now()).toLocaleString()}</div></div>`;
+        r.addEventListener('click', ()=>{ n.read = true; updateNotificationsBadge(); renderNotifications(); if (n.onClick) try{ n.onClick(n); } catch(_){ } });
+        el.appendChild(r);
+      });
+    } catch(e) { console.warn('renderNotifications failed', e); }
+  }
+
+  // wire notifications button in account area to the view
+  try {
+    const nb = document.getElementById('notificationsFromAccount');
+    if (nb) nb.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+    const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { if (!goBack()) showView('home'); });
+    // wire any legacy/class-based notification buttons to the same behavior and badge
+    Array.from(document.querySelectorAll('.notifications-action')).forEach(btn => {
+      btn.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+    });
+    // keep any class-based badges in sync
+    function syncClassBadges() {
+      const cnt = (state.notifications||[]).filter(n=>!n.read).length;
+      Array.from(document.querySelectorAll('.notifications-badge')).forEach(b => { if (cnt>0) { b.style.display='inline-block'; b.textContent = String(cnt>99?'99+':cnt); } else b.style.display='none'; });
+    }
+    // call once and also when badge updates
+    try { syncClassBadges(); } catch(_){}
+  } catch(e) { console.warn('wire notifications handlers failed', e); }
+
+  // safe HTML escape helper for small UI snippets
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // initial badge render
+  try { updateNotificationsBadge(); } catch(_){}
   on('#paymentsBtnAccess', 'click', () => showView('payments'));
   on('#sessionsBtnAccess', 'click', () => showView('sessions'));
   on('#tabCompetitions', 'click', () => showView('competitions'));
@@ -8994,12 +9221,9 @@ function openBirthdayModal(playerId) {
       <div style="padding:18px;max-width:420px;text-align:center;">
         <div style="font-size:18px;font-weight:800;margin-bottom:8px;">${escapeHtml(p.name)}</div>
         <div style="color:var(--muted);margin-bottom:12px;">${days} روز مانده تا تولد</div>
-        <div><button class="btn" id="closeUpcomingBirthday">بستن</button></div>
       </div>
     `;
-    setTimeout(()=>{
-      on('#closeUpcomingBirthday','click',()=>{ if (modal) modal.classList.add('hide'); modal.style.display='none'; });
-    },40);
+    // No explicit close button here; use the modal close control or backdrop to dismiss
   }
   // attach handlers for share buttons
   setTimeout(() => {

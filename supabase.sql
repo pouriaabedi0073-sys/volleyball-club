@@ -34,6 +34,17 @@ begin
   end if;
 end$$;
 
+-- ensure we track whether the profile email has been verified (keeps UI consistent)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='profiles' and column_name='email_verified'
+  ) then
+    execute 'alter table public.profiles add column email_verified boolean default false';
+  end if;
+end$$;
+
 -- backups table stores JSON snapshots per user
 create table if not exists public.backups (
   id bigserial primary key,
@@ -237,6 +248,24 @@ begin
   insert into public.profiles (id, email, updated_at)
   values (new.id, coalesce(new.email, (new.raw_user_meta_data->>'email') ), now())
   on conflict (id) do nothing;
+  -- Ensure there's a placeholder shared_backups row for this email so
+  -- cross-device discovery works immediately. This is idempotent and
+  -- will not fail the user creation if the table doesn't exist or
+  -- insertion fails for any reason.
+  begin
+    insert into public.shared_backups (group_email, data, device_id, last_sync_at, created_at)
+    values (
+      lower(coalesce(new.email, (new.raw_user_meta_data->>'email'))),
+      '{}'::jsonb,
+      null,
+      now(),
+      now()
+    )
+    on conflict (group_email) do nothing;
+  exception when others then
+    -- ignore; don't block user creation if shared_backups isn't present or insert fails
+    null;
+  end;
   return new;
 end;
 $$ language plpgsql security definer;
@@ -248,5 +277,29 @@ begin
     execute 'create trigger on_auth_user_created
       after insert on auth.users
       for each row execute procedure public.handle_new_user()';
+  end if;
+end$$;
+
+-- Keep profiles.email_verified in sync when auth.users changes (e.g., email confirmation)
+create or replace function public.sync_profile_email_verified()
+returns trigger as $$
+begin
+  begin
+    update public.profiles set email_verified = coalesce(new.email_confirmed_at is not null, false)
+    where id = new.id;
+  exception when others then
+    -- don't fail auth changes if profiles update cannot run
+    null;
+  end;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'on_auth_user_updated') then
+    execute 'create trigger on_auth_user_updated
+      after update on auth.users
+      for each row execute procedure public.sync_profile_email_verified()';
   end if;
 end$$;
