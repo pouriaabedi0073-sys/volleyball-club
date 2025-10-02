@@ -303,3 +303,30 @@ begin
       for each row execute procedure public.sync_profile_email_verified()';
   end if;
 end$$;
+
+-- Backfill: ensure existing profiles have a shared_backups placeholder (idempotent)
+do $$
+begin
+  if exists (select 1 from public.profiles) then
+    insert into public.shared_backups (group_email, data, device_id, last_sync_at, created_at)
+    select lower(p.email), '{}'::jsonb, null, now(), now()
+    from public.profiles p
+    where p.email is not null
+      and not exists (select 1 from public.shared_backups s where lower(s.group_email) = lower(p.email));
+  end if;
+exception when others then
+  -- ignore errors during backfill to avoid blocking deployment
+  null;
+end$$;
+
+-- Backfill profiles.email_verified from auth.users for existing users (idempotent)
+do $$
+begin
+  update public.profiles p
+  set email_verified = (u.email_confirmed_at is not null)
+  from auth.users u
+  where p.id = u.id
+    and (p.email_verified is distinct from (u.email_confirmed_at is not null));
+exception when others then
+  null;
+end$$;

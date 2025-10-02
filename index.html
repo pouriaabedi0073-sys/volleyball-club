@@ -3789,6 +3789,27 @@ function calculateTimeToNextCategory(age, category) {
     } catch(e) { console.warn('subscribeToSharedBackups outer fail', e); }
   }
 
+  // Ensure a shared_backups placeholder exists for this email so other devices can discover it
+  async function ensureSharedBackupExists(email) {
+    try {
+      const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
+      if (!email) throw new Error('no email');
+      const q = await client.from('shared_backups').select('id').eq('group_email', email).maybeSingle();
+      if (q && q.error) throw q.error;
+      if (!q || !q.data) {
+        // insert placeholder (idempotent if another process inserts first)
+        try {
+          const nowIso = new Date().toISOString();
+          const ins = await client.from('shared_backups').insert([{ group_email: email, data: '{}' , device_id: getDeviceId(), last_sync_at: nowIso, created_at: nowIso }]);
+          if (ins && ins.error) console.debug('ensureSharedBackup insert error', ins.error);
+          else console.debug('ensureSharedBackup inserted for', email);
+        } catch (ie) { console.debug('ensureSharedBackup insert failed', ie); }
+      } else {
+        console.debug('ensureSharedBackup exists for', email);
+      }
+    } catch (e) { console.debug('ensureSharedBackupExists failed', e); }
+  }
+
   // local status updater for embedded box
   function setEmbeddedStatus(connected) {
     const ind = document.getElementById('statusIndicator');
@@ -4066,6 +4087,7 @@ function calculateTimeToNextCategory(age, category) {
   const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
   const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
   if (displayEmailLower) subscribeToSharedBackups(displayEmailLower);
+    if (displayEmailLower) try { ensureSharedBackupExists(displayEmailLower); } catch(_){ }
       } catch(_){ }
     // Do not forcibly close the edit box here; let the user control it via the Edit button
     // (previous behavior hid the box which could interfere with the Edit button UX)
@@ -4334,26 +4356,29 @@ function imageFileToDataURL(file, maxKB) {
         const deviceId = getDeviceId();
         const deviceName = getDeviceName();
         const nowIso = new Date().toISOString();
+        // Try to update existing backup row; if not present, insert a new one.
+        let resData = null;
         try {
           const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
           console.debug('backup update result:', updated);
           if (updated && !updated.error && updated.data && updated.data.length > 0) {
-            try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
-            return updated.data;
+            resData = updated.data;
           }
         } catch (updErr) {
           console.debug('backup update failed (will try insert):', updErr);
         }
         // If update didn't apply, insert a new backup record (safe fallback)
-        try {
-          const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
-          if (ins && ins.error) throw ins.error;
-          try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
-          return ins.data;
-        } catch (insErr) {
-          console.debug('backup insert failed:', insErr);
-          throw insErr;
+        if (!resData) {
+          try {
+            const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
+            if (ins && ins.error) throw ins.error;
+            resData = ins.data;
+          } catch (insErr) {
+            console.debug('backup insert failed:', insErr);
+            throw insErr;
+          }
         }
+
         // Additionally, try to upsert a shared backup keyed by the user's email so devices using the same email can sync
         try {
           const email = (profile && profile.email) ? profile.email : (user.email || null);
@@ -4373,8 +4398,8 @@ function imageFileToDataURL(file, maxKB) {
             } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
           }
         } catch(sbErr) { console.debug('shared backup write failed', sbErr); }
-  try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
-  return ins.data;
+        try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
+        return resData;
       } catch (e) {
         console.error('backupNow error', e);
         try { updateSyncStatusUI('default', 'اتصال برقرار نیست یا خطا — مجدداً تلاش کنید'); } catch(_){ }
@@ -5420,6 +5445,21 @@ function renderRankEditor() {
         #rankEditorContent .controls-row .buttons { gap:4px; }
         #rankEditorContent .controls-row button { padding:6px 4px; font-size:12px; }
       }
+  /* Header and subtext tweaks for rank editor */
+  #rankEditorContent .rank-header { font-size:13px; }
+  /* make the subnote noticeably smaller (two sizes smaller than header) */
+  #rankEditorContent .rank-header .rank-sub { font-size:10px; color:var(--muted); font-weight:400; }
+      /* Two-step smaller rank name at small widths */
+      @media (max-width:420px){
+        #rankEditorContent .rank-name { font-size:13px; }
+      }
+      @media (max-width:320px){
+        #rankEditorContent .rank-name { font-size:11px; }
+        #rankEditorContent .rank-header { font-size:12px; }
+        /* make subtext even smaller on very narrow screens */
+        #rankEditorContent .rank-header .rank-sub { font-size:9px; }
+        #rankEditorContent #backRankEditorSmall { display:inline-flex; }
+      }
       #rankEditorContent .ref-box { border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px;background:#fff; }
       #rankEditorContent .controls-row { display:block; }
       #rankEditorContent .controls-row .buttons { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; align-items:center; }
@@ -5446,11 +5486,23 @@ function renderRankEditor() {
           <div id="ranksRefStatus" style="font-weight:700;padding:6px;border-radius:4px;">&nbsp;</div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;font-weight:700;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);;flex-wrap:wrap;">
-  <div style="flex:1;min-width:80px;text-align:center;">رده‌ها</div>
-        <div style="width:100px;text-align:center;">سن شروع<div style="font-size:12px;color:var(--muted);font-weight:400;">(شامل رده می‌شود)</div></div>
-        <div style="width:100px;text-align:center;">سن پایان<div style="font-size:12px;color:var(--muted);font-weight:400;">(شامل رده می‌شود)</div></div>
-        <div style="width:48px;text-align:center;">حذف</div>
+      <div class="rank-header" style="display:flex;gap:8px;align-items:flex-end;font-weight:700;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);flex-wrap:wrap;">
+        <div class="rank-col rank-col-name" style="flex:1;min-width:80px;text-align:center;">
+          <div class="rank-col-label">رده‌ها</div>
+        </div>
+        <div class="rank-col rank-col-min" style="width:72px;text-align:center;">
+          <div class="rank-col-label">سن شروع</div>
+          <div class="rank-sub">(شامل رده می‌شود)</div>
+        </div>
+        <div class="rank-col rank-col-max" style="width:72px;text-align:center;">
+          <div class="rank-col-label">سن پایان</div>
+          <div class="rank-sub">(شامل رده می‌شود)</div>
+        </div>
+        <div class="rank-col rank-col-delete" style="width:48px;text-align:center;">
+          <div class="rank-col-label">حذف</div>
+        </div>
+        <!-- small back button shown on very narrow screens, placed next to age columns -->
+        <button id="backRankEditorSmall" class="back-btn" style="display:none;margin-left:6px;"> <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
       </div>
       <div id="ranksRows" style="display:flex;flex-direction:column;gap:8px;">
         ${ranks.map((r, idx) => `
@@ -5524,6 +5576,8 @@ function renderRankEditor() {
 
   // header back button routing to settings (if present in header)
   try { on('#backRankEditor', 'click', () => { showView('settings'); }); } catch(e) {}
+  // small back button visible on very narrow screens: reuse same handler
+  try { on('#backRankEditorSmall', 'click', () => { showView('settings'); }); } catch(e) {}
 
   // handle auto/manual mode switching and status color
   const statusEl = qs('#ranksRefStatus');
@@ -8385,9 +8439,9 @@ function renderSettings() {
   <input id="settingsTitle" class="input" value="${state.settings.title}" style="font-size:20px;padding:12px;" />
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
   <label style="font-size:15px;">لوگو</label>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <input id="settingsLogo" type="file" accept="image/*" />
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;">
         <img id="settingsLogoPreview" src="${escapeHtml(state.settings.logo || 'icons/icon-192.png')}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid rgba(0,0,0,0.06);" />
+        <input id="settingsLogo" type="file" accept="image/*" />
       </div>
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
   <label style="font-size:15px;">سبک برنامه</label>
