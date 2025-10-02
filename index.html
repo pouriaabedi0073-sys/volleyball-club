@@ -3678,6 +3678,23 @@ function calculateTimeToNextCategory(age, category) {
               try { document.getElementById('editProfileToggle').style.display = 'none'; } catch(_){ }
               try { document.getElementById('logoutBtn').style.display = 'inline-block'; } catch(_){ }
               try { document.getElementById('backupNowBtn').style.display = 'none'; } catch(_){ }
+              // inject a "Resend confirmation" button so user can request another email if needed
+              try {
+                const container = document.getElementById('accountActions') || document.getElementById('accountProfileContainer');
+                if (container && !document.getElementById('resendConfirmBtn')) {
+                  const b = document.createElement('button');
+                  b.id = 'resendConfirmBtn';
+                  b.className = 'btn btn-ghost';
+                  b.textContent = 'ارسال مجدد ایمیل تأیید';
+                  b.style.marginLeft = '8px';
+                  b.addEventListener('click', async ()=>{
+                    try { await attemptResendConfirmation(email); } catch(e){ console.warn('resend attempt failed', e); alert('درخواست ارسال ایمیل تایید ناموفق بود'); }
+                  });
+                  container.appendChild(b);
+                }
+              } catch(_){ }
+              // attempt to register device even if account unconfirmed so devices table is populated
+              setTimeout(()=>{ try { if (window.registerDeviceForUser) window.registerDeviceForUser(data.user); else console.debug('registerDeviceForUser not ready yet'); } catch(_){ } }, 200);
             } else {
               // confirmed - load profile and show editable UI
               // automatic post-signup backup disabled to avoid unexpected POST errors
@@ -3715,6 +3732,32 @@ function calculateTimeToNextCategory(age, category) {
     finally { if (rspinner) rspinner.classList.remove('running'); recoveryBtn.disabled = false; }
   });
 
+  // Attempt to resend the confirmation email for a given address.
+  // Uses Supabase `resend` flow if available (some SDKs expose an API), otherwise calls auth.api via REST if configured.
+  async function attemptResendConfirmation(email) {
+    try {
+      if (!email) return alert('ایمیل وارد نشده است');
+      const client = getSupabaseClient(); if (!client) return alert('کلاینت Supabase آماده نیست');
+      // Supabase JS doesn't have a direct 'resend confirmation' method; we attempt a magic link signUp with redirect to trigger email OR call the REST endpoint
+      try {
+        // Try calling /auth/v1/otp (not always available) — safest is to call signUp with redirect which will trigger confirmation email again
+        const { data, error } = await client.auth.signUp({ email, password: Math.random().toString(36).slice(2,10) }, { emailRedirectTo: window.location.href });
+        // Immediately sign the user out if we accidentally created a temp account session
+        try { await client.auth.signOut(); } catch(_){ }
+        if (error) {
+          console.warn('resend via signUp returned error', error);
+          alert('درخواست ارسال ایمیل تأیید ناموفق بود: ' + (error.message || JSON.stringify(error)));
+        } else {
+          alert('درخواست ارسال ایمیل تأیید انجام شد. ایمیل خود را بررسی کنید');
+        }
+        return;
+      } catch(e) {
+        console.warn('resend confirmation fallback failed', e);
+        alert('ارسال ایمیل تأیید امکان‌پذیر نیست، لطفاً در تنظیمات سرور بررسی کنید');
+      }
+    } catch(e) { console.warn('attemptResendConfirmation failed', e); alert('خطا در ارسال ایمیل تأیید'); }
+  }
+
   // reflect connection status if global function exists
   if (typeof updateConnectionStatus === 'function') {
     // if Supabase exists now, mark connected
@@ -3725,8 +3768,21 @@ function calculateTimeToNextCategory(age, category) {
   // If supabaseSync exists, initialize it for the app's primary table (notes) once client is ready
   try {
     const client = getSupabaseClient();
+    // supabaseSync auto-init is disabled by default to avoid creating implicit dependencies
+    // If you want to enable realtime sync for a table, set `window.SUPABASE_SYNC_AUTO_INIT = true;`
+    // and optionally `window.SUPABASE_SYNC_TABLE = 'your_table'; window.SUPABASE_SYNC_KEY = 'id';` before the client loads.
     if (client && window.supabaseSync && typeof window.supabaseSync.init === 'function') {
-      try { window.supabaseSync._ctx.supabase = client; window.supabaseSync.init({ table: 'notes', key: 'id' }); } catch(e) { console.warn('init supabaseSync failed', e); }
+      try {
+        window.supabaseSync._ctx.supabase = client;
+        const auto = window.SUPABASE_SYNC_AUTO_INIT === true;
+        if (auto) {
+          const table = window.SUPABASE_SYNC_TABLE || 'notes';
+          const key = window.SUPABASE_SYNC_KEY || 'id';
+          window.supabaseSync.init({ table, key });
+        } else {
+          console.debug('supabaseSync auto-init disabled; set window.SUPABASE_SYNC_AUTO_INIT = true to enable');
+        }
+      } catch(e) { console.warn('init supabaseSync failed', e); }
     }
   } catch(e) {}
 
@@ -3800,7 +3856,7 @@ function calculateTimeToNextCategory(age, category) {
         // insert placeholder (idempotent if another process inserts first)
         try {
           const nowIso = new Date().toISOString();
-          const ins = await client.from('shared_backups').insert([{ group_email: email, data: '{}' , device_id: getDeviceId(), last_sync_at: nowIso, created_at: nowIso }]);
+          const ins = await client.from('shared_backups').insert([{ group_email: email, data: {} , device_id: getDeviceId(), last_sync_device: getDeviceName(), last_sync_at: nowIso, created_at: nowIso }]);
           if (ins && ins.error) console.debug('ensureSharedBackup insert error', ins.error);
           else console.debug('ensureSharedBackup inserted for', email);
         } catch (ie) { console.debug('ensureSharedBackup insert failed', ie); }
@@ -3808,6 +3864,55 @@ function calculateTimeToNextCategory(age, category) {
         console.debug('ensureSharedBackup exists for', email);
       }
     } catch (e) { console.debug('ensureSharedBackupExists failed', e); }
+  }
+
+  // Register this client device in `public.devices` so other devices can be identified
+  async function registerDeviceForUser(user) {
+    try {
+      const client = getSupabaseClient(); if (!client || !user) return;
+      const deviceId = getDeviceId();
+      const deviceName = getDeviceName();
+      const nowIso = new Date().toISOString();
+      // Try to find existing device row for this user/device
+      try {
+        const existing = await client.from('devices').select('id,device_id').eq('device_id', deviceId).maybeSingle();
+        if (existing && !existing.error && existing.data) {
+          // update last_seen and device_name if needed
+          await client.from('devices').update({ device_name: deviceName, last_seen: nowIso, user_id: user.id }).eq('device_id', deviceId);
+          console.debug('devices: updated last_seen for', deviceId);
+          return;
+        }
+      } catch(e) { console.debug('devices select failed', e); }
+      // insert a new device row (RLS allows user to insert rows with their user_id)
+      try {
+        const ins = await client.from('devices').insert([{ user_id: user.id, device_id: deviceId, device_name: deviceName, last_seen: nowIso }]);
+        if (ins && ins.error) console.debug('devices insert error', ins.error);
+        else console.debug('devices registered', deviceId);
+      } catch(e) { console.debug('devices insert failed', e); }
+    } catch(e) { console.debug('registerDeviceForUser failed', e); }
+  }
+
+  // If the shared_backups row exists but its data is empty ({} or null), seed it with the provided snapshot
+  async function ensureSeedSharedBackup(email, snapshot) {
+    try {
+      if (!email) return;
+      const client = getSupabaseClient(); if (!client) return;
+      const displayEmailLower = email.toLowerCase();
+      const sres = await client.from('shared_backups').select('id,data,last_sync_at,device_id').eq('group_email', displayEmailLower).maybeSingle();
+      if (sres && !sres.error && sres.data) {
+        const row = sres.data;
+        const isEmpty = !row.data || (typeof row.data === 'object' && Object.keys(row.data).length === 0) || (typeof row.data === 'string' && row.data === '{}');
+        if (isEmpty && snapshot) {
+          const nowIso = new Date().toISOString();
+          const deviceId = getDeviceId();
+          const deviceName = getDeviceName();
+          try {
+            const upd = await client.from('shared_backups').update({ data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }).eq('group_email', displayEmailLower).select();
+            if (upd && !upd.error) console.debug('seeded shared_backups for', displayEmailLower);
+          } catch(upErr) { console.debug('seed shared_backups update failed', upErr); }
+        }
+      }
+    } catch(e) { console.debug('ensureSeedSharedBackup failed', e); }
   }
 
   // local status updater for embedded box
@@ -3916,6 +4021,8 @@ function calculateTimeToNextCategory(age, category) {
         document.getElementById('accountProfileContainer').style.display = 'none';
         return;
       }
+      // Register this device for the signed-in user so the `devices` table is populated
+      try { registerDeviceForUser(user); } catch(_){ }
       // fetch profile row (first try selecting known columns)
       let profile = null;
       let fetchFailed = false; // track whether profile fetch ultimately failed
@@ -4088,6 +4195,25 @@ function calculateTimeToNextCategory(age, category) {
   const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
   if (displayEmailLower) subscribeToSharedBackups(displayEmailLower);
     if (displayEmailLower) try { ensureSharedBackupExists(displayEmailLower); } catch(_){ }
+    // If the shared backup exists but is empty, seed it with the local snapshot so other devices see current state
+    try {
+      try {
+        // derive a snapshot from last_sync_payload/profile/backups as in backupNow
+        let snapshot = null;
+        try {
+          const res = await getSupabaseClient().from('profiles').select('last_sync_payload').eq('id', user.id).maybeSingle();
+          if (res && !res.error && res.data && res.data.last_sync_payload) snapshot = res.data.last_sync_payload;
+        } catch(_){}
+        if (!snapshot) {
+          try { const bres = await getSupabaseClient().from('backups').select('data').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(); if (bres && !bres.error && bres.data && bres.data.data) snapshot = bres.data.data; } catch(_){ }
+        }
+        if (!snapshot) {
+          // as a last resort, create a minimal snapshot from profile
+          snapshot = { profiles: [ { id: user.id, email: user.email } ] };
+        }
+        try { ensureSeedSharedBackup(displayEmailLower, snapshot); } catch(_){ }
+      } catch(e) { console.debug('seed shared backup workflow failed', e); }
+    } catch(_){ }
       } catch(_){ }
     // Do not forcibly close the edit box here; let the user control it via the Edit button
     // (previous behavior hid the box which could interfere with the Edit button UX)
@@ -4383,8 +4509,8 @@ function imageFileToDataURL(file, maxKB) {
         try {
           const email = (profile && profile.email) ? profile.email : (user.email || null);
           const emailLower = email ? email.toLowerCase() : null;
-          if (emailLower) {
-            const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_at: nowIso };
+            if (emailLower) {
+            const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso };
             // try update then insert
             try {
               const supd = await client.from('shared_backups').update(sharedPayload).eq('group_email', emailLower).select();
@@ -4396,6 +4522,10 @@ function imageFileToDataURL(file, maxKB) {
                 else console.debug('shared_backups inserted');
               }
             } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
+            // write last_sync metadata to profiles so UI reflects latest sync
+            try {
+              await client.from('profiles').upsert({ id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: JSON.stringify({ shared_backups: [ snapshot ] }) }, { onConflict: 'id' });
+            } catch(pErr) { console.debug('profiles last_sync upsert failed', pErr); }
           }
         } catch(sbErr) { console.debug('shared backup write failed', sbErr); }
         try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
@@ -8833,8 +8963,14 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
   updateCategoryReferenceDate();  // اضافه شده اینجا
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register("./sw.js")
-      .then(reg => {
+    try {
+      const origin = window.location && window.location.origin;
+      // don't register service worker when origin is 'null' (file://) or insecure
+      if (!origin || origin === 'null' || origin.startsWith('file:')) {
+        console.debug('Skipping service worker registration: origin not supported', origin);
+      } else {
+        navigator.serviceWorker.register("./sw.js")
+          .then(reg => {
         console.log('Service Worker registered');
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
@@ -8846,8 +8982,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
         });
-      })
-      .catch(err => console.error('Service Worker registration failed:', err));
+          })
+          .catch(err => console.error('Service Worker registration failed:', err));
+      }
+    } catch (swErr) { console.debug('service worker guard failed', swErr); }
   }
 
   // PWA install prompt

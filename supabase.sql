@@ -189,6 +189,17 @@ begin
   end if;
 end$$;
 
+-- Add last_sync_device to shared_backups to store a human-friendly device name (idempotent)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='shared_backups' and column_name='last_sync_device'
+  ) then
+    execute 'alter table public.shared_backups add column last_sync_device text';
+  end if;
+end$$;
+
 -- Create devices table for tracking client devices
 create table if not exists public.devices (
   id uuid primary key default gen_random_uuid(),
