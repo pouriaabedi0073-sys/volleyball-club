@@ -34,6 +34,27 @@ begin
   end if;
 end$$;
 
+-- Additional fallback policy: allow users whose profile email matches group_email
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='shared_backups' and policyname='shared_backups_by_profile_email'
+  ) then
+    execute '
+      create policy "shared_backups_by_profile_email" on public.shared_backups
+        for all
+        using (
+          auth.role() = ''authenticated'' and
+          (select lower(email) from public.profiles where id = auth.uid()) = lower(group_email)
+        )
+        with check (
+          auth.role() = ''authenticated'' and
+          (select lower(email) from public.profiles where id = auth.uid()) = lower(group_email)
+        )
+    ';
+  end if;
+end$$;
+
 -- ensure we track whether the profile email has been verified (keeps UI consistent)
 do $$
 begin

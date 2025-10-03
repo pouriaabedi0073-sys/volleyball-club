@@ -2750,24 +2750,30 @@ function readShareColors() {
   </div>
 </section>
 
+      <section id="view-notifications" class="hide">
+        <div class="view-header fixed">
+          <h3>اعلان‌ها</h3>
+          <button class="back-btn" id="backNotifications"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+        </div>
+        <div class="card">
+          <div id="notificationsContent"></div>
+        </div>
+      </section>
+
       <section id="view-account" class="hide">
-       <div class="view-header fixed">
-       <h3>حساب کاربری</h3>
-       <button class="back-btn" id="backAccount"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
-       </div>
+    <div class="view-header fixed">
+    <h3>حساب کاربری</h3>
+    <button class="back-btn" id="backAccount"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+    </div>
        <div class="card" style="padding:0;overflow:visible;">
          <!-- Settings card (separate) -->
          <div class="card" style="padding:12px 16px; margin:12px; border-radius:12px; background:linear-gradient(90deg,#facc15,#fbbf24);">
              <div id="settingsBox" style="display:flex;justify-content:center;align-items:center;gap:12px;">
-             <button id="settingsFromAccount" class="btn" style="background:transparent;border:none;color:#111;font-weight:700;">تنظیمات</button>
-           </div>
+               <button id="settingsFromAccount" class="btn" style="padding:8px 12px;background:#111;color:#fff;border-radius:10px;border:none;font-weight:700;">تنظیمات</button>
+               <button id="notificationsFromSettings" class="btn" style="padding:8px 10px;background:transparent;border:1px solid rgba(0,0,0,0.06);border-radius:10px;color:var(--muted);">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px;">0</span></button>
+             </div>
          </div>
-         <!-- Notifications quick action: shown above login box so users can view notifications before signing in -->
-         <div style="margin:12px 12px 0 12px;">
-           <div style="display:flex;justify-content:center;">
-             <button id="notificationsFromAccountTop" class="btn notifications-action" style="display:flex;align-items:center;gap:8px;">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
-           </div>
-         </div>
+         <!-- Notifications controls moved to dedicated Notifications page; quick-action removed -->
          <!-- Login / Signup card (separate) -->
          <div id="embeddedAuthBox" class="card" style="padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:var(--card);border-radius:10px;margin:12px 12px 0 12px;">
            <div id="authDebug" style="font-size:13px;color:var(--muted);margin-bottom:8px;">وضعیت احراز هویت: بررسی...</div>
@@ -2878,6 +2884,9 @@ function readShareColors() {
                   <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
                 </div>
 
+                <!-- visible last sync line appears immediately under the status -->
+                <div id="lastSyncLineHeader" style="font-size:12px;color:var(--muted);width:100%;text-align:center;margin-top:6px;">آخرین همگام‌سازی: —</div>
+
                 <div id="profileSyncControls" style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:420px;">
                   <div class="action-row" style="display:flex;gap:8px;width:100%;">
                     <button id="importNowBtn" class="btn" style="flex:1;">واردسازی الآن</button>
@@ -2889,12 +2898,11 @@ function readShareColors() {
                     <span>واردسازی خودکار از دستگاه‌های دیگر</span>
                   </label>
 
-                  <div id="lastSyncLine" style="font-size:12px;color:var(--muted);width:100%;text-align:center;">آخرین همگام‌سازی: —</div>
+                  <!-- lastSyncLineFallback kept for compatibility (hidden) -->
+                  <div id="lastSyncLineFallback" style="display:none;font-size:12px;color:var(--muted);width:100%;text-align:center;">آخرین همگام‌سازی: —</div>
                 </div>
 
-                  <div style="width:100%;display:flex;justify-content:center;margin-top:8px;">
-                    <button class="btn notifications-action" style="display:flex;align-items:center;gap:8px;margin-right:8px;">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
-                  </div>
+                  <!-- notifications button removed from profile area (now in header) -->
 
                   <div class="action-row" style="display:flex;gap:8px;justify-content:center;width:100%;margin-top:6px;">
                     <button id="editProfileToggle" class="btn">ویرایش</button>
@@ -3793,7 +3801,7 @@ function calculateTimeToNextCategory(age, category) {
         const detail = e.detail || {};
         const backupIcon = document.getElementById('backupIcon');
         const backupStatus = document.getElementById('backupStatus');
-        const lastSyncLine = document.getElementById('lastSyncLine');
+  const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
   try { updateSyncStatusUI('group-received', when + ' • ' + device); } catch(_){ }
         // update last sync line with timestamp and optional device info
         const when = new Date().toLocaleString();
@@ -3829,7 +3837,7 @@ function calculateTimeToNextCategory(age, category) {
               try {
                 const backupIcon = document.getElementById('backupIcon');
                 const backupStatus = document.getElementById('backupStatus');
-                const lastSyncLine = document.getElementById('lastSyncLine');
+                const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
                 if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
                 if (backupStatus) { backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
                 const when = new Date().toLocaleString();
@@ -3936,7 +3944,7 @@ function calculateTimeToNextCategory(age, category) {
     try {
       const backupIcon = document.getElementById('backupIcon');
       const backupStatus = document.getElementById('backupStatus');
-      const lastSyncLine = document.getElementById('lastSyncLine');
+  const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
       if (!backupStatus) return;
       if (status === 'ok') {
         if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
@@ -4057,7 +4065,7 @@ function calculateTimeToNextCategory(age, category) {
   if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
   // Render last sync info if available on profile
   try {
-    const lastSyncLine = document.getElementById('lastSyncLine');
+  const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
     const backupStatus = document.getElementById('backupStatus');
     const backupIcon = document.getElementById('backupIcon');
     if (profile && (profile.last_sync_at || profile.last_sync_device)) {
@@ -4103,7 +4111,7 @@ function calculateTimeToNextCategory(age, category) {
       try {
         async function performImportLastSync() {
           const client = getSupabaseClient();
-          if (!client) return alert('کلاینت Supabase آماده نیست');
+          if (!client) { try { showToast('کلاینت Supabase آماده نیست'); } catch(_){ } return; }
           try {
             // Confirm once per email: store confirmation in localStorage
             try {
@@ -4126,7 +4134,7 @@ function calculateTimeToNextCategory(age, category) {
                 const sres = await client.from('shared_backups').select('data,last_sync_at,device_id').eq('group_email', displayEmailLower).order('last_sync_at', { ascending: false }).limit(1).maybeSingle();
                 if (sres && !sres.error && sres.data && sres.data.data) {
                   payload = sres.data.data;
-                  try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(sres.data.last_sync_at || sres.data.created_at).toLocaleString()} • ${sres.data.device_id || 'دستگاه دیگر'}`; } catch(_){ }
+                  try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(sres.data.last_sync_at || sres.data.created_at).toLocaleString()} • ${sres.data.device_id || 'دستگاه دیگر'}`; } catch(_){ }
                 }
               }
             } catch (sharedErr) { console.warn('shared_backups read failed', sharedErr); }
@@ -4139,12 +4147,12 @@ function calculateTimeToNextCategory(age, category) {
                   const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
                   if (bres && !bres.error && bres.data && bres.data.data) {
                     payload = bres.data.data;
-                    try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
+                    try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
                   }
                 } catch(be) { console.warn('backup fallback read failed', be); }
               }
             }
-            if (!payload) return alert('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد');
+            if (!payload) { try { showToast('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد'); } catch(_){ } return; }
             let parsed = null; try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
             const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
             const ok = await waitForSyncModule();
@@ -4157,14 +4165,14 @@ function calculateTimeToNextCategory(age, category) {
                   if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(_){} });
                 });
               }
-              alert('همگام‌سازی وارد شد. برای نمایش، صفحه را دوباره بارگذاری یا بخش مربوطه را رندر کنید.');
+              try { showToast('همگام‌سازی وارد شد'); } catch(_){ /* fallback */ }
               try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
             } else {
-              alert('ماژول همگام‌سازی در دسترس نیست');
+              try { showToast('ماژول همگام‌سازی در دسترس نیست'); } catch(_){ /* fallback */ }
             }
           } catch (err) {
             console.warn('import last sync failed', err);
-            alert('خطا در وارد کردن همگام‌سازی: ' + (err && err.message ? err.message : String(err)));
+            try { showToast('خطا در وارد کردن همگام‌سازی: ' + (err && err.message ? err.message : String(err))); } catch(_){ }
           }
         }
 
@@ -4180,7 +4188,7 @@ function calculateTimeToNextCategory(age, category) {
               autoToggle.addEventListener('change', ()=>{ try { localStorage.setItem('autoImportToggle', autoToggle.checked ? '1' : '0'); } catch(_){ } });
             }
             if (importBtn) importBtn.addEventListener('click', async ()=>{ await performImportLastSync(); });
-            if (forceSync) forceSync.addEventListener('click', async ()=>{ try { if (typeof backupNow === 'function') await backupNow(); alert('درخواست ارسال همگام‌سازی فرستاده شد'); } catch(e){ console.warn('force sync failed', e); alert('ارسال همگام‌سازی ناموفق'); } });
+            if (forceSync) forceSync.addEventListener('click', async ()=>{ try { if (typeof backupNow === 'function') await backupNow(); try { showToast('درخواست ارسال همگام‌سازی فرستاده شد'); } catch(_){ } } catch(e){ console.warn('force sync failed', e); try { showToast('ارسال همگام‌سازی ناموفق'); } catch(_){ } } });
             // update hint from existing lastSyncLine if present
             try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine && hint) hint.textContent = lastSyncLine.textContent; } catch(_){ }
           } catch(e) { console.warn('attachSyncControls failed', e); }
@@ -4518,13 +4526,17 @@ function imageFileToDataURL(file, maxKB) {
                 console.debug('shared_backups updated');
               } else {
                 const sins = await client.from('shared_backups').insert([Object.assign({}, sharedPayload, { created_at: nowIso })]);
-                if (sins && sins.error) console.debug('shared_backups insert error', sins.error);
-                else console.debug('shared_backups inserted');
+                if (sins && sins.error) console.debug('shared_backups insert error', sins.error, sins);
+                else console.debug('shared_backups inserted', sins && sins.data ? sins.data : null);
               }
             } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
             // write last_sync metadata to profiles so UI reflects latest sync
             try {
-              await client.from('profiles').upsert({ id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: JSON.stringify({ shared_backups: [ snapshot ] }) }, { onConflict: 'id' });
+              // send last_sync_payload as an object so it maps to jsonb type
+              const payloadObj = { shared_backups: [ snapshot ] };
+              const upRes = await client.from('profiles').upsert({ id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: payloadObj }, { onConflict: 'id', returning: 'minimal' });
+              if (upRes && upRes.error) console.debug('profiles last_sync upsert error', upRes.error, upRes);
+              else console.debug('profiles last_sync upserted');
             } catch(pErr) { console.debug('profiles last_sync upsert failed', pErr); }
           }
         } catch(sbErr) { console.debug('shared backup write failed', sbErr); }
@@ -6782,7 +6794,6 @@ function renderPaymentsPage() {
         <div>
           <strong>${player ? escapeHtml(player.name) : '—'}</strong>
           <div class="transaction-meta">${isoToJalali(pay.date)} • ${Number(pay.amount).toLocaleString()} تومان • دوره: ${pay.paymentMonth}/${pay.paymentYear}</div>
-          <button id="notificationsFromAccount" class="btn" style="display:flex;align-items:center;gap:8px;">اعلان‌ها <span id="notificationsBadge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;">0</span></button>
         </div>
         </div>
         <div class="transaction-meta" style="min-width:80px;text-align:right">${pay.type || '—'}</div>
@@ -9148,11 +9159,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateNotificationsBadge() {
     try {
-      const badge = document.getElementById('notificationsBadge');
-      if (!badge) return;
       const unread = (state.notifications || []).filter(n => !n.read).length;
-      if (unread > 0) { badge.style.display = 'inline-block'; badge.textContent = String(unread > 99 ? '99+' : unread); }
-      else badge.style.display = 'none';
+      // update any class-based badges
+      Array.from(document.querySelectorAll('.notifications-badge')).forEach(b => {
+        if (unread > 0) { b.style.display = 'inline-block'; b.textContent = String(unread > 99 ? '99+' : unread); }
+        else b.style.display = 'none';
+      });
     } catch (e) { console.warn('updateNotificationsBadge failed', e); }
   }
 
@@ -9180,13 +9192,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // wire notifications button in account area to the view
   try {
-    const nb = document.getElementById('notificationsFromAccount');
-    if (nb) nb.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
-    const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { if (!goBack()) showView('home'); });
-    // wire any legacy/class-based notification buttons to the same behavior and badge
-    Array.from(document.querySelectorAll('.notifications-action')).forEach(btn => {
-      btn.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
-    });
+  // notifications button inside settings area
+  const nbSettings = document.getElementById('notificationsFromSettings');
+  if (nbSettings) nbSettings.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+  // back button in notifications view
+  const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { if (!goBack()) showView('home'); });
     // keep any class-based badges in sync
     function syncClassBadges() {
       const cnt = (state.notifications||[]).filter(n=>!n.read).length;
@@ -9218,6 +9228,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // BMI filter: use dropdown #filterBmi on players page
   on('#filterBmi', 'change', renderPlayersPage);
   on('#settingsFromAccount', 'click', () => showView('settings'));
+  on('#notificationsFromSettings', 'click', () => { showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
 
 // ensure Rank Editor link updates when showing settings
 function showSettingsAndRankInfo() {

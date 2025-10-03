@@ -221,10 +221,10 @@
       payload[ctx.table] = [rowPayload];
       // upsert into profiles (requires RLS/permissions configured appropriately)
       try {
-        await ctx.supabase.from('profiles').upsert({ id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: JSON.stringify(payload) }, { onConflict: 'id' });
+        await ctx.supabase.from('profiles').upsert({ id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: payload }, { onConflict: 'id' });
       } catch (e) {
         // fallback: try update
-        try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: JSON.stringify(payload) }).eq('id', uid); } catch(_){}
+        try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
       }
     } catch (e) {
       console.warn('writeLastSyncMetadata failed', e);
