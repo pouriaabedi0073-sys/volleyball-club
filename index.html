@@ -3858,18 +3858,40 @@ function calculateTimeToNextCategory(age, category) {
     try {
       const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
       if (!email) throw new Error('no email');
-      const q = await client.from('shared_backups').select('id').eq('group_email', email).maybeSingle();
-      if (q && q.error) throw q.error;
-      if (!q || !q.data) {
+      // read all rows for this group_email so we can detect duplicates and consolidate
+      const qAll = await client.from('shared_backups').select('id,data,last_sync_at,created_at,device_id,last_sync_device').eq('group_email', email);
+      if (qAll && qAll.error) throw qAll.error;
+      const rows = (qAll && qAll.data) ? qAll.data : [];
+      if (!rows || rows.length === 0) {
         // insert placeholder (idempotent if another process inserts first)
         try {
           const nowIso = new Date().toISOString();
-          const ins = await client.from('shared_backups').insert([{ group_email: email, data: {} , device_id: getDeviceId(), last_sync_device: getDeviceName(), last_sync_at: nowIso, created_at: nowIso }]);
+          const ins = await client.from('shared_backups').upsert([{ group_email: email, data: {} , device_id: getDeviceId(), last_sync_device: getDeviceName(), last_sync_at: nowIso, created_at: nowIso }], { onConflict: 'group_email' });
           if (ins && ins.error) console.debug('ensureSharedBackup insert error', ins.error);
           else console.debug('ensureSharedBackup inserted for', email);
         } catch (ie) { console.debug('ensureSharedBackup insert failed', ie); }
-      } else {
+      } else if (rows.length === 1) {
         console.debug('ensureSharedBackup exists for', email);
+      } else {
+        // Multiple rows — pick the best candidate (prefer non-empty data and most recent) and try to clean up duplicates
+        try {
+          rows.sort((a,b)=>{
+            const aEmpty = (!a.data || (typeof a.data === 'object' && Object.keys(a.data).length===0));
+            const bEmpty = (!b.data || (typeof b.data === 'object' && Object.keys(b.data).length===0));
+            if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+            const at = new Date(a.last_sync_at || a.created_at || 0).getTime();
+            const bt = new Date(b.last_sync_at || b.created_at || 0).getTime();
+            return bt - at;
+          });
+          const keeper = rows[0];
+          const nowIso = new Date().toISOString();
+          // Upsert keeper back to ensure canonical group_email casing and metadata
+          try { await client.from('shared_backups').upsert([{ id: keeper.id, group_email: email, data: keeper.data || {}, device_id: keeper.device_id || getDeviceId(), last_sync_device: keeper.last_sync_device || getDeviceName(), last_sync_at: keeper.last_sync_at || nowIso }], { onConflict: 'id' }); } catch(_){ }
+          const extras = rows.slice(1).map(r=>r.id).filter(Boolean);
+          if (extras.length) {
+            try { await client.from('shared_backups').delete().in('id', extras); console.debug('ensureSharedBackup removed duplicate ids', extras); } catch(delErr){ console.debug('failed to delete duplicate shared_backups', delErr); }
+          }
+        } catch(consolErr) { console.debug('consolidate shared_backups failed', consolErr); }
       }
     } catch (e) { console.debug('ensureSharedBackupExists failed', e); }
   }
@@ -3948,7 +3970,7 @@ function calculateTimeToNextCategory(age, category) {
       if (!backupStatus) return;
       if (status === 'ok') {
         if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
-        backupStatus.textContent = 'همگام‌سازی انجام شده'; backupStatus.style.color = 'var(--accent)';
+        backupStatus.textContent = 'همگام‌سازی آنلاین'; backupStatus.style.color = 'var(--accent)';
         if (reason && lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
       } else if (status === 'group-received') {
         if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
@@ -3961,7 +3983,7 @@ function calculateTimeToNextCategory(age, category) {
       } else {
         // default: not synced
         if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; }
-        backupStatus.textContent = 'همگام‌سازی نشده'; backupStatus.style.color = 'var(--muted)';
+        backupStatus.textContent = 'اتصال برقرار نیست'; backupStatus.style.color = 'var(--muted)';
         if (reason && lastSyncLine) lastSyncLine.textContent = reason;
       }
     } catch(e) { console.warn('updateSyncStatusUI failed', e); }
@@ -3988,6 +4010,13 @@ function calculateTimeToNextCategory(age, category) {
       __shared_import_throttle.set(key, now);
       // Extract data field
       let raw = payload.data || payload;
+      // If raw is an empty object, treat as no payload
+      try {
+        if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 0) {
+          console.debug('autoImportSharedPayload: empty payload, skipping');
+          return;
+        }
+      } catch(_){ }
       // If record shape contains nested .data (from realtime), normalize
       if (payload && payload.record && payload.record.data) raw = payload.record.data;
       let parsed = null;
@@ -4486,6 +4515,13 @@ function imageFileToDataURL(file, maxKB) {
             }
           }
         } catch(e) { /* ignore */ }
+        // If snapshot is empty, ensure at least a minimal profiles snapshot so shared_backups isn't an empty object
+        try {
+          if (!snapshot || Object.keys(snapshot).length === 0) {
+            const em = (profile && profile.email) ? profile.email : (user.email || null);
+            snapshot = { profiles: [ { id: user.id, email: em } ] };
+          }
+        } catch(_){ }
         // Safer flow: attempt to update an existing backup row, otherwise insert a new one.
         const deviceId = getDeviceId();
         const deviceName = getDeviceName();
@@ -4519,16 +4555,11 @@ function imageFileToDataURL(file, maxKB) {
           const emailLower = email ? email.toLowerCase() : null;
             if (emailLower) {
             const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso };
-            // try update then insert
+            // Use upsert with onConflict to ensure a single row per group_email and avoid race-created duplicates
             try {
-              const supd = await client.from('shared_backups').update(sharedPayload).eq('group_email', emailLower).select();
-              if (supd && !supd.error && supd.data && supd.data.length > 0) {
-                console.debug('shared_backups updated');
-              } else {
-                const sins = await client.from('shared_backups').insert([Object.assign({}, sharedPayload, { created_at: nowIso })]);
-                if (sins && sins.error) console.debug('shared_backups insert error', sins.error, sins);
-                else console.debug('shared_backups inserted', sins && sins.data ? sins.data : null);
-              }
+              const su = await client.from('shared_backups').upsert([Object.assign({}, sharedPayload, { created_at: nowIso })], { onConflict: 'group_email' });
+              if (su && su.error) console.debug('shared_backups upsert error', su.error, su);
+              else console.debug('shared_backups upserted', su && su.data ? su.data : null);
             } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
             // write last_sync metadata to profiles so UI reflects latest sync
             try {

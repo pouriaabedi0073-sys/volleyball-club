@@ -210,6 +210,74 @@ begin
   end if;
 end$$;
 
+-- Consolidate any duplicate rows for the same lower(group_email) before creating a unique index.
+-- Strategy: for each duplicated lower(group_email), choose a keeper row (prefer non-empty data, then newest last_sync_at/created_at),
+-- update its group_email to canonical lower-case, and delete the other rows (best-effort).
+do $$
+declare
+  rec record;
+  keeper_id bigint;
+  keeper_data jsonb;
+  dup_email text;
+begin
+  for rec in
+    select lower(group_email) as email, count(*) as cnt
+    from public.shared_backups
+    group by lower(group_email)
+    having count(*) > 1
+  loop
+    dup_email := rec.email;
+    -- Try to pick a keeper with non-empty data ordered by most recent last_sync_at/created_at
+    begin
+      select id, data into keeper_id, keeper_data
+      from public.shared_backups
+      where lower(group_email) = dup_email
+        and data is not null
+        and data <> '{}'::jsonb
+      order by coalesce(last_sync_at, created_at) desc
+      limit 1;
+    exception when others then
+      keeper_id := null; keeper_data := null;
+    end;
+    -- If none with non-empty data, pick the most recent row
+    if keeper_id is null then
+      select id, data into keeper_id, keeper_data
+      from public.shared_backups
+      where lower(group_email) = dup_email
+      order by coalesce(last_sync_at, created_at) desc
+      limit 1;
+    end if;
+    -- Canonicalize keeper's group_email to lower-case
+    if keeper_id is not null then
+      begin
+        update public.shared_backups set group_email = dup_email where id = keeper_id;
+      exception when others then end;
+      -- Delete other rows for this email (best-effort; may fail under strict RLS)
+      begin
+        delete from public.shared_backups where lower(group_email) = dup_email and id <> keeper_id;
+      exception when others then
+        -- ignore deletion failures
+        null;
+      end;
+    end if;
+  end loop;
+exception when others then
+  -- don't fail deployment if consolidation can't run
+  null;
+end$$;
+
+-- Ensure only one shared_backups row exists per lower(group_email)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='shared_backups' and column_name='group_email'
+  ) then
+    -- create a unique index on the lowercased group_email to prevent duplicates created by concurrent inserts
+    execute 'create unique index if not exists shared_backups_group_email_unique on public.shared_backups (lower(group_email))';
+  end if;
+end$$;
+
 -- Add last_sync_device to shared_backups to store a human-friendly device name (idempotent)
 do $$
 begin
