@@ -13,211 +13,24 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <!-- Ensure Supabase library is loaded early for auth UI -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script>
-  // Inline Supabase client initialization for embedded auth.
-  (function(){
-    const SUPA_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
-    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
-
-    function tryInit() {
-      try {
-        const lib = (window.supabase && typeof window.supabase.createClient === 'function') ? window.supabase : (typeof supabase !== 'undefined' ? supabase : null);
-        if (!lib) return false;
-        // If the global looks like the library itself, create a client and expose it on window.supabase
-        if (!window.__supabase_client_initialized) {
-          window.supabase = lib.createClient(SUPA_URL, SUPA_KEY);
-          window.__supabase_client_initialized = true;
-          console.info('Supabase client initialized inline.');
-        }
-        return true;
-      } catch (e) {
-        console.warn('Supabase inline init failed:', e);
-        return false;
-      }
-    }
-
-    if (!tryInit()) {
-      // Retry a few times while the UMD bundle loads
-      let tries = 0;
-      const maxTries = 12;
-      const id = setInterval(() => {
-        tries++;
-        if (tryInit() || tries >= maxTries) {
-          clearInterval(id);
-          if (tries >= maxTries) console.warn('Supabase library not detected; embedded auth will remain offline until the client is provided.');
-        }
-      }, 250);
-    }
-  })();
-</script>
-<!-- Lightweight global toast stub (defined early so other scripts can call showToast safely) -->
-<script>
-  // Provide a minimal, safe global toast function early so scripts that run
-  // before the full app code can still call showToast without throwing.
-  window.showToast = window.showToast || function(msg, timeout = 1800) {
-    try {
-      let t = document.getElementById('__app_toast');
-      if (!t) {
-        t = document.createElement('div');
-        t.id = '__app_toast';
-        t.style.position = 'fixed';
-        t.style.bottom = '90px';
-        t.style.left = '50%';
-        t.style.transform = 'translateX(-50%)';
-        t.style.background = 'rgba(0,0,0,0.75)';
-        t.style.color = '#fff';
-        t.style.padding = '8px 12px';
-        t.style.borderRadius = '8px';
-        t.style.zIndex = 3000;
-        document.body && document.body.appendChild(t);
-      }
-      t.textContent = msg;
-      t.style.opacity = '1';
-      clearTimeout(t._to);
-      t._to = setTimeout(() => { try { t.style.opacity = '0'; } catch(_){} }, timeout);
-    } catch (e) {
-      try { console.log('[toast]', msg); } catch(_){}
-    }
-  };
-</script>
-  <!-- Supabase recovery helper: parse tokens from URL fragment and set session when client is ready -->
-  <script>
-    (function(){
-      // Parse fragment like #access_token=...&refresh_token=...&expires_at=...
-      function parseFragment(hash) {
-        const out = {};
-        if (!hash) return out;
-        const str = hash.replace(/^#/, '');
-        str.split('&').forEach(pair => {
-          if (!pair) return;
-          const idx = pair.indexOf('=');
-          const key = idx === -1 ? decodeURIComponent(pair) : decodeURIComponent(pair.slice(0, idx));
-          const val = idx === -1 ? '' : decodeURIComponent(pair.slice(idx + 1));
-          out[key] = val;
-        });
-        return out;
-      }
-
-      function createPanel() {
-        if (document.getElementById('recovery-panel')) return document.getElementById('recovery-panel');
-        const panel = document.createElement('div');
-        panel.id = 'recovery-panel';
-        panel.style.position = 'fixed';
-        panel.style.zIndex = 99999;
-        panel.style.left = '12px';
-        panel.style.bottom = '12px';
-        panel.style.maxWidth = '420px';
-        panel.style.width = 'calc(100% - 24px)';
-        panel.style.background = 'rgba(255,255,255,0.98)';
-        panel.style.border = '1px solid rgba(0,0,0,0.06)';
-        panel.style.padding = '10px';
-        panel.style.borderRadius = '10px';
-        panel.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
-        panel.style.fontSize = '13px';
-        panel.style.direction = 'ltr';
-
-        panel.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <strong style="font-size:13px;">Supabase: بازیابی نشست</strong>
-            <button id="recovery-close" style="background:transparent;border:none;cursor:pointer;font-size:14px">✕</button>
-          </div>
-          <div style="margin-bottom:8px;">این پنل توکن‌ها را از fragment URL می‌خواند و تلاش می‌کند نشست را با Supabase تنظیم کند. اگر پیام خطا دیدید، می‌توانید توکن‌ها را دستی وارد کنید.</div>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input id="recovery-access" placeholder="access_token" style="flex:1;padding:8px;border:1px solid rgba(0,0,0,0.08);border-radius:6px" />
-          </div>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input id="recovery-refresh" placeholder="refresh_token (اختیاری)" style="flex:1;padding:8px;border:1px solid rgba(0,0,0,0.08);border-radius:6px" />
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;">
-            <button id="recovery-set" class="btn">Set session</button>
-          </div>
-          <pre id="recovery-log" style="max-height:160px;overflow:auto;margin-top:8px;background:rgba(0,0,0,0.02);padding:8px;border-radius:6px;font-size:12px"></pre>
-        `;
-
-        document.body.appendChild(panel);
-        document.getElementById('recovery-close').addEventListener('click', ()=> panel.remove());
-        return panel;
-      }
-
-      function log(message) {
-        console.log(message);
+    <script>
+      // Minimal Supabase client initializer: prefer window vars if set, otherwise use project defaults
+      (function(){
         try {
-          const el = document.getElementById('recovery-log') || createPanel().querySelector('#recovery-log');
-          if (!el) return;
-          const time = new Date().toLocaleTimeString();
-          el.textContent = `${time} - ${typeof message === 'string' ? message : JSON.stringify(message, null, 2)}\n` + el.textContent;
-        } catch (e) { /* ignore */ }
-      }
-
-      async function trySetSession(tokens) {
-        const panel = createPanel();
-        document.getElementById('recovery-access').value = tokens.access_token || '';
-        document.getElementById('recovery-refresh').value = tokens.refresh_token || '';
-
-        if (!tokens.access_token) {
-          log('no access_token found in fragment');
-          return;
-        }
-
-        // Wait for supabase client to be ready
-        let tries = 0;
-        const maxTries = 20;
-        const delay = 300;
-        log('در تلاش برای پیدا کردن Supabase client...');
-        while (tries < maxTries) {
-          if (window.supabase && window.supabase.auth && typeof window.supabase.auth.setSession === 'function') break;
-          tries++;
-          await new Promise(r => setTimeout(r, delay));
-        }
-
-        if (!(window.supabase && window.supabase.auth && typeof window.supabase.auth.setSession === 'function')) {
-          log('خطا: Supabase client در دسترس نیست. لطفاً مطمئن شوید کتابخانه Supabase بارگذاری شده و در تنظیمات صفحه قرار دارد.');
-          return;
-        }
-
-        log('Supabase client پیدا شد؛ تنظیم نشست...');
-        try {
-          const { data, error } = await window.supabase.auth.setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token });
-          if (error) {
-            log({ error: error.message || error });
-          } else {
-            log('نشست با موفقیت تنظیم شد.');
-            log({ data });
-            // Optionally clear the fragment so tokens aren't visible in URL
-            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+          if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
+          if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
+          const lib = (window.supabase && typeof window.supabase.createClient === 'function') ? window.supabase : (typeof supabase !== 'undefined' ? supabase : null);
+          if (!lib) return;
+          if (!window.__supabase_client_initialized) {
+            window.supabase = lib.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+            window.__supabase_client_initialized = true;
+            console.info('Supabase client initialized inline.');
           }
         } catch (e) {
-          log({ error: e && e.message ? e.message : String(e) });
+          console.warn('Supabase inline init failed:', e);
         }
-      }
-
-      // Attach manual button handler
-      function attachManualHandler() {
-        const panel = createPanel();
-        const btn = panel.querySelector('#recovery-set');
-        btn.addEventListener('click', async ()=>{
-          const a = panel.querySelector('#recovery-access').value.trim();
-          const r = panel.querySelector('#recovery-refresh').value.trim();
-          await trySetSession({ access_token: a, refresh_token: r });
-        });
-      }
-
-      // Run on load
-      document.addEventListener('DOMContentLoaded', ()=>{
-        const frag = location.hash || '';
-        const tokens = parseFragment(frag);
-        if (tokens && tokens.access_token) {
-          log('توکن‌ها از fragment تشخیص داده شد. تلاش برای تنظیم نشست...');
-          attachManualHandler();
-          trySetSession(tokens);
-        } else {
-          // create panel but keep it collapsed (user can open by calling createPanel in console)
-          // show small unobtrusive button to open panel
-          // recovery open button intentionally removed to keep UI minimal for mobile app build
-        }
-      });
-    })();
-  </script>
+      })();
+    </script>
 <link rel="manifest" href="./manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -427,65 +240,11 @@
     border: none;
   }
   .menu-icon-btn.home {
-    width: 60px;
-    height: 60px;
-    margin-bottom: 10px;
-    transform: translateY(-5px);
-  }
-  .menu-icon-btn:hover, .menu-icon-btn:active {
-    transform: scale(1.1) rotate(5deg);
-    box-shadow: 0 4px 12px rgba(14,165,233,0.4);
-  }
-  .menu-icon-btn svg {
-    width: 32px; /* بزرگ‌تر کردن آیکون‌ها */
-    height: 32px;
-    stroke: var(--icon-stroke);
-  }
-  /* Inline small spinner used inside buttons (3 dots) */
-  .inline-spinner { display:inline-flex; align-items:center; justify-content:center; visibility:hidden; opacity:0; width:18px; height:18px; }
-  .inline-spinner::before, .inline-spinner::after, .inline-spinner > i { content: ''; display:inline-block; width:6px; height:6px; background:var(--text-inverse); border-radius:50%; margin:0 2px; opacity:0.7; }
-  .inline-spinner.running::before { animation: dot 1s infinite ease-in-out 0s; }
-  .inline-spinner.running > i { animation: dot 1s infinite ease-in-out 0.15s; }
-  .inline-spinner.running::after { animation: dot 1s infinite ease-in-out 0.3s; }
-  .inline-spinner.running { visibility:visible; opacity:1; }
-  @keyframes dot { 0%,80%,100% { transform: translateY(0); opacity:0.3; } 40% { transform: translateY(-6px); opacity:1; } }
-  /* Make account action buttons horizontal and responsive */
-  #accountProfileContainer .card > div > div:last-child { display:flex; gap:8px; align-items:center; }
-  #accountProfileContainer .card > div > div:last-child button { min-width:90px; }
-  @media (max-width:320px) {
-    .auth-form-container { padding:8px !important; }
-    .form-tabs { gap:6px !important; }
-    #embeddedAuthBox { padding:6px !important; }
-    .form-content .form-group label { font-size:13px; }
-    .form-content .form-control { font-size:14px; }
-    #accountProfileContainer .card > div > div:last-child { flex-direction:row; gap:6px; }
-  }
-  /* Stack avatar above info and show action buttons in one row on small screens */
-  @media (max-width:480px) {
-    #accountProfileContainer .card > div { flex-direction: column !important; align-items: center; text-align:center; }
-    #accountProfileContainer img#accountAvatar { width:96px !important; height:96px !important; margin-bottom:8px; }
-    #accountProfileContainer .card > div > div:first-of-type { width:100%; text-align:center; }
-    /* Ensure action buttons stretch full width on mobile */
-    #accountProfileContainer .card .profile-actions > div { flex-direction:column; }
-    #accountProfileContainer .card .profile-actions > div button { width:100%; }
-    /* Make profile action buttons and sync controls stack on narrow screens */
-    #accountProfileContainer .card .profile-actions { width:100%; display:flex; flex-direction:column; gap:8px; }
-    #accountProfileContainer .card .profile-actions > div { display:flex; gap:8px; width:100%; }
-    /* Make each action row stack vertically and prevent overflow */
-    #accountProfileContainer .card .action-row { flex-direction:column; }
-    #accountProfileContainer .card { overflow: hidden; }
-  }
-
-  /* Ensure profile text fields (name, email, phone) are stacked vertically */
-  #accountProfileContainer .card > div > div > #accountName,
-  #accountProfileContainer .card > div > div > #accountEmail,
-  #accountProfileContainer .card > div > div > #accountPhone {
-    display:block; width:100%;
-  }
-
-  /* Keep avatar on top and center all profile content across sizes */
-  #accountProfileContainer .card > div { display:flex; flex-direction:column; align-items:center; text-align:center; }
-  #accountProfileContainer .card > div > div > #accountName,
+      /* home button visual styles only; JavaScript moved to script blocks */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
   #accountProfileContainer .card > div > div > #accountEmail,
   #accountProfileContainer .card > div > div > #accountPhone { display:block; width:100%; }
   
@@ -2881,25 +2640,26 @@ function readShareColors() {
 
                 <div style="display:flex;align-items:center;gap:8px;">
                   <div id="backupIcon" style="width:14px;height:14px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,0.06);"></div>
-                  <div id="backupStatus" style="font-size:13px;color:var(--muted);">--</div>
+                  <!-- legacy backupStatus hidden; new status shown below -->
+                  <div id="backupStatus_old" style="display:none;font-size:13px;color:var(--muted);">--</div>
                 </div>
 
-                <!-- visible last sync line appears immediately under the status -->
-                <div id="lastSyncLineHeader" style="font-size:12px;color:var(--muted);width:100%;text-align:center;margin-top:6px;">آخرین همگام‌سازی: —</div>
+                <!-- legacy lastSyncLineHeader hidden; new lastSyncLine shown inside controls -->
+                <div id="lastSyncLineHeader_old" style="display:none;font-size:12px;color:var(--muted);width:100%;text-align:center;margin-top:6px;">آخرین همگام‌سازی: —</div>
 
                 <div id="profileSyncControls" style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:420px;">
+                  <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="autoImportToggle" checked />
+                    <span>همگام‌سازی خودکار فعال است</span>
+                  </label>
+                  <!-- status line: empty until sync occurs -->
+                  <div id="syncStatusLine" style="font-size:13px;color:var(--muted);width:100%;text-align:center;display:none;">وضعیت: <span id="syncStatusText"></span></div>
+                  <div id="lastSyncLine" style="font-size:12px;color:var(--muted);width:100%;text-align:center;display:none;">آخرین همگام‌سازی: —</div>
+
                   <div class="action-row" style="display:flex;gap:8px;width:100%;">
                     <button id="importNowBtn" class="btn" style="flex:1;">واردسازی الآن</button>
                     <button id="forceSyncBtn" class="btn" style="flex:1;background:#2563eb;color:#fff;border:none;">ارسال همگام‌سازی</button>
                   </div>
-
-                  <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;">
-                    <input type="checkbox" id="autoImportToggle" />
-                    <span>واردسازی خودکار از دستگاه‌های دیگر</span>
-                  </label>
-
-                  <!-- lastSyncLineFallback kept for compatibility (hidden) -->
-                  <div id="lastSyncLineFallback" style="display:none;font-size:12px;color:var(--muted);width:100%;text-align:center;">آخرین همگام‌سازی: —</div>
                 </div>
 
                   <!-- notifications button removed from profile area (now in header) -->
@@ -3813,86 +3573,63 @@ function calculateTimeToNextCategory(age, category) {
     });
   } catch(e) { console.warn('supabase realtime listener install failed', e); }
 
-  // Subscribe to shared_backups changes for a given email (fires realtime events when other devices update)
+  // Subscribe to shared_backups-like events for a given email.
+  // New flow: listen to generic supabase:realtime events emitted by `window.supabaseSync`.
+  // This avoids direct coupling to a legacy `shared_backups` table while preserving UI behavior.
   function subscribeToSharedBackups(email) {
     try {
-      const client = getSupabaseClient();
-      if (!client || !email) return;
-      // Avoid duplicate subscriptions: store on window
+      if (!email) return;
       window.__shared_backups_sub = window.__shared_backups_sub || {};
       if (window.__shared_backups_sub[email]) return; // already subscribed
-      try {
-        // Use PostgREST/Realtime subscribe via client.channel for Supabase JS v2
-        if (client && client.channel) {
-          const ch = client.channel('public:shared_backups:email:' + email).on('postgres_changes', { event: '*', schema: 'public', table: 'shared_backups', filter: `group_email=eq.${email}` }, (payload) => {
-            try {
-              console.debug('shared_backups realtime payload', payload);
-              // Extract device info and emit a synthetic global event that other handlers can use
-              const record = payload.record || payload.new || payload;
-              // prefer last_sync_device -> device_id -> device
-              const deviceInfo = (record && (record.last_sync_device || record.device_id || record.device)) || 'دستگاه دیگر';
-              const ev = new CustomEvent('supabase:realtime', { detail: { source: 'shared_backups', row: record, device: deviceInfo } });
-              window.dispatchEvent(ev);
-              // Additionally update profile UI last sync line
-              try {
-                const backupIcon = document.getElementById('backupIcon');
-                const backupStatus = document.getElementById('backupStatus');
-                const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
-                if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
-                if (backupStatus) { backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
-                const when = new Date().toLocaleString();
-                if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${deviceInfo}`;
-              } catch(_){ }
-              // Auto-import payload into local state (throttled)
-              try { autoImportSharedPayload(payload.record || payload.new || payload); } catch(_){ }
-            } catch(err) { console.warn('shared_backups payload handler error', err); }
-          }).subscribe();
-          window.__shared_backups_sub[email] = ch;
-        }
-      } catch(e) { console.warn('subscribeToSharedBackups failed', e); }
-    } catch(e) { console.warn('subscribeToSharedBackups outer fail', e); }
+
+      const handler = (e) => {
+        try {
+          const d = e.detail || {};
+          // expect supabaseSync to emit { table, event, row }
+          if (!d || !d.row) return;
+          const record = d.row;
+          // match by group_email if present, or fallback to profile email match
+          const groupEmail = (record && (record.group_email || (record.profiles && record.profiles[0] && record.profiles[0].email))) || null;
+          if (!groupEmail) return;
+          if (groupEmail.toLowerCase() !== email.toLowerCase()) return;
+
+          // Update UI similar to previous behavior
+          try {
+            const deviceInfo = (record && (record.last_sync_device || record.device_id || record.device)) || 'دستگاه دیگر';
+            const backupIcon = document.getElementById('backupIcon');
+            const backupStatus = document.getElementById('backupStatus');
+            const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
+            if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
+            if (backupStatus) { backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)'; }
+            const when = new Date().toLocaleString();
+            if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${deviceInfo}`;
+          } catch(_){ }
+
+          // Auto-import payload into local state (throttled)
+          try { autoImportSharedPayload(record); } catch(_){ }
+        } catch(err) { console.warn('shared_backups handler error', err); }
+      };
+
+      // Attach handler to global supabase:realtime events
+      window.addEventListener('supabase:realtime', handler);
+      // mark subscription so we don't add duplicate listeners
+      window.__shared_backups_sub[email] = { handler };
+    } catch (e) { console.warn('subscribeToSharedBackups failed', e); }
   }
 
-  // Ensure a shared_backups placeholder exists for this email so other devices can discover it
+  // Ensure a shared backup placeholder exists for this email.
+  // New flow: do not touch legacy `shared_backups` table. If possible, enqueue a profiles upsert so other devices can discover the user.
   async function ensureSharedBackupExists(email) {
     try {
-      const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
-      if (!email) throw new Error('no email');
-      // read all rows for this group_email so we can detect duplicates and consolidate
-      const qAll = await client.from('shared_backups').select('id,data,last_sync_at,created_at,device_id,last_sync_device').eq('group_email', email);
-      if (qAll && qAll.error) throw qAll.error;
-      const rows = (qAll && qAll.data) ? qAll.data : [];
-      if (!rows || rows.length === 0) {
-        // insert placeholder (idempotent if another process inserts first)
+      if (!email) return;
+      // If the new sync module is available, request a profiles upsert via outbox so the server-side profile gets a last_sync placeholder.
+      if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
         try {
-          const nowIso = new Date().toISOString();
-          const ins = await client.from('shared_backups').upsert([{ group_email: email, data: {} , device_id: getDeviceId(), last_sync_device: getDeviceName(), last_sync_at: nowIso, created_at: nowIso }], { onConflict: 'group_email' });
-          if (ins && ins.error) console.debug('ensureSharedBackup insert error', ins.error);
-          else console.debug('ensureSharedBackup inserted for', email);
-        } catch (ie) { console.debug('ensureSharedBackup insert failed', ie); }
-      } else if (rows.length === 1) {
-        console.debug('ensureSharedBackup exists for', email);
-      } else {
-        // Multiple rows — pick the best candidate (prefer non-empty data and most recent) and try to clean up duplicates
-        try {
-          rows.sort((a,b)=>{
-            const aEmpty = (!a.data || (typeof a.data === 'object' && Object.keys(a.data).length===0));
-            const bEmpty = (!b.data || (typeof b.data === 'object' && Object.keys(b.data).length===0));
-            if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
-            const at = new Date(a.last_sync_at || a.created_at || 0).getTime();
-            const bt = new Date(b.last_sync_at || b.created_at || 0).getTime();
-            return bt - at;
-          });
-          const keeper = rows[0];
-          const nowIso = new Date().toISOString();
-          // Upsert keeper back to ensure canonical group_email casing and metadata
-          try { await client.from('shared_backups').upsert([{ id: keeper.id, group_email: email, data: keeper.data || {}, device_id: keeper.device_id || getDeviceId(), last_sync_device: keeper.last_sync_device || getDeviceName(), last_sync_at: keeper.last_sync_at || nowIso }], { onConflict: 'id' }); } catch(_){ }
-          const extras = rows.slice(1).map(r=>r.id).filter(Boolean);
-          if (extras.length) {
-            try { await client.from('shared_backups').delete().in('id', extras); console.debug('ensureSharedBackup removed duplicate ids', extras); } catch(delErr){ console.debug('failed to delete duplicate shared_backups', delErr); }
-          }
-        } catch(consolErr) { console.debug('consolidate shared_backups failed', consolErr); }
+          const payload = { id: (window.supabase && window.supabase.auth && window.supabase.auth.user) ? window.supabase.auth.user.id : null, last_sync_at: new Date().toISOString(), last_sync_device: getDeviceName(), last_sync_payload: { note: 'placeholder' } };
+          window.supabaseSync.enqueueOp({ type: 'profiles_upsert', payload, ts: Date.now() });
+        } catch(e) { console.debug('ensureSharedBackup enqueue failed', e); }
       }
+      // otherwise no-op — we keep behavior quiet to avoid errors when legacy table is absent
     } catch (e) { console.debug('ensureSharedBackupExists failed', e); }
   }
 
@@ -3928,20 +3665,38 @@ function calculateTimeToNextCategory(age, category) {
       if (!email) return;
       const client = getSupabaseClient(); if (!client) return;
       const displayEmailLower = email.toLowerCase();
-      const sres = await client.from('shared_backups').select('id,data,last_sync_at,device_id').eq('group_email', displayEmailLower).maybeSingle();
-      if (sres && !sres.error && sres.data) {
-        const row = sres.data;
-        const isEmpty = !row.data || (typeof row.data === 'object' && Object.keys(row.data).length === 0) || (typeof row.data === 'string' && row.data === '{}');
-        if (isEmpty && snapshot) {
-          const nowIso = new Date().toISOString();
-          const deviceId = getDeviceId();
-          const deviceName = getDeviceName();
-          try {
-            const upd = await client.from('shared_backups').update({ data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }).eq('group_email', displayEmailLower).select();
-            if (upd && !upd.error) console.debug('seeded shared_backups for', displayEmailLower);
-          } catch(upErr) { console.debug('seed shared_backups update failed', upErr); }
-        }
+      // Prefer enqueuing a seed op to the outbox so offline clients and realtime handle propagation.
+      if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
+        try {
+          const op = {
+            type: 'seed_shared_backup',
+            payload: { group_email: displayEmailLower, snapshot: snapshot },
+            ts: Date.now()
+          };
+          window.supabaseSync.enqueueOp(op);
+          // attempt immediate processing but don't block
+          try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
+          return;
+        } catch(e) { console.debug('enqueue seed_shared_backup failed', e); }
       }
+
+      // Fallback: if outbox not available, try the legacy direct update (best-effort)
+      try {
+        const sres = await client.from('shared_backups').select('id,data,last_sync_at,device_id').eq('group_email', displayEmailLower).maybeSingle();
+        if (sres && !sres.error && sres.data) {
+          const row = sres.data;
+          const isEmpty = !row.data || (typeof row.data === 'object' && Object.keys(row.data).length === 0) || (typeof row.data === 'string' && row.data === '{}');
+          if (isEmpty && snapshot) {
+            const nowIso = new Date().toISOString();
+            const deviceId = getDeviceId();
+            const deviceName = getDeviceName();
+            try {
+              const upd = await client.from('shared_backups').update({ data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }).eq('group_email', displayEmailLower).select();
+              if (upd && !upd.error) console.debug('seeded shared_backups for', displayEmailLower);
+            } catch(upErr) { console.debug('seed shared_backups update failed', upErr); }
+          }
+        }
+      } catch(e) { console.debug('ensureSeedSharedBackup fallback failed', e); }
     } catch(e) { console.debug('ensureSeedSharedBackup failed', e); }
   }
 
@@ -3965,26 +3720,36 @@ function calculateTimeToNextCategory(age, category) {
   function updateSyncStatusUI(status, reason) {
     try {
       const backupIcon = document.getElementById('backupIcon');
-      const backupStatus = document.getElementById('backupStatus');
-  const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
-      if (!backupStatus) return;
+      const syncStatusLine = document.getElementById('syncStatusLine');
+      const syncStatusText = document.getElementById('syncStatusText');
+      const lastSyncLine = document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineHeader_old') || document.getElementById('lastSyncLineFallback');
+      // keep legacy hidden element updated for compatibility
+      const backupStatus_old = document.getElementById('backupStatus_old');
       if (status === 'ok') {
         if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
-        backupStatus.textContent = 'همگام‌سازی آنلاین'; backupStatus.style.color = 'var(--accent)';
-        if (reason && lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+        if (syncStatusText) syncStatusText.textContent = 'انلاین';
+        if (syncStatusLine) syncStatusLine.style.display = 'block';
+        if (lastSyncLine && reason) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+        if (backupStatus_old) { backupStatus_old.textContent = 'همگام‌سازی آنلاین'; backupStatus_old.style.color = 'var(--accent)'; }
       } else if (status === 'group-received') {
         if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; }
-        backupStatus.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus.style.color = 'var(--accent)';
-        if (reason && lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+        if (syncStatusText) syncStatusText.textContent = 'واردسازی گروهی';
+        if (syncStatusLine) syncStatusLine.style.display = 'block';
+        if (lastSyncLine && reason) lastSyncLine.textContent = `آخرین همگام‌سازی: ${reason}`;
+        if (backupStatus_old) { backupStatus_old.textContent = 'همگام‌سازی گروهی دریافت شد'; backupStatus_old.style.color = 'var(--accent)'; }
       } else if (status === 'pending') {
         if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; }
-        backupStatus.textContent = 'همگام‌سازی در صف'; backupStatus.style.color = 'var(--muted)';
-        if (reason && lastSyncLine) lastSyncLine.textContent = reason;
+        if (syncStatusText) syncStatusText.textContent = 'در صف';
+        if (syncStatusLine) syncStatusLine.style.display = 'block';
+        if (lastSyncLine && reason) lastSyncLine.textContent = reason;
+        if (backupStatus_old) { backupStatus_old.textContent = 'همگام‌سازی در صف'; backupStatus_old.style.color = 'var(--muted)'; }
       } else {
         // default: not synced
         if (backupIcon) { backupIcon.style.background = 'transparent'; backupIcon.style.border='1px solid rgba(0,0,0,0.06)'; }
-        backupStatus.textContent = 'اتصال برقرار نیست'; backupStatus.style.color = 'var(--muted)';
-        if (reason && lastSyncLine) lastSyncLine.textContent = reason;
+        if (syncStatusText) syncStatusText.textContent = 'غیرفعال';
+        if (syncStatusLine) syncStatusLine.style.display = 'block';
+        if (lastSyncLine && reason) lastSyncLine.textContent = reason;
+        if (backupStatus_old) { backupStatus_old.textContent = 'اتصال برقرار نیست'; backupStatus_old.style.color = 'var(--muted)'; }
       }
     } catch(e) { console.warn('updateSyncStatusUI failed', e); }
   }
@@ -3992,16 +3757,16 @@ function calculateTimeToNextCategory(age, category) {
   // Auto-import shared payloads (throttled). payload may be a record or object containing .data (jsonb)
   const __shared_import_throttle = new Map();
   async function autoImportSharedPayload(payload) {
-    try {
-      // Respect user preference: only auto-import when toggle enabled
       try {
-        const autoToggle = document.getElementById('autoImportToggle');
-        if (autoToggle && !autoToggle.checked) return; // user disabled auto-import
-        // Fallback to localStorage (in case controls not yet wired)
-        if (!autoToggle) {
-          try { const v = localStorage.getItem('autoImportToggle'); if (v !== '1') return; } catch(_){ }
-        }
-      } catch(_){ }
+        // Respect user preference: only auto-import when toggle enabled
+        try {
+          const autoToggle = document.getElementById('autoImportToggle');
+          if (autoToggle && !autoToggle.checked) return; // user disabled auto-import
+          // Fallback to localStorage (in case controls not yet wired)
+          if (!autoToggle) {
+            try { const v = localStorage.getItem('autoImportToggle'); if (v !== '1') return; } catch(_){ }
+          }
+        } catch(_){ }
       if (!payload) return;
       const key = (payload.id || payload.group_email || 'shared') + ':' + ((payload.last_sync_at || payload.updated_at) || 't');
       const now = Date.now();
@@ -4038,6 +3803,15 @@ function calculateTimeToNextCategory(age, category) {
         });
       }
       try { updateSyncStatusUI('ok', 'واردسازی گروهی انجام شد'); } catch(_){ }
+      // update visible status lines in profile UI
+      try {
+        const syncStatusText = document.getElementById('syncStatusText');
+        const syncStatusLine = document.getElementById('syncStatusLine');
+        const lastSyncLine = document.getElementById('lastSyncLine');
+        if (syncStatusText) syncStatusText.textContent = 'وارد شد';
+        if (syncStatusLine) syncStatusLine.style.display = 'block';
+        if (lastSyncLine) { lastSyncLine.style.display = 'block'; lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date().toLocaleString()}`; }
+      } catch(_){ }
     } catch(e) { console.warn('autoImportSharedPayload error', e); }
   }
 
@@ -4142,19 +3916,19 @@ function calculateTimeToNextCategory(age, category) {
           const client = getSupabaseClient();
           if (!client) { try { showToast('کلاینت Supabase آماده نیست'); } catch(_){ } return; }
           try {
-            // Confirm once per email: store confirmation in localStorage
-            try {
-              const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
-              const key = 'import_confirmed:' + (displayEmail ? displayEmail.toLowerCase() : '');
-              if (displayEmail) {
-                const was = localStorage.getItem(key);
-                if (!was) {
-                  const ok = confirm('آیا می‌خواهید اولین بار همگام‌سازی مشترک برای این حساب را وارد کنید؟ (این عملیات داده‌های محلی را تغییر می‌دهد)');
-                  if (!ok) return; // user cancelled
-                  try { localStorage.setItem(key, '1'); } catch(_){ }
-                }
-              }
-            } catch(_){ }
+                  // Confirm once per email: store confirmation in localStorage
+                  try {
+                    const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+                    const key = 'import_confirmed:' + (displayEmail ? displayEmail.toLowerCase() : '');
+                    if (displayEmail) {
+                      const was = localStorage.getItem(key);
+                      if (!was) {
+                        const ok = confirm('آیا می‌خواهید اولین بار همگام‌سازی مشترک برای این حساب را وارد کنید؟ (این عملیات داده‌های محلی را تغییر می‌دهد)');
+                        if (!ok) return; // user cancelled
+                        try { localStorage.setItem(key, '1'); } catch(_){ }
+                      }
+                    }
+                  } catch(_){ }
             let payload = null;
             try {
               const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
@@ -4210,16 +3984,11 @@ function calculateTimeToNextCategory(age, category) {
             const autoToggle = document.getElementById('autoImportToggle');
             const importBtn = document.getElementById('importNowBtn');
             const forceSync = document.getElementById('forceSyncBtn');
-            const hint = document.getElementById('syncHint');
-            if (autoToggle) {
-              // default on if previously enabled in localStorage
-              try { const v = localStorage.getItem('autoImportToggle'); autoToggle.checked = v === '1'; } catch(_){ }
-              autoToggle.addEventListener('change', ()=>{ try { localStorage.setItem('autoImportToggle', autoToggle.checked ? '1' : '0'); } catch(_){ } });
-            }
+            // restore persisted preference
+            try { const v = localStorage.getItem('autoImportToggle'); if (autoToggle) autoToggle.checked = (v === null ? true : v === '1'); } catch(_){ }
+            if (autoToggle) autoToggle.addEventListener('change', ()=>{ try { localStorage.setItem('autoImportToggle', autoToggle.checked ? '1' : '0'); } catch(_){ } });
             if (importBtn) importBtn.addEventListener('click', async ()=>{ await performImportLastSync(); });
             if (forceSync) forceSync.addEventListener('click', async ()=>{ try { if (typeof backupNow === 'function') await backupNow(); try { showToast('درخواست ارسال همگام‌سازی فرستاده شد'); } catch(_){ } } catch(e){ console.warn('force sync failed', e); try { showToast('ارسال همگام‌سازی ناموفق'); } catch(_){ } } });
-            // update hint from existing lastSyncLine if present
-            try { const lastSyncLine = document.getElementById('lastSyncLine'); if (lastSyncLine && hint) hint.textContent = lastSyncLine.textContent; } catch(_){ }
           } catch(e) { console.warn('attachSyncControls failed', e); }
         }
 
@@ -4526,26 +4295,39 @@ function imageFileToDataURL(file, maxKB) {
         const deviceId = getDeviceId();
         const deviceName = getDeviceName();
         const nowIso = new Date().toISOString();
-        // Try to update existing backup row; if not present, insert a new one.
+        // Prefer enqueuing a backup record to the outbox so offline processing and realtime can handle it.
         let resData = null;
-        try {
-          const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
-          console.debug('backup update result:', updated);
-          if (updated && !updated.error && updated.data && updated.data.length > 0) {
-            resData = updated.data;
+        if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
+          try {
+            window.supabaseSync.enqueueOp({ type: 'backup_record', payload: { user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }, ts: Date.now() });
+            try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
+            resData = { queued: true };
+          } catch(e) {
+            console.debug('enqueue backup_record failed', e);
+            resData = null;
           }
-        } catch (updErr) {
-          console.debug('backup update failed (will try insert):', updErr);
         }
-        // If update didn't apply, insert a new backup record (safe fallback)
+
+        // Fallback: if enqueuing not supported or failed, perform legacy update/insert
         if (!resData) {
           try {
-            const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
-            if (ins && ins.error) throw ins.error;
-            resData = ins.data;
-          } catch (insErr) {
-            console.debug('backup insert failed:', insErr);
-            throw insErr;
+            const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
+            console.debug('backup update result:', updated);
+            if (updated && !updated.error && updated.data && updated.data.length > 0) {
+              resData = updated.data;
+            }
+          } catch (updErr) {
+            console.debug('backup update failed (will try insert):', updErr);
+          }
+          if (!resData) {
+            try {
+              const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
+              if (ins && ins.error) throw ins.error;
+              resData = ins.data;
+            } catch (insErr) {
+              console.debug('backup insert failed:', insErr);
+              throw insErr;
+            }
           }
         }
 
@@ -4553,17 +4335,29 @@ function imageFileToDataURL(file, maxKB) {
         try {
           const email = (profile && profile.email) ? profile.email : (user.email || null);
           const emailLower = email ? email.toLowerCase() : null;
-            if (emailLower) {
-            const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso };
-            // Use upsert with onConflict to ensure a single row per group_email and avoid race-created duplicates
+          if (emailLower) {
+            // Prefer enqueuing ops to the outbox so offline devices and realtime handle propagation
+            if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
+              try {
+                window.supabaseSync.enqueueOp({ type: 'shared_backups_upsert', payload: { group_email: emailLower, snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }, ts: Date.now() });
+                window.supabaseSync.enqueueOp({ type: 'profiles_last_sync', payload: { id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: { shared_backups: [ snapshot ] } }, ts: Date.now() });
+                try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
+                console.debug('enqueued shared_backups and profiles last_sync ops');
+              } catch(e) {
+                console.debug('enqueue of shared_backups/profile ops failed', e);
+                // fall through to legacy direct writes below
+              }
+            }
+
+            // Fallback: perform legacy upsert if supabaseSync not available or enqueue failed
             try {
+              const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso };
               const su = await client.from('shared_backups').upsert([Object.assign({}, sharedPayload, { created_at: nowIso })], { onConflict: 'group_email' });
               if (su && su.error) console.debug('shared_backups upsert error', su.error, su);
               else console.debug('shared_backups upserted', su && su.data ? su.data : null);
             } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
-            // write last_sync metadata to profiles so UI reflects latest sync
+
             try {
-              // send last_sync_payload as an object so it maps to jsonb type
               const payloadObj = { shared_backups: [ snapshot ] };
               const upRes = await client.from('profiles').upsert({ id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: payloadObj }, { onConflict: 'id', returning: 'minimal' });
               if (upRes && upRes.error) console.debug('profiles last_sync upsert error', upRes.error, upRes);

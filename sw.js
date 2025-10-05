@@ -1,63 +1,50 @@
-const CACHE_NAME = 'app-cache-v2';
+// Clean service worker for Team PWA
+const CACHE_NAME = 'team-pwa-v1';
 const PRECACHE_URLS = [
-  './',
-  './index.html',
-  './offline.html',
-  './manifest.json',
-  './sw-register.js',
-  './icons/icon-192.png',
-  './icons/icon-256.png',
-  './icons/icon-384.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-192.png',
-  './icons/icon-maskable-512.png',
-  './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png'
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/offline.html',
+  '/icons/icon-192.png'
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch(err => {
-        console.warn('Precache failed:', err);
-      });
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS)).catch(err => console.warn('precache failed', err))
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map(k => k === CACHE_NAME ? Promise.resolve() : caches.delete(k)));
+    await Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : Promise.resolve()));
     await self.clients.claim();
   })());
 });
 
 self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  if (req.mode === 'navigate') {
-    event.respondWith((async () => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    caches.match(event.request).then(cached => cached || fetch(event.request).then(res => {
       try {
-        const networkResponse = await fetch(req);
-        return networkResponse;
-      } catch (err) {
-        const cached = await caches.match('./index.html');
-        return cached || Response.error();
-      }
-    })());
-    return;
-  }
+        const url = new URL(event.request.url);
+        if (res && res.type === 'basic' && url.origin === location.origin) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        }
+      } catch (e) { /* ignore */ }
+      return res;
+    }).catch(() => caches.match('/offline.html')))
+  );
+});
 
-  event.respondWith(caches.match(req).then(cached => {
-    const networkFetch = fetch(req).then(networkResp => {
-      if (!networkResp || networkResp.status !== 200 || networkResp.type === 'opaque') return networkResp;
-      const respClone = networkResp.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(req, respClone));
-      return networkResp;
-    }).catch(() => cached);
-    return cached || networkFetch;
-  }));
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : { title: 'بروزرسانی', body: 'محتوا به‌روز شد' };
+  event.waitUntil(self.registration.showNotification(data.title, { body: data.body, icon: '/icons/icon-192.png' }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow('/'));
 });

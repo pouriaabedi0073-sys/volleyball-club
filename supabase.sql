@@ -1,6 +1,7 @@
--- Supabase schema for profiles and backups
+-- Clean Supabase schema: remove legacy sync objects and add domain tables for PWA app
+-- NOTE: backup your database before applying.
 
--- profiles table stores user public profile info
+-- profiles (keep minimal)
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
@@ -8,180 +9,208 @@ create table if not exists public.profiles (
   last_name text,
   phone text,
   avatar_url text,
+  email_verified boolean default false,
   updated_at timestamptz default now()
 );
 
--- add last_sync metadata fields to profiles for client-side sync tracking
-do $$
-begin
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='profiles' and column_name='last_sync_at'
-  ) then
-    execute 'alter table public.profiles add column last_sync_at timestamptz';
-  end if;
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='profiles' and column_name='last_sync_device'
-  ) then
-    execute 'alter table public.profiles add column last_sync_device text';
-  end if;
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='profiles' and column_name='last_sync_payload'
-  ) then
-    execute 'alter table public.profiles add column last_sync_payload jsonb';
-  end if;
-end$$;
+-- Domain tables
+create table if not exists public.players (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  name text not null,
+  phone text,
+  team text,
+  status text default 'active',
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
 
--- Additional fallback policy: allow users whose profile email matches group_email
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='shared_backups' and policyname='shared_backups_by_profile_email'
-  ) then
-    execute '
-      create policy "shared_backups_by_profile_email" on public.shared_backups
-        for all
-        using (
-          auth.role() = ''authenticated'' and
-          (select lower(email) from public.profiles where id = auth.uid()) = lower(group_email)
-        )
-        with check (
-          auth.role() = ''authenticated'' and
-          (select lower(email) from public.profiles where id = auth.uid()) = lower(group_email)
-        )
-    ';
-  end if;
-end$$;
-
--- ensure we track whether the profile email has been verified (keeps UI consistent)
-do $$
-begin
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='profiles' and column_name='email_verified'
-  ) then
-    execute 'alter table public.profiles add column email_verified boolean default false';
-  end if;
-end$$;
-
--- backups table stores JSON snapshots per user
-create table if not exists public.backups (
-  id bigserial primary key,
-  user_id uuid references auth.users(id) on delete cascade,
-  data jsonb not null,
+create table if not exists public.coaches (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  name text not null,
+  phone text,
+  role text,
+  notes text,
   created_at timestamptz default now()
+);
+
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  player_id uuid references public.players(id) on delete cascade,
+  amount bigint not null,
+  paid_at timestamptz default now(),
+  note text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.attendances (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  player_id uuid references public.players(id) on delete cascade,
+  session_date date not null,
+  status text default 'present',
+  note text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.trainings (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.settings (
+  id text primary key,
+  value jsonb,
+  updated_at timestamptz default now()
 );
 
 -- enable Row Level Security
 alter table public.profiles enable row level security;
-alter table public.backups enable row level security;
+alter table public.players enable row level security;
+alter table public.coaches enable row level security;
+alter table public.payments enable row level security;
+alter table public.attendances enable row level security;
+alter table public.trainings enable row level security;
+alter table public.settings enable row level security;
 
--- profiles RLS: users can select/update their own profile
--- Create profiles policy only if it doesn't exist
+-- Policies: profiles (owner only)
 do $$
 begin
   if not exists (
     select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='profiles_self'
   ) then
-    execute '
-      create policy "profiles_self" on public.profiles
+    execute $pol$
+      create policy profiles_self on public.profiles
         for all
-        using ( auth.role() = ''authenticated'' and id = auth.uid() )
-        with check ( auth.role() = ''authenticated'' and id = auth.uid() )
-    ';
+        using ( auth.role() = 'authenticated' and id = auth.uid() )
+        with check ( auth.role() = 'authenticated' and id = auth.uid() );
+    $pol$;
   end if;
 end$$;
 
--- backups RLS: users can insert/select their own backups
--- Create backups policy only if it doesn't exist
+-- Players: read for authenticated; modify if owner (user_id) or user_id is null (created by system)
 do $$
 begin
-  if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='backups' and policyname='backups_self'
-  ) then
-    execute '
-      create policy "backups_self" on public.backups
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='players' and policyname='players_read') then
+    execute $pol$ create policy players_read on public.players for select using ( auth.role() = 'authenticated' ); $pol$;
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='players' and policyname='players_modify_own') then
+    execute $pol2$
+      create policy players_modify_own on public.players
         for all
-        using ( auth.role() = ''authenticated'' and user_id = auth.uid() )
-        with check ( auth.role() = ''authenticated'' and user_id = auth.uid() )
-    ';
+        using ( auth.role() = 'authenticated' and (user_id = auth.uid() or user_id is null) )
+        with check ( auth.role() = 'authenticated' and (user_id = auth.uid() or user_id is null) );
+    $pol2$;
   end if;
 end$$;
 
--- Index for backups by user
--- Create index for backups by user only if `created_at` exists (idempotent)
+-- Coaches policies
 do $$
 begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='backups' and column_name='created_at'
-  ) then
-    execute 'create index if not exists backups_user_idx on public.backups (user_id, created_at desc)';
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coaches' and policyname='coaches_read') then
+    execute $pol3$ create policy coaches_read on public.coaches for select using ( auth.role() = 'authenticated' ); $pol3$;
   end if;
-end$$;
-
--- Add device_id, operation, revision, updated_at to backups for multi-device sync metadata
-do $$
-begin
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='backups' and column_name='device_id'
-  ) then
-    execute 'alter table public.backups add column device_id text';
-  end if;
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='backups' and column_name='operation'
-  ) then
-    execute 'alter table public.backups add column operation text default ''sync''';
-  end if;
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='backups' and column_name='revision'
-  ) then
-    execute 'alter table public.backups add column revision bigint default 1';
-  end if;
-  if not exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='backups' and column_name='updated_at'
-  ) then
-    execute 'alter table public.backups add column updated_at timestamptz default now()';
-  end if;
-end$$;
-
--- Create shared_backups table for group/email-based shared snapshots
-create table if not exists public.shared_backups (
-  id bigserial primary key,
-  group_email text not null,
-  data jsonb not null,
-  device_id text,
-  last_sync_at timestamptz default now(),
-  created_at timestamptz default now()
-);
-
-alter table public.shared_backups enable row level security;
-
--- Policy: allow authenticated users to operate on shared_backups for their email
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies where schemaname='public' and tablename='shared_backups' and policyname='shared_backups_group_email'
-  ) then
-    execute '
-      create policy "shared_backups_group_email" on public.shared_backups
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coaches' and policyname='coaches_modify_own') then
+    execute $pol4$
+      create policy coaches_modify_own on public.coaches
         for all
-        using ( auth.role() = ''authenticated'' and lower(current_setting(''jwt.claims.email'', true)) = lower(group_email) )
-        with check ( auth.role() = ''authenticated'' and lower(current_setting(''jwt.claims.email'', true)) = lower(group_email) )
-    ';
+        using ( auth.role() = 'authenticated' and (user_id = auth.uid() or user_id is null) )
+        with check ( auth.role() = 'authenticated' and (user_id = auth.uid() or user_id is null) );
+    $pol4$;
   end if;
 end$$;
 
--- Ensure group_email is stored in lowercase: trigger function and trigger
+-- Payments: select for authenticated; inserts allowed by authenticated users setting user_id = auth.uid()
 do $$
 begin
-  if not exists ( select 1 from pg_proc where proname = 'shared_backups_normalize_email' ) then
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='payments' and policyname='payments_read') then
+    execute $pol5$ create policy payments_read on public.payments for select using ( auth.role() = 'authenticated' ); $pol5$;
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='payments' and policyname='payments_insert_own') then
+    execute $pol6$
+      create policy payments_insert_own on public.payments
+        for insert
+        with check ( auth.role() = 'authenticated' and user_id = auth.uid() )
+        using ( auth.role() = 'authenticated' and user_id = auth.uid() );
+    $pol6$;
+  end if;
+end$$;
+
+-- Attendances policies
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='attendances' and policyname='attendances_read') then
+    execute $pol7$ create policy attendances_read on public.attendances for select using ( auth.role() = 'authenticated' ); $pol7$;
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='attendances' and policyname='attendances_modify_own') then
+    execute $pol8$
+      create policy attendances_modify_own on public.attendances
+        for all
+        using ( auth.role() = 'authenticated' and user_id = auth.uid() )
+        with check ( auth.role() = 'authenticated' and user_id = auth.uid() );
+    $pol8$;
+  end if;
+end$$;
+
+-- Trainings policies
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='trainings' and policyname='trainings_read') then
+    execute $pol9$ create policy trainings_read on public.trainings for select using ( auth.role() = 'authenticated' ); $pol9$;
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='trainings' and policyname='trainings_modify_creator') then
+    execute $pol10$
+      create policy trainings_modify_creator on public.trainings for all
+        using ( auth.role() = 'authenticated' and created_by = auth.uid() )
+        with check ( auth.role() = 'authenticated' and created_by = auth.uid() );
+    $pol10$;
+  end if;
+end$$;
+
+-- Settings policies (read for authenticated; restrict updates)
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='settings' and policyname='settings_read') then
+    execute $pol11$ create policy settings_read on public.settings for select using ( auth.role() = 'authenticated' ); $pol11$;
+  end if;
+end$$;
+
+-- Trigger to update updated_at on players
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'players_set_updated_at') then
+    execute 'create trigger players_set_updated_at before update on public.players for each row execute procedure public.set_updated_at()';
+  end if;
+end$$;
+
+-- Indexes
+create index if not exists players_user_idx on public.players (user_id);
+create index if not exists payments_player_idx on public.payments (player_id);
+-- Ensure there's a normalize function for shared_backups.group_email and a trigger that calls it
+do $$
+begin
+  -- create function if it doesn't exist
+  if not exists (select 1 from pg_proc where proname = 'shared_backups_normalize_email') then
     execute $fn$
       create function public.shared_backups_normalize_email()
       returns trigger as $pl$
@@ -194,6 +223,8 @@ begin
       $pl$ language plpgsql security definer;
     $fn$;
   end if;
+
+  -- create the trigger if not already present
   if not exists (select 1 from pg_trigger where tgname = 'trg_shared_backups_normalize') then
     execute 'create trigger trg_shared_backups_normalize before insert or update on public.shared_backups for each row execute procedure public.shared_backups_normalize_email()';
   end if;
