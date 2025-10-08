@@ -37,49 +37,6 @@
   // Local processed map to avoid re-processing the same change repeatedly
   const processed = new Map();
 
-  // Outbox queue key for localStorage
-  const OUTBOX_KEY = 'supabase_outbox_v1';
-
-  function loadOutbox() {
-    try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); } catch (e) { return []; }
-  }
-  function saveOutbox(q){ try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(q)); } catch(e){} }
-  function enqueueOp(op){ const q = loadOutbox(); q.push(op); saveOutbox(q); emit('supabase:outbox-enqueued', op); return op; }
-
-  // Process outbox sequentially. Safe no-op when offline or when supabase client missing.
-  async function processOutbox(){
-    let q = loadOutbox();
-    if (!q.length) return;
-    try {
-      if (!ctx.supabase) ctx.supabase = await waitForSupabase(10000).catch(()=>null);
-      if (!ctx.supabase) return; // can't process without client
-      const remaining = [];
-      for (const op of q){
-        try {
-          if (op.type === 'create'){
-            await ctx.supabase.from(op.table||ctx.table).insert([op.payload]);
-          } else if (op.type === 'update'){
-            await ctx.supabase.from(op.table||ctx.table).update(op.payload).eq(op.key||ctx.key, op.id);
-          } else if (op.type === 'delete'){
-            await ctx.supabase.from(op.table||ctx.table).delete().eq(op.key||ctx.key, op.id);
-          } else if (op.type === 'snapshot'){
-            await ctx.supabase.from('settings').upsert({ id: 'last_snapshot', value: op.payload, updated_at: new Date().toISOString() });
-          } else if (op.type === 'profiles_upsert'){
-            await ctx.supabase.from('profiles').upsert(op.payload, { onConflict: 'id' });
-          } else {
-            // unknown op - keep for manual inspection
-            remaining.push(op);
-          }
-          emit('supabase:outbox-processed', op);
-        } catch (err){
-          // keep op for retry
-          remaining.push(op);
-        }
-      }
-      saveOutbox(remaining);
-    } catch(e){ console.warn('processOutbox failed', e); }
-  }
-
   // Default options and mutable state
   const ctx = {
     table: DEFAULT_TABLE,
@@ -188,13 +145,11 @@
       if (error) throw error;
       // if server returned a canonical row (with numeric id for example), merge that
       if (Array.isArray(data) && data[0]) mergeRow(data[0], 'UPDATE');
-      // attempt to write last-sync metadata for the authenticated user
-      try { await writeLastSyncMetadata(data && data[0] ? data[0] : row); } catch(e) { /* ignore */ }
+  // attempt to write last-sync metadata for the authenticated user
+  try { await writeLastSyncMetadata(data && data[0] ? data[0] : row); } catch(e) { /* ignore */ }
       return { data, error: null };
     } catch (e) {
       console.warn('create sync error', e);
-      // enqueue for later processing
-      try { enqueueOp({ type: 'create', table: ctx.table, payload: row, ts: Date.now() }); } catch(_){}
       emit('supabase:sync-error', { op: 'create', table: ctx.table, err: String(e), row });
       return { data: null, error: e };
     }
@@ -216,11 +171,10 @@
       const { data, error } = await ctx.supabase.from(ctx.table).update(toSend).eq(ctx.key, id).select();
       if (error) throw error;
       if (Array.isArray(data) && data[0]) mergeRow(data[0], 'UPDATE');
-      try { await writeLastSyncMetadata(data && data[0] ? data[0] : toSend); } catch(e) { /* ignore */ }
+  try { await writeLastSyncMetadata(data && data[0] ? data[0] : toSend); } catch(e) { /* ignore */ }
       return { data, error: null };
     } catch (e) {
       console.warn('update sync error', e);
-      try { enqueueOp({ type: 'update', table: ctx.table, id, key: ctx.key, payload: toSend, ts: Date.now() }); } catch(_){}
       emit('supabase:sync-error', { op: 'update', table: ctx.table, err: String(e), id, patch });
       return { data: null, error: e };
     }
@@ -241,11 +195,10 @@
       const { data, error } = await ctx.supabase.from(ctx.table).delete().eq(ctx.key, id).select();
       if (error) throw error;
       emit('supabase:sync', { op: 'delete', table: ctx.table, id, data });
-      try { await writeLastSyncMetadata({ [ctx.key]: id, _deleted: true }); } catch(e) { /* ignore */ }
+  try { await writeLastSyncMetadata({ [ctx.key]: id, _deleted: true }); } catch(e) { /* ignore */ }
       return { data, error: null };
     } catch (e) {
       console.warn('delete sync error', e);
-      try { enqueueOp({ type: 'delete', table: ctx.table, id, key: ctx.key, ts: Date.now() }); } catch(_){}
       emit('supabase:sync-error', { op: 'delete', table: ctx.table, err: String(e), id });
       return { data: null, error: e };
     }
@@ -270,8 +223,8 @@
       try {
         await ctx.supabase.from('profiles').upsert({ id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: payload }, { onConflict: 'id' });
       } catch (e) {
-        // fallback: enqueue a profiles upsert op for processing later
-        try { enqueueOp({ type: 'profiles_upsert', payload: { id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: payload }, ts: Date.now() }); } catch(_){}
+        // fallback: try update
+        try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
       }
     } catch (e) {
       console.warn('writeLastSyncMetadata failed', e);
@@ -315,8 +268,6 @@
     update,
     remove,
     mergeRow, // useful for apps that want to inject server rows manually
-    enqueueOp,
-    processOutbox,
     _ctx: ctx,
   };
 
@@ -331,10 +282,5 @@
       console.info('Supabase client not found; supabaseSync will wait until client is available.');
     });
   }, 50);
-
-  // process outbox when coming online
-  window.addEventListener('online', () => {
-    processOutbox().catch(()=>{});
-  });
 
 })();

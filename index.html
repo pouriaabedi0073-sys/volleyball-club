@@ -2627,78 +2627,113 @@ function readShareColors() {
                </div>
              </div>
            </div>
-          <!-- Account profile container (populated after login) -->
+          <!-- Account profile container (static profile) -->
           <div id="accountProfileContainer" style="margin-top:12px;display:none;">
-            <div class="card" style="padding:12px;border-radius:10px;">
-              <div style="display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;">
-                <img id="accountAvatar" src="icons/icon-maskable-192.png" alt="avatar" style="width:88px;height:88px;border-radius:50%;object-fit:cover;" />
-                <div id="accountName" style="font-weight:700;color:var(--text);font-size:18px;margin-top:4px;">—</div>
-                <div id="accountEmail" style="color:var(--muted);font-size:14px;margin-top:2px;">—</div>
-                <div id="accountPhone" style="color:var(--muted);font-size:14px;margin-top:2px;">—</div>
-
-                <hr style="border:none;border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;width:100%;" />
-
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <div id="backupIcon" style="width:14px;height:14px;border-radius:50%;background:transparent;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,0.06);"></div>
-                  <!-- legacy backupStatus hidden; new status shown below -->
-                  <div id="backupStatus_old" style="display:none;font-size:13px;color:var(--muted);">--</div>
-                </div>
-
-                <!-- legacy lastSyncLineHeader hidden; new lastSyncLine shown inside controls -->
-                <div id="lastSyncLineHeader_old" style="display:none;font-size:12px;color:var(--muted);width:100%;text-align:center;margin-top:6px;">آخرین همگام‌سازی: —</div>
-
-                <div id="profileSyncControls" style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:420px;">
-                  <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;">
-                    <input type="checkbox" id="autoImportToggle" checked />
-                    <span>همگام‌سازی خودکار فعال است</span>
-                  </label>
-                  <!-- status line: empty until sync occurs -->
-                  <div id="syncStatusLine" style="font-size:13px;color:var(--muted);width:100%;text-align:center;display:none;">وضعیت: <span id="syncStatusText"></span></div>
-                  <div id="lastSyncLine" style="font-size:12px;color:var(--muted);width:100%;text-align:center;display:none;">آخرین همگام‌سازی: —</div>
-
-                  <div class="action-row" style="display:flex;gap:8px;width:100%;">
-                    <button id="importNowBtn" class="btn" style="flex:1;">واردسازی الآن</button>
-                    <button id="forceSyncBtn" class="btn" style="flex:1;background:#2563eb;color:#fff;border:none;">ارسال همگام‌سازی</button>
-                  </div>
-                </div>
-
-                  <!-- notifications button removed from profile area (now in header) -->
-
-                  <div class="action-row" style="display:flex;gap:8px;justify-content:center;width:100%;margin-top:6px;">
-                    <button id="editProfileToggle" class="btn">ویرایش</button>
-                    <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;border:none;">خروج</button>
-                  </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid #eee;">
+              <div>
+                <div id="accountName" style="font-size:1.2em;font-weight:600;">—</div>
+                <div id="accountEmail" style="color:#666;font-size:0.98em;">—</div>
+                <div id="accountPhone" style="color:#666;font-size:0.98em;">—</div>
               </div>
             </div>
-          </div>
-          <!-- Editable profile box shown after login -->
-          <div id="profileEditBox" style="margin-top:12px;display:none;">
-            <div class="card" style="padding:12px;border-radius:10px;">
-              <h3 style="margin:0 0 8px 0;">ویرایش پروفایل</h3>
-              <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-                <!-- avatar editing via ImageKit -->
-                <div style="min-width:120px;">
-                  <img id="editAvatarPreview" src="icons/icon-maskable-192.png" alt="avatar" style="width:120px;height:120px;border-radius:12px;object-fit:cover;display:block;margin-bottom:8px;" />
-                  <!-- module uploader (use the module uploader below) -->
-                  <div id="uploadAvatarMsg" style="font-size:13px;color:var(--muted);margin-top:6px;"></div>
-                </div>
-                <!-- uploader removed per user request -->
-                <div style="flex:1;min-width:220px;">
-                  <div style="display:grid;gap:8px;">
-                    <div><label>نام</label><input id="profileFirst" class="input" /></div>
-                    <div><label>نام خانوادگی</label><input id="profileLast" class="input" /></div>
-                    <div><label>ایمیل</label><input id="profileEmail" class="input" readonly /></div>
-                    <div><label>تلفن</label><input id="profilePhone" class="input" /></div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-                      <button id="saveProfileBtn" class="btn primary">ذخیره پروفایل</button>
-                    </div>
-                    <div id="profileMsg" style="font-size:13px;color:var(--muted);margin-top:6px;"></div>
-                  </div>
-                </div>
-              </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <button id="editProfileBtn" class="btn">ویرایش پروفایل</button>
+              <button id="syncProfileBtn" class="btn">همگام‌سازی روزانه</button>
+              <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">خروج</button>
             </div>
+            <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
+            <div id="profileLastDevice" style="font-size:0.95em;color:#666;margin-bottom:8px;"></div>
+            <form id="editProfileForm" style="display:none;margin-top:12px;">
+              <div class="form-group"><label for="editFirstName">نام</label><input type="text" id="editFirstName" class="form-control"></div>
+              <div class="form-group"><label for="editLastName">نام خانوادگی</label><input type="text" id="editLastName" class="form-control"></div>
+              <div class="form-group"><label for="editEmail">ایمیل</label><input type="email" id="editEmail" class="form-control"></div>
+              <div class="form-group"><label for="editPhone">تلفن</label><input type="text" id="editPhone" class="form-control"></div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+                <button type="submit" class="btn primary">ذخیره</button>
+                <button type="button" id="cancelEditProfile" class="btn">لغو</button>
+              </div>
+            </form>
           </div>
-         </div>
+<script>
+// فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
+function fillProfileUI(profile) {
+  document.getElementById('accountName').textContent = ((profile.first_name||'') + ' ' + (profile.last_name||'')).trim() || '—';
+  document.getElementById('accountEmail').textContent = profile.email || '—';
+  document.getElementById('accountPhone').textContent = profile.phone || '—';
+  if (profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+  document.getElementById('editFirstName').value = profile.first_name || '';
+  document.getElementById('editLastName').value = profile.last_name || '';
+  document.getElementById('editEmail').value = profile.email || '';
+  document.getElementById('editPhone').value = profile.phone || '';
+  document.getElementById('profileLastDevice').textContent = profile.last_sync_device ? 'آخرین دستگاه: ' + profile.last_sync_device : '';
+}
+
+async function loadProfile() {
+  const client = window.supabase;
+  let user = null;
+  if (client && client.auth && typeof client.auth.getUser === 'function') {
+    const { data: ud } = await client.auth.getUser();
+    user = ud && ud.user ? ud.user : null;
+  }
+  if (!user) return;
+  const { data: profile, error } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (profile) fillProfileUI(profile);
+  // وضعیت تبادل داده
+  document.getElementById('profileStatus').textContent = error ? 'خطا در دریافت پروفایل' : 'ارتباط با سرور برقرار است';
+}
+
+document.getElementById('editProfileBtn').onclick = function() {
+  document.getElementById('editProfileForm').style.display = 'block';
+};
+document.getElementById('cancelEditProfile').onclick = function() {
+  document.getElementById('editProfileForm').style.display = 'none';
+};
+document.getElementById('editProfileForm').onsubmit = async function(e) {
+  e.preventDefault();
+  const client = window.supabase;
+  let user = null;
+  if (client && client.auth && typeof client.auth.getUser === 'function') {
+    const { data: ud } = await client.auth.getUser();
+    user = ud && ud.user ? ud.user : null;
+  }
+  if (!user) return;
+  const payload = {
+    id: user.id,
+    first_name: document.getElementById('editFirstName').value,
+    last_name: document.getElementById('editLastName').value,
+    email: document.getElementById('editEmail').value,
+    phone: document.getElementById('editPhone').value
+  };
+  await client.from('profiles').upsert(payload);
+  document.getElementById('editProfileForm').style.display = 'none';
+  await loadProfile();
+};
+document.getElementById('logoutBtn').onclick = async function() {
+  if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === 'function') {
+    await window.supabase.auth.signOut();
+    location.reload();
+  }
+};
+document.getElementById('syncProfileBtn').onclick = async function() {
+  if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') {
+    await window.syncHybrid.backupNow();
+    document.getElementById('profileStatus').textContent = 'همگام‌سازی انجام شد';
+    await loadProfile();
+  }
+};
+// وضعیت لحظه‌ای تبادل داده (مثال ساده)
+setInterval(async ()=>{
+  const client = window.supabase;
+  if (!client) return;
+  try {
+    const { error } = await client.from('profiles').select('id').limit(1);
+    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
+  } catch { document.getElementById('profileStatus').textContent = 'ارتباط قطع است'; }
+}, 10000);
+// بارگذاری اولیه پروفایل بعد از لاگین
+document.addEventListener('DOMContentLoaded', loadProfile);
+</script>
          <!-- END: embedded auth box -->
        </div>
      </section>
@@ -3860,12 +3895,32 @@ function calculateTimeToNextCategory(age, category) {
       }
   // Render minimal fields and populate the editable form
   const accountEl = document.getElementById('accountProfileContainer'); if (accountEl) accountEl.style.display = 'block';
-  document.getElementById('accountName').textContent = (profile && (profile.first_name || profile.last_name)) ? `${profile.first_name||''} ${profile.last_name||''}`.trim() : (user.email || 'کاربر');
-  const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
-  const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
-  document.getElementById('accountEmail').textContent = displayEmailLower || displayEmail;
-  document.getElementById('accountPhone').textContent = profile?.phone || '';
-  if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+  // If ProfileComponent is available, mount it into the dedicated mount point so it owns rendering
+  try {
+    const mount = document.getElementById('profileMount');
+    if (window.ProfileComponent && mount) {
+      // hide legacy static fields to avoid duplicates
+      try { document.getElementById('accountName').style.display = 'none'; } catch(_){}
+      try { document.getElementById('accountEmail').style.display = 'none'; } catch(_){}
+      try { document.getElementById('accountPhone').style.display = 'none'; } catch(_){}
+      // mount or remount component
+      try {
+        if (window._profileComponentInstance && typeof window._profileComponentInstance.unmount === 'function') {
+          window._profileComponentInstance.unmount();
+          window._profileComponentInstance = null;
+        }
+      } catch(_){}
+      try { window.ProfileComponent.mount(mount); } catch(e) { console.warn('ProfileComponent mount failed', e); }
+    } else {
+      // fallback to legacy static rendering
+      document.getElementById('accountName').textContent = (profile && (profile.first_name || profile.last_name)) ? `${profile.first_name||''} ${profile.last_name||''}`.trim() : (user.email || 'کاربر');
+      const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+      const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
+      document.getElementById('accountEmail').textContent = displayEmailLower || displayEmail;
+      document.getElementById('accountPhone').textContent = profile?.phone || '';
+      if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+    }
+  } catch(e) { console.warn('mounting ProfileComponent failed', e); }
   // Render last sync info if available on profile
   try {
   const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
@@ -4027,6 +4082,64 @@ function calculateTimeToNextCategory(age, category) {
       console.error('loadProfile failed', e);
     }
   };
+
+  // --- Sync status UI wiring: show a small green/white dot before status text and listen to syncHybrid events ---
+  (function(){
+    try {
+      const makeDot = () => {
+        let el = document.getElementById('syncStatusDot');
+        if (!el) {
+          el = document.createElement('span');
+          el.id = 'syncStatusDot';
+          el.style.display = 'inline-block';
+          el.style.width = '12px';
+          el.style.height = '12px';
+          el.style.borderRadius = '50%';
+          el.style.marginRight = '6px';
+          el.style.verticalAlign = 'middle';
+          el.style.border = '1px solid rgba(0,0,0,0.06)';
+        }
+        return el;
+      };
+
+      function applyStatus(st) {
+        try {
+          const syncLine = document.getElementById('syncStatusLine');
+          const syncText = document.getElementById('syncStatusText');
+          if (!syncLine || !syncText) return;
+          const dot = makeDot();
+          // prepend dot to syncLine if not present
+          if (!syncLine.querySelector('#syncStatusDot')) {
+            syncLine.insertBefore(dot, syncLine.firstChild);
+          }
+          if (st && st.syncing) {
+            dot.style.background = 'linear-gradient(180deg,#ffffff,#10b981)';
+            dot.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.08)';
+            syncText.textContent = 'همگام‌سازی در حال انجام است';
+            syncLine.style.display = 'block';
+          } else if (st && st.online === false) {
+            dot.style.background = 'linear-gradient(180deg,#ffffff,#f59e0b)';
+            dot.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.06)';
+            syncText.textContent = 'آفلاین — تغییرات محلی ذخیره شد';
+            syncLine.style.display = 'block';
+          } else {
+            dot.style.background = 'linear-gradient(180deg,#ffffff,#34d399)';
+            dot.style.boxShadow = 'none';
+            syncText.textContent = 'همگام‌سازی انجام شده';
+            syncLine.style.display = 'block';
+          }
+        } catch(e) { console.warn('applyStatus failed', e); }
+      }
+
+      // initial apply from existing status
+      try { if (window.syncHybrid && window.syncHybrid.status) applyStatus(window.syncHybrid.status); } catch(_){}
+
+      // listen for events
+      window.addEventListener('syncHybrid:status', (ev) => { try { applyStatus(ev && ev.detail ? ev.detail : {}); } catch(_){} });
+      // show flush/queue events in the UI as transient messages
+      window.addEventListener('syncHybrid:flush', (ev) => { try { const d = ev && ev.detail ? ev.detail : {}; if (d && d.success) { const txt = document.getElementById('syncStatusText'); if (txt) txt.textContent = 'همگام‌سازی به‌پایان رسید'; setTimeout(()=>{ try{ const l = document.getElementById('syncStatusLine'); if (l) l.style.display = 'none'; }catch(_){} }, 3000); } } catch(_){} });
+    } catch(e) { console.debug('sync status wiring skipped', e); }
+  })();
 
   // Wire up profile edit inputs and buttons
   try {
