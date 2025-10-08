@@ -1,6 +1,90 @@
+// --- بهینه‌سازی UX دکمه ذخیره بازیکن ---
+const savePlayerBtn = document.getElementById('savePlayerBtn');
+if (savePlayerBtn) {
+  savePlayerBtn.onclick = async function(e) {
+    e.preventDefault();
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'در حال ذخیره...';
+    try {
+      // فرض: داده‌های فرم بازیکن آماده است
+      const payload = {
+        // ...داده‌های فرم را اینجا قرار دهید (مثال: name, phone, ...)
+      };
+      const { data, error } = await window.supabase.from('players').insert([payload]);
+      if (error) {
+        alert('خطا در ذخیره بازیکن: ' + error.message);
+        btn.textContent = 'ذخیره بازیکن';
+        btn.disabled = false;
+        return;
+      }
+      alert('بازیکن ذخیره شد');
+      // رفرش لیست یا هدایت به پروفایل بازیکن
+      // window.location.href = '/profile.html?id=' + data[0].id;
+      btn.textContent = 'ذخیره بازیکن';
+      btn.disabled = false;
+      // همگام‌سازی بعد از ثبت
+      if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+    } catch (err) {
+      alert('خطای غیرمنتظره: ' + err.message);
+      btn.textContent = 'ذخیره بازیکن';
+      btn.disabled = false;
+    }
+  };
+}
+
+// --- بهینه‌سازی UX دکمه ثبت پرداخت ---
+const savePaymentBtn = document.getElementById('savePaymentBtn');
+if (savePaymentBtn) {
+  savePaymentBtn.onclick = async function(e) {
+    e.preventDefault();
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'در حال ثبت...';
+    try {
+      // فرض: داده‌های فرم پرداخت آماده است
+      const payload = {
+        // ...داده‌های فرم را اینجا قرار دهید (مثال: player_id, amount, ...)
+      };
+      const { data, error } = await window.supabase.from('payments').insert([payload]);
+      if (error) {
+        alert('خطا در ثبت پرداخت: ' + error.message);
+        btn.textContent = 'ثبت پرداخت';
+        btn.disabled = false;
+        return;
+      }
+      alert('رسید ثبت شد');
+      // رفرش لیست یا بستن فرم
+      btn.textContent = 'ثبت پرداخت';
+      btn.disabled = false;
+      if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+    } catch (err) {
+      alert('خطای غیرمنتظره: ' + err.message);
+      btn.textContent = 'ثبت پرداخت';
+      btn.disabled = false;
+    }
+  };
+}
+
+// --- subscribe به realtime برای همگام‌سازی بین دستگاه‌ها ---
+if (window.supabase && typeof window.supabase.channel === 'function') {
+  try {
+    const chPlayers = window.supabase.channel('public:players');
+    chPlayers.on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, payload => {
+      // رفرش لیست بازیکنان یا فراخوانی تابع مورد نیاز
+      // refreshPlayersList();
+    }).subscribe();
+    const chPayments = window.supabase.channel('public:payments');
+    chPayments.on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, payload => {
+      // رفرش لیست پرداخت‌ها یا فراخوانی تابع مورد نیاز
+      // refreshPaymentsList();
+    }).subscribe();
+  } catch(e) { console.warn('realtime subscribe failed', e); }
+}
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
+<script src="sync-hybrid.js"></script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>مدیریت باشگاه والیبال</title>
@@ -2712,14 +2796,24 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
 document.getElementById('logoutBtn').onclick = async function() {
   if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === 'function') {
     await window.supabase.auth.signOut();
-    location.reload();
+    // نمایش فرم لاگین بعد از خروج
+    document.getElementById('accountProfileContainer').style.display = 'none';
+    const eb = document.getElementById('embeddedAuthBox');
+    if (eb) eb.style.display = 'block';
   }
 };
 document.getElementById('syncProfileBtn').onclick = async function() {
   if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') {
-    await window.syncHybrid.backupNow();
-    document.getElementById('profileStatus').textContent = 'همگام‌سازی انجام شد';
-    await loadProfile();
+    document.getElementById('profileStatus').textContent = 'در حال همگام‌سازی...';
+    try {
+      await window.syncHybrid.backupNow();
+      document.getElementById('profileStatus').textContent = 'همگام‌سازی با موفقیت انجام شد';
+      await loadProfile();
+    } catch(e) {
+      document.getElementById('profileStatus').textContent = 'خطا در همگام‌سازی';
+    }
+  } else {
+    document.getElementById('profileStatus').textContent = 'ماژول همگام‌سازی فعال نیست';
   }
 };
 // وضعیت لحظه‌ای تبادل داده (مثال ساده)
@@ -2731,6 +2825,19 @@ setInterval(async ()=>{
     document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
   } catch { document.getElementById('profileStatus').textContent = 'ارتباط قطع است'; }
 }, 10000);
+// فعال‌سازی اکشن دکمه‌های ورود، ثبت‌نام و بازیابی
+document.getElementById('loginBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد ورود قبلی خود را قرار دهید یا فراخوانی کنید...
+});
+document.getElementById('signupBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد ثبت‌نام قبلی خود را قرار دهید یا فراخوانی کنید...
+});
+document.getElementById('recoveryBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد بازیابی قبلی خود را قرار دهید یا فراخوانی کنید...
+});
 // بارگذاری اولیه پروفایل بعد از لاگین
 document.addEventListener('DOMContentLoaded', loadProfile);
 </script>
