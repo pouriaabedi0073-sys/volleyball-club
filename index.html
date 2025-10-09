@@ -2651,7 +2651,9 @@ function readShareColors() {
             </div>
             <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
             <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:8px;"></div>
+            <div id="profileDeviceCount" style="font-size:0.95em;color:#333;margin-bottom:4px;">تعداد دستگاه‌ها: —</div>
             <div id="profileLastDevice" style="font-size:0.95em;color:#666;margin-bottom:8px;"></div>
+            <div id="profileDebugControls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
             <form id="editProfileForm" style="display:none;margin-top:12px;">
               <div class="form-group"><label for="editFirstName">نام</label><input type="text" id="editFirstName" class="form-control"></div>
               <div class="form-group"><label for="editLastName">نام خانوادگی</label><input type="text" id="editLastName" class="form-control"></div>
@@ -2713,6 +2715,30 @@ async function loadProfile() {
   if (!user) return;
   const { data: profile, error } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
   if (profile) fillProfileUI(profile);
+  // fetch devices count and last seen for this user (if supabase client available)
+  try {
+    if (client && user && user.id) {
+      try {
+        // fetch device rows for this user, then deduplicate by device_id on the client
+        const devicesRes = await client.from('devices').select('id,device_id,device_name,last_seen').eq('user_id', user.id).order('last_seen', { ascending: false });
+        if (devicesRes && !devicesRes.error && Array.isArray(devicesRes.data)) {
+          const rows = devicesRes.data;
+          const seen = new Set();
+          const uniqueRows = [];
+          for (const r of rows) {
+            const did = r.device_id || ('id:' + (r.id || '')); // fallback
+            if (!seen.has(did)) { seen.add(did); uniqueRows.push(r); }
+          }
+          const deviceCount = seen.size;
+          document.getElementById('profileDeviceCount').textContent = 'تعداد دستگاه‌ها: ' + (deviceCount || 0);
+          if (uniqueRows.length > 0) {
+            const d = uniqueRows[0];
+            document.getElementById('profileLastDevice').textContent = 'آخرین دستگاه: ' + (d.device_name || d.device_id || d.id) + ' — ' + (new Date(d.last_seen).toLocaleString());
+          }
+        }
+      } catch(e) { console.debug('devices fetch failed', e); }
+    }
+  } catch(e) {}
   // وضعیت تبادل داده
   document.getElementById('profileStatus').textContent = error ? 'خطا در دریافت پروفایل' : 'ارتباط با سرور برقرار است';
 }
@@ -2790,6 +2816,31 @@ document.getElementById('recoveryBtn')?.addEventListener('click', async function
 });
 // بارگذاری اولیه پروفایل بعد از لاگین
 document.addEventListener('DOMContentLoaded', loadProfile);
+
+// Add debug controls for sync queue and dead-letter
+(function installProfileDebugControls(){
+  try {
+    const container = document.getElementById('profileDebugControls');
+    if (!container) return;
+    const btnQueue = document.createElement('button'); btnQueue.className='btn'; btnQueue.textContent = 'نمایش صف همگام‌سازی';
+    const btnDead = document.createElement('button'); btnDead.className='btn'; btnDead.textContent = 'نمایش Dead-letter';
+    const btnFlush = document.createElement('button'); btnFlush.className='btn'; btnFlush.textContent = 'تلاش مجدد Flush';
+    container.appendChild(btnQueue); container.appendChild(btnDead); container.appendChild(btnFlush);
+    btnQueue.addEventListener('click', ()=>{
+      try { const q = localStorage.getItem('syncHybridQueue'); const arr = q ? JSON.parse(q) : []; alert('queue length: ' + (arr.length || 0)); } catch(e){ alert('خواندن صف با خطا مواجه شد: ' + e); }
+    });
+    btnDead.addEventListener('click', ()=>{
+      try { const ops = localStorage.getItem('syncHybrid:deadLetterOps'); const backs = localStorage.getItem('syncHybrid:deadLetterBackups'); const o = ops ? JSON.parse(ops) : []; const b = backs ? JSON.parse(backs) : []; alert('deadLetterOps: ' + (o.length||0) + '\ndeadLetterBackups: ' + (b.length||0)); } catch(e){ alert('خواندن dead-letter با خطا مواجه شد: ' + e); }
+    });
+    btnFlush.addEventListener('click', async ()=>{
+      try {
+        if (window.syncHybrid && typeof window.syncHybrid.flush === 'function') { await window.syncHybrid.flush(); alert('flush triggered'); return; }
+        window.dispatchEvent(new Event('online'));
+        alert('flush requested (online event dispatched)');
+      } catch(e){ alert('flush action failed: ' + e); }
+    });
+  } catch(e) { console.debug('installProfileDebugControls failed', e); }
+})();
 </script>
          <!-- END: embedded auth box -->
        </div>
@@ -3773,17 +3824,35 @@ function calculateTimeToNextCategory(age, category) {
       const deviceId = getDeviceId();
       const deviceName = getDeviceName();
       const nowIso = new Date().toISOString();
-      // Try to find existing device row for this user/device
+      if (!deviceId || deviceId === 'dev_unknown') {
+        console.debug('registerDeviceForUser: invalid deviceId, skipping register');
+        return;
+      }
+      // Robust check: fetch any rows matching this device_id (there may be duplicates)
       try {
-        const existing = await client.from('devices').select('id,device_id').eq('device_id', deviceId).maybeSingle();
-        if (existing && !existing.error && existing.data) {
-          // update last_seen and device_name if needed
-          await client.from('devices').update({ device_name: deviceName, last_seen: nowIso, user_id: user.id }).eq('device_id', deviceId);
-          console.debug('devices: updated last_seen for', deviceId);
-          return;
+        const res = await client.from('devices').select('id,device_id,last_seen').eq('device_id', deviceId);
+        if (res && !res.error && Array.isArray(res.data) && res.data.length > 0) {
+          // Consolidate: pick the most-recent row (by last_seen) and update it; remove extras if present
+          const rows = res.data.slice();
+          rows.sort((a,b) => {
+            const ta = new Date(a.last_seen || 0).getTime();
+            const tb = new Date(b.last_seen || 0).getTime();
+            return tb - ta;
+          });
+          const keep = rows[0];
+          // best-effort delete duplicates (keep the most recent)
+          for (let i = 1; i < rows.length; i++) {
+            try { await client.from('devices').delete().eq('id', rows[i].id); } catch (delErr) { console.debug('devices: failed to delete duplicate', rows[i].id, delErr); }
+          }
+          try {
+            await client.from('devices').update({ device_name: deviceName, last_seen: nowIso, user_id: user.id }).eq('id', keep.id);
+            console.debug('devices: updated existing device row', keep.id, deviceId);
+            return;
+          } catch (updErr) { console.debug('devices: update existing failed', updErr); }
         }
       } catch(e) { console.debug('devices select failed', e); }
-      // insert a new device row (RLS allows user to insert rows with their user_id)
+
+      // No existing row found — insert a new device row (RLS should permit user to insert their own row)
       try {
         const ins = await client.from('devices').insert([{ user_id: user.id, device_id: deviceId, device_name: deviceName, last_seen: nowIso }]);
         if (ins && ins.error) console.debug('devices insert error', ins.error);

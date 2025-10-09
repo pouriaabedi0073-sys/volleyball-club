@@ -89,6 +89,55 @@ BEGIN
   END IF;
 END$$;
 
+-- Allow authenticated users to INSERT even if client doesn't supply user_id by checking COALESCE(user_id, auth.uid())
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'players' AND policyname = 'players_insert_allow'
+  ) THEN
+    EXECUTE '
+      CREATE POLICY "players_insert_allow" ON public.players
+        FOR INSERT
+        TO authenticated
+        WITH CHECK ( auth.role() = ''authenticated'' AND coalesce(user_id, auth.uid()) = auth.uid() )
+    ';
+  END IF;
+END$$;
+
+-- Trigger to set user_id from JWT (sub claim) when inserting if client did not provide it
+DO $$
+BEGIN
+  IF NOT EXISTS ( SELECT 1 FROM pg_proc WHERE proname = 'players_set_user_id' ) THEN
+    EXECUTE $fn$
+      CREATE FUNCTION public.players_set_user_id()
+      RETURNS trigger AS $pl$
+      DECLARE
+        uid_text text;
+      BEGIN
+        -- try to read the 'sub' (user id) claim from JWT; returns null if not set
+        uid_text := current_setting('jwt.claims.sub', true);
+        IF uid_text IS NOT NULL AND uid_text <> '' THEN
+          BEGIN
+            IF NEW.user_id IS NULL THEN
+              NEW.user_id := uid_text::uuid;
+            END IF;
+          EXCEPTION WHEN others THEN
+            -- ignore conversion errors
+            NULL;
+          END;
+        END IF;
+        RETURN NEW;
+      END;
+      $pl$ LANGUAGE plpgsql SECURITY DEFINER;
+    $fn$;
+  END IF;
+
+  IF NOT EXISTS ( SELECT 1 FROM pg_trigger WHERE tgname = 'trg_players_set_user_id' ) THEN
+    EXECUTE 'CREATE TRIGGER trg_players_set_user_id BEFORE INSERT ON public.players FOR EACH ROW EXECUTE PROCEDURE public.players_set_user_id()';
+  END IF;
+END$$;
+
 -- coaches
 CREATE TABLE IF NOT EXISTS public.coaches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -258,6 +307,60 @@ BEGIN
         USING ( auth.role() = ''authenticated'' AND user_id = auth.uid() )
         WITH CHECK ( auth.role() = ''authenticated'' AND user_id = auth.uid() )
     ';
+  END IF;
+END$$;
+
+-- Prevent duplicate device rows per (user_id, device_id):
+-- Create a BEFORE INSERT trigger that merges into the existing row if one exists
+DO $$
+BEGIN
+  IF NOT EXISTS ( SELECT 1 FROM pg_proc WHERE proname = 'devices_merge_on_insert' ) THEN
+    EXECUTE $fn$
+      CREATE FUNCTION public.devices_merge_on_insert()
+      RETURNS trigger AS $pl$
+      BEGIN
+        -- If there's already a row for same user_id and device_id, update it and skip inserting a new row
+        BEGIN
+          UPDATE public.devices
+          SET device_name = COALESCE(NEW.device_name, device_name),
+              last_seen = GREATEST(COALESCE(NEW.last_seen, now()), COALESCE(last_seen, now())),
+              user_id = COALESCE(NEW.user_id, user_id)
+          WHERE device_id = NEW.device_id AND user_id = NEW.user_id
+          RETURNING id INTO STRICT NEW.id;
+        EXCEPTION WHEN OTHERS THEN
+          -- ignore update errors and allow insert to proceed
+          NULL;
+        END;
+
+        -- If an existing row was found and updated, our UPDATE above will have returned its id
+        -- In that case, skip the INSERT by returning NULL
+        IF NEW.id IS NOT NULL THEN
+          RETURN NULL;
+        END IF;
+
+        RETURN NEW;
+      END;
+      $pl$ LANGUAGE plpgsql SECURITY DEFINER;
+    $fn$;
+  END IF;
+
+  IF NOT EXISTS ( SELECT 1 FROM pg_trigger WHERE tgname = 'trg_devices_merge_on_insert' ) THEN
+    EXECUTE 'CREATE TRIGGER trg_devices_merge_on_insert BEFORE INSERT ON public.devices FOR EACH ROW EXECUTE PROCEDURE public.devices_merge_on_insert()';
+  END IF;
+END$$;
+
+-- Ensure uniqueness at the index level as a safety net (per user + device)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='devices' AND indexname='idx_devices_user_deviceid_unique'
+  ) THEN
+    BEGIN
+      EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_user_deviceid_unique ON public.devices (user_id, device_id)';
+    EXCEPTION WHEN others THEN
+      -- ignore failures (may fail under RLS/deploy constraints)
+      NULL;
+    END;
   END IF;
 END$$;
 
@@ -498,6 +601,42 @@ BEGIN
   END LOOP;
 EXCEPTION WHEN OTHERS THEN
   -- ignore consolidation errors
+  NULL;
+END$$;
+
+-- -----------------------------------------------------------------
+-- Best-effort consolidation of duplicate devices rows
+-- Keep the most-recent row (by last_seen) for each (user_id, device_id)
+-- -----------------------------------------------------------------
+DO $$
+DECLARE
+  rec RECORD;
+BEGIN
+  FOR rec IN
+    SELECT user_id, device_id, COUNT(*) AS cnt
+    FROM public.devices
+    GROUP BY user_id, device_id
+    HAVING COUNT(*) > 1
+  LOOP
+    BEGIN
+      -- find the keeper id (most recent last_seen)
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY COALESCE(last_seen, 'epoch') DESC, id DESC) AS rn
+        FROM public.devices d
+        WHERE d.user_id = rec.user_id AND d.device_id = rec.device_id
+      )
+      SELECT id INTO STRICT rec.id FROM ranked WHERE rn = 1;
+    EXCEPTION WHEN OTHERS THEN
+      rec.id := NULL;
+    END;
+
+    IF rec.id IS NOT NULL THEN
+      BEGIN
+        DELETE FROM public.devices WHERE user_id = rec.user_id AND device_id = rec.device_id AND id <> rec.id;
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+  END LOOP;
+EXCEPTION WHEN OTHERS THEN
   NULL;
 END$$;
 
