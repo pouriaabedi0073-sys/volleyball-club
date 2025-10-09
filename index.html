@@ -1,86 +1,5 @@
-// --- بهینه‌سازی UX دکمه ذخیره بازیکن ---
-const savePlayerBtn = document.getElementById('savePlayerBtn');
-if (savePlayerBtn) {
-  savePlayerBtn.onclick = async function(e) {
-    e.preventDefault();
-    const btn = this;
-    btn.disabled = true;
-    btn.textContent = 'در حال ذخیره...';
-    try {
-      // فرض: داده‌های فرم بازیکن آماده است
-      const payload = {
-        // ...داده‌های فرم را اینجا قرار دهید (مثال: name, phone, ...)
-      };
-      const { data, error } = await window.supabase.from('players').insert([payload]);
-      if (error) {
-        alert('خطا در ذخیره بازیکن: ' + error.message);
-        btn.textContent = 'ذخیره بازیکن';
-        btn.disabled = false;
-        return;
-      }
-      alert('بازیکن ذخیره شد');
-      // رفرش لیست یا هدایت به پروفایل بازیکن
-      // window.location.href = '/profile.html?id=' + data[0].id;
-      btn.textContent = 'ذخیره بازیکن';
-      btn.disabled = false;
-      // همگام‌سازی بعد از ثبت
-      if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
-    } catch (err) {
-      alert('خطای غیرمنتظره: ' + err.message);
-      btn.textContent = 'ذخیره بازیکن';
-      btn.disabled = false;
-    }
-  };
-}
-
-// --- بهینه‌سازی UX دکمه ثبت پرداخت ---
-const savePaymentBtn = document.getElementById('savePaymentBtn');
-if (savePaymentBtn) {
-  savePaymentBtn.onclick = async function(e) {
-    e.preventDefault();
-    const btn = this;
-    btn.disabled = true;
-    btn.textContent = 'در حال ثبت...';
-    try {
-      // فرض: داده‌های فرم پرداخت آماده است
-      const payload = {
-        // ...داده‌های فرم را اینجا قرار دهید (مثال: player_id, amount, ...)
-      };
-      const { data, error } = await window.supabase.from('payments').insert([payload]);
-      if (error) {
-        alert('خطا در ثبت پرداخت: ' + error.message);
-        btn.textContent = 'ثبت پرداخت';
-        btn.disabled = false;
-        return;
-      }
-      alert('رسید ثبت شد');
-      // رفرش لیست یا بستن فرم
-      btn.textContent = 'ثبت پرداخت';
-      btn.disabled = false;
-      if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
-    } catch (err) {
-      alert('خطای غیرمنتظره: ' + err.message);
-      btn.textContent = 'ثبت پرداخت';
-      btn.disabled = false;
-    }
-  };
-}
-
-// --- subscribe به realtime برای همگام‌سازی بین دستگاه‌ها ---
-if (window.supabase && typeof window.supabase.channel === 'function') {
-  try {
-    const chPlayers = window.supabase.channel('public:players');
-    chPlayers.on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, payload => {
-      // رفرش لیست بازیکنان یا فراخوانی تابع مورد نیاز
-      // refreshPlayersList();
-    }).subscribe();
-    const chPayments = window.supabase.channel('public:payments');
-    chPayments.on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, payload => {
-      // رفرش لیست پرداخت‌ها یا فراخوانی تابع مورد نیاز
-      // refreshPaymentsList();
-    }).subscribe();
-  } catch(e) { console.warn('realtime subscribe failed', e); }
-}
+<!-- ...existing code... -->
+<!-- ...existing code... -->
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
@@ -873,6 +792,10 @@ if (window.supabase && typeof window.supabase.channel === 'function') {
   /* New share modal layout styles */
   .share-modal-inner { max-width:720px; padding:12px; }
   .share-modal-inner #shareCard { border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,0.12); max-height:78vh; overflow:hidden; display:flex; flex-direction:column; }
+  /* When creating a temporary clone for capture, hide interactive controls cleanly */
+  .capture-hide { display:none !important; visibility:hidden !important; }
+  /* Small helper to ensure cloned node renders with the same font and layout when offscreen */
+  .share-card-clone-preserve { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
   .share-color-row { justify-content:center; }
   .share-color-row label { margin-right:6px; }
   .share-buttons-row { justify-content:center; width:100%; gap:10px; }
@@ -2727,6 +2650,7 @@ function readShareColors() {
               <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">خروج</button>
             </div>
             <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
+            <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:8px;"></div>
             <div id="profileLastDevice" style="font-size:0.95em;color:#666;margin-bottom:8px;"></div>
             <form id="editProfileForm" style="display:none;margin-top:12px;">
               <div class="form-group"><label for="editFirstName">نام</label><input type="text" id="editFirstName" class="form-control"></div>
@@ -2741,6 +2665,7 @@ function readShareColors() {
           </div>
 <script>
 // فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
+
 function fillProfileUI(profile) {
   document.getElementById('accountName').textContent = ((profile.first_name||'') + ' ' + (profile.last_name||'')).trim() || '—';
   document.getElementById('accountEmail').textContent = profile.email || '—';
@@ -2751,7 +2676,32 @@ function fillProfileUI(profile) {
   document.getElementById('editEmail').value = profile.email || '';
   document.getElementById('editPhone').value = profile.phone || '';
   document.getElementById('profileLastDevice').textContent = profile.last_sync_device ? 'آخرین دستگاه: ' + profile.last_sync_device : '';
+  updateProfileSyncHybridStatus();
 }
+
+function updateProfileSyncHybridStatus() {
+  const el = document.getElementById('profileSyncHybridStatus');
+  if (!window.syncHybrid || !window.syncHybrid.status) {
+    el.innerHTML = '<span style="color:#aaa;">همگام‌سازی جدولی: <span style="color:#aaa;">نامشخص</span></span>';
+    return;
+  }
+  const st = window.syncHybrid.status;
+  let icon = '';
+  let txt = '';
+  if (st.syncing) {
+    icon = '<span style="color:#0af;font-size:1.2em;">⏳</span>';
+    txt = 'در حال همگام‌سازی...';
+  } else if (st.online) {
+    icon = '<span style="color:#0a7;font-size:1.2em;">✔️</span>';
+    txt = 'همگام‌سازی فعال';
+  } else {
+    icon = '<span style="color:#f59e0b;font-size:1.2em;">⚠️</span>';
+    txt = 'آفلاین - همگام‌سازی متوقف';
+  }
+  el.innerHTML = icon + '<span>' + txt + '</span>';
+}
+
+window.addEventListener('syncHybrid:status', updateProfileSyncHybridStatus);
 
 async function loadProfile() {
   const client = window.supabase;
@@ -3071,6 +3021,16 @@ async function _captureAndShareModalImpl(m) {
   clone.style.position = 'relative';
   clone.id = 'shareCardClone';
 
+  // copy useful computed styles from the live card so the offscreen clone matches appearance
+  try {
+    const src = window.getComputedStyle(card);
+    const dst = clone.style;
+    ['width','height','padding','border','border-radius','font-size','font-family','line-height','box-sizing','display','flex-direction','gap','align-items','justify-content','background','color'].forEach(k => {
+      try { const v = src.getPropertyValue(k); if (v) dst.setProperty(k, v); } catch(e) {}
+    });
+    clone.classList.add('share-card-clone-preserve');
+  } catch (e) { console.debug('failed to copy computed styles to clone', e); }
+
   Array.from(clone.querySelectorAll('.no-capture, button, input[type="color"], .share-controls')).forEach(el => {
     el.classList.add('capture-hide');
     if (el.classList && el.classList.contains('share-controls')) el.classList.add('collapse');
@@ -3081,6 +3041,21 @@ async function _captureAndShareModalImpl(m) {
   stage.style.left = '-9999px';
   stage.style.top = '0';
   stage.style.zIndex = '99999';
+  // sanitize clone images: replace cross-origin external images that may taint canvas
+  try {
+    Array.from(clone.querySelectorAll('img')).forEach(img => {
+      try {
+        const src = img.getAttribute('src') || '';
+        // if the src is an absolute URL and not same-origin, swap to a local fallback to prevent CORS issues
+        if (/^https?:\/\//i.test(src) && !src.startsWith(window.location.origin)) {
+          // prefer app icons or in-repo images as fallback
+          const fallback = (img.id && (img.id === 'shareLogoA' || img.id === 'shareLogoB')) ? (state.settings && state.settings.logo ? state.settings.logo : 'icons/volleyball (1).png') : 'icons/volleyball (1).png';
+          img.setAttribute('data-orig-src', src);
+          img.src = fallback;
+        }
+      } catch(e) { /* ignore per-image errors */ }
+    });
+  } catch(e) { console.debug('sanitize clone images failed', e); }
   stage.appendChild(clone);
   document.body.appendChild(stage);
 
@@ -3491,6 +3466,9 @@ function calculateTimeToNextCategory(age, category) {
   const client = getSupabaseClient();
     if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
     const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (data && data.session && window.syncHybrid && typeof window.syncHybrid.init === 'function') {
+      try { await window.syncHybrid.init(); } catch(e){ console.warn('syncHybrid.init failed after login', e); }
+    }
       if (error) {
         // map common supabase/auth errors to Persian messages
         const msg = (error && error.message) ? error.message.toLowerCase() : '';
@@ -3566,6 +3544,9 @@ function calculateTimeToNextCategory(age, category) {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); if (spinner) spinner.classList.remove('running'); signupBtn.disabled = false; return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
   const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.href } });
+  if (data && data.session && window.syncHybrid && typeof window.syncHybrid.init === 'function') {
+    try { await window.syncHybrid.init(); } catch(e){ console.warn('syncHybrid.init failed after signup', e); }
+  }
       if (error) showAlert(alertEl, error.message || 'خطا در ثبت نام','danger');
       else {
         showAlert(alertEl,'ثبت نام انجام شد، ایمیل خود را بررسی کنید','success');
@@ -3688,7 +3669,17 @@ function calculateTimeToNextCategory(age, category) {
         if (auto) {
           const table = window.SUPABASE_SYNC_TABLE || 'notes';
           const key = window.SUPABASE_SYNC_KEY || 'id';
-          window.supabaseSync.init({ table, key });
+          // attempt to set userId first so subscriptions are filtered; fall back to init without user id
+          (async function(){
+            try {
+              const { data: u } = await client.auth.getUser();
+              const user = u && u.user;
+              if (user && typeof window.supabaseSync.setUserId === 'function') {
+                try { window.supabaseSync.setUserId(user.id); } catch(_){ }
+              }
+            } catch(_){}
+            try { window.supabaseSync.init({ table, key }); } catch(e){ console.warn('init supabaseSync failed', e); }
+          })();
         } else {
           console.debug('supabaseSync auto-init disabled; set window.SUPABASE_SYNC_AUTO_INIT = true to enable');
         }
@@ -5201,22 +5192,39 @@ function openShareOverlay(matchId) {
     if (card) card.style.background = `linear-gradient(180deg, ${a}, ${b})`;
   }
   applyCardColors();
-  if (colorAInput) { colorAInput.disabled = false; colorAInput.oninput = applyCardColors; }
-  if (colorBInput) { colorBInput.disabled = false; colorBInput.oninput = applyCardColors; }
+  // support both live input and change events (some mobile pickers only fire change)
+  if (colorAInput) {
+    colorAInput.disabled = false;
+    colorAInput.addEventListener('input', applyCardColors);
+    colorAInput.addEventListener('change', applyCardColors);
+  }
+  if (colorBInput) {
+    colorBInput.disabled = false;
+    colorBInput.addEventListener('input', applyCardColors);
+    colorBInput.addEventListener('change', applyCardColors);
+  }
   // Make the visible swatches clickable (larger tap target): clicking their parent opens native color input
   try {
     const swA = colorAInput && colorAInput.parentNode;
     const swB = colorBInput && colorBInput.parentNode;
       if (swA && colorAInput) {
         swA.style.cursor = 'pointer';
-        swA.addEventListener('click', (ev) => { ev.stopPropagation(); try { colorAInput.focus(); colorAInput.click(); } catch(e) { colorAInput.dispatchEvent(new MouseEvent('click')); } });
+        // large-tap support: click and touchstart
+        const openA = (ev) => { ev.stopPropagation(); try { colorAInput.focus(); colorAInput.click(); } catch(e) { try { colorAInput.dispatchEvent(new MouseEvent('click')); } catch(_){} } };
+        swA.addEventListener('click', openA);
+        swA.addEventListener('touchstart', openA, { passive: true });
         // ensure wrapper doesn't block pointer events from the input
         swA.style.pointerEvents = 'auto';
+        // ensure the input is interactive
+        colorAInput.style.pointerEvents = 'auto'; colorAInput.style.visibility = 'visible'; colorAInput.style.opacity = colorAInput.style.opacity || '1';
       }
       if (swB && colorBInput) {
         swB.style.cursor = 'pointer';
-        swB.addEventListener('click', (ev) => { ev.stopPropagation(); try { colorBInput.focus(); colorBInput.click(); } catch(e) { colorBInput.dispatchEvent(new MouseEvent('click')); } });
+        const openB = (ev) => { ev.stopPropagation(); try { colorBInput.focus(); colorBInput.click(); } catch(e) { try { colorBInput.dispatchEvent(new MouseEvent('click')); } catch(_){} } };
+        swB.addEventListener('click', openB);
+        swB.addEventListener('touchstart', openB, { passive: true });
         swB.style.pointerEvents = 'auto';
+        colorBInput.style.pointerEvents = 'auto'; colorBInput.style.visibility = 'visible'; colorBInput.style.opacity = colorBInput.style.opacity || '1';
       }
     // Ensure the live inputs accept pointer events while overlay is active
     if (colorAInput) colorAInput.style.pointerEvents = 'auto';
@@ -9599,5 +9607,141 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
 </script>
   <script src="sync-supabase.js"></script>
   <script src="sw-register.js"></script>
+</body>
+  <script src="sync-supabase.js"></script>
+  <script src="sw-register.js"></script>
+
+  <script>
+  // --- بهینه‌سازی UX دکمه ذخیره بازیکن ---
+  const savePlayerBtn = document.getElementById('savePlayerBtn');
+  if (savePlayerBtn) {
+    savePlayerBtn.onclick = async function(e) {
+      e.preventDefault();
+      const btn = this;
+      btn.disabled = true;
+      btn.textContent = 'در حال ذخیره...';
+      try {
+        // فرض: داده‌های فرم بازیکن آماده است
+        const payload = {
+          // ...داده‌های فرم را اینجا قرار دهید (مثال: name, phone, ...)
+        };
+        const { data, error } = await window.supabase.from('players').insert([payload]);
+        if (error) {
+          alert('خطا در ذخیره بازیکن: ' + error.message);
+          btn.textContent = 'ذخیره بازیکن';
+          btn.disabled = false;
+          return;
+        }
+        alert('بازیکن ذخیره شد');
+        // رفرش لیست یا هدایت به پروفایل بازیکن
+        // window.location.href = '/profile.html?id=' + data[0].id;
+        btn.textContent = 'ذخیره بازیکن';
+        btn.disabled = false;
+        // همگام‌سازی بعد از ثبت
+        if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+      } catch (err) {
+        alert('خطای غیرمنتظره: ' + err.message);
+        btn.textContent = 'ذخیره بازیکن';
+        btn.disabled = false;
+      }
+    };
+  }
+
+  // --- بهینه‌سازی UX دکمه ثبت پرداخت ---
+  const savePaymentBtn = document.getElementById('savePaymentBtn');
+  if (savePaymentBtn) {
+    savePaymentBtn.onclick = async function(e) {
+      e.preventDefault();
+      const btn = this;
+      btn.disabled = true;
+      btn.textContent = 'در حال ثبت...';
+      try {
+        // فرض: داده‌های فرم پرداخت آماده است
+        const payload = {
+          // ...داده‌های فرم را اینجا قرار دهید (مثال: player_id, amount, ...)
+        };
+        const { data, error } = await window.supabase.from('payments').insert([payload]);
+        if (error) {
+          alert('خطا در ثبت پرداخت: ' + error.message);
+          btn.textContent = 'ثبت پرداخت';
+          btn.disabled = false;
+          return;
+        }
+        alert('رسید ثبت شد');
+        // رفرش لیست یا بستن فرم
+        btn.textContent = 'ثبت پرداخت';
+        btn.disabled = false;
+        if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+      } catch (err) {
+        alert('خطای غیرمنتظره: ' + err.message);
+        btn.textContent = 'ثبت پرداخت';
+        btn.disabled = false;
+      }
+    };
+  }
+
+  // --- subscribe به realtime برای همگام‌سازی بین دستگاه‌ها ---
+  if (window.supabase && typeof window.supabase.channel === 'function') {
+    try {
+      const chPlayers = window.supabase.channel('public:players');
+      chPlayers.on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, payload => {
+        // رفرش لیست بازیکنان یا فراخوانی تابع مورد نیاز
+        // refreshPlayersList();
+      }).subscribe();
+      const chPayments = window.supabase.channel('public:payments');
+      chPayments.on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, payload => {
+        // رفرش لیست پرداخت‌ها یا فراخوانی تابع مورد نیاز
+        // refreshPaymentsList();
+      }).subscribe();
+    } catch(e) { console.warn('realtime subscribe failed', e); }
+  }
+  </script>
+</body>
+  <script src="sync-supabase.js"></script>
+  <script src="sw-register.js"></script>
+
+  <script>
+  // --- Load all main tables from Supabase and update state ---
+  async function loadAllDataFromServer() {
+    if (!window.supabase || !window.supabase.auth) return;
+    let userRes = await window.supabase.auth.getUser();
+    let user = userRes && userRes.data && userRes.data.user ? userRes.data.user : null;
+    if (!user) return;
+
+    // Helper to fetch and update state
+    async function fetchTable(table, stateKey, extra = {}) {
+      let q = window.supabase.from(table).select('*');
+      if (table !== 'notes' && table !== 'shared_backups') q = q.eq('user_id', user.id);
+      if (extra.order) q = q.order(extra.order, { ascending: false });
+      let { data, error } = await q;
+      if (!error && data) state[stateKey] = data;
+      else console.warn('Load failed for', table, error);
+    }
+
+    await fetchTable('players', 'players');
+    await fetchTable('payments', 'payments');
+    await fetchTable('coaches', 'coaches');
+    await fetchTable('sessions', 'sessions');
+    await fetchTable('competitions', 'competitions');
+    await fetchTable('training_plans', 'trainingPlans');
+    await fetchTable('devices', 'devices');
+    await fetchTable('notes', 'notes');
+    // Optionally: shared_backups, backups, etc.
+
+    // Call render functions if available
+    if (typeof renderPlayersPage === 'function') renderPlayersPage();
+    if (typeof renderCoaches === 'function') renderCoaches();
+    if (typeof renderSessionsPage === 'function') renderSessionsPage();
+    if (typeof renderPaymentsPage === 'function') renderPaymentsPage();
+    if (typeof renderCompetitionsPage === 'function') renderCompetitionsPage();
+    if (typeof renderTrainingPlansPage === 'function') renderTrainingPlansPage();
+    // ... add more as needed
+  }
+
+  // Call this after login/signup or on refresh
+  window.loadAllDataFromServer = loadAllDataFromServer;
+  // Example: after successful login
+  // await loadAllDataFromServer();
+  </script>
 </body>
 </html>

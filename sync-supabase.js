@@ -44,6 +44,11 @@
     channel: null,
     supabase: null,
     debounceResubscribe: null,
+    // recommended: provide a userId or filter before subscribing; leaving these null prevents unfiltered subs
+    userId: null,
+    filter: null,
+    // allow unfiltered subscriptions only if explicitly enabled by the app (dangerous)
+    allowUnfiltered: false,
   };
 
   // Emit a global CustomEvent so UI code can react
@@ -95,16 +100,28 @@
   async function subscribe() {
     if (!ctx.supabase) return;
     try {
-      // create channel name unique to table
-      const channelName = `realtime_${ctx.table}`;
+      // require either a filter or a userId (which will be translated to user_id filter)
+      if (!ctx.filter && !ctx.userId && !ctx.allowUnfiltered && !window.SUPABASE_SYNC_ALLOW_UNFILTERED) {
+        console.warn('supabaseSync: subscription skipped because no filter/userId provided; call supabaseSync.setUserId(id) or supabaseSync.setFilter(filter) to enable subscriptions');
+        return;
+      }
+
+      // build filter string for postgres_changes; prefer explicit filter if provided
+      let pgFilter = ctx.filter;
+      if (!pgFilter && ctx.userId) pgFilter = `user_id=eq.${ctx.userId}`;
+
+      // create channel name unique to table and filter
+      const channelName = `realtime_${ctx.table}` + (ctx.userId ? `_${ctx.userId}` : (ctx.filter ? `_${hashCode(String(ctx.filter))}` : ''));
       if (ctx.channel) {
         try { await ctx.channel.unsubscribe(); } catch(e){}
         ctx.channel = null;
       }
 
-      const channel = ctx.supabase.channel(channelName, { config: { broadcast: { self: false } } });
+  const channel = ctx.supabase.channel(channelName, { config: { broadcast: { self: false } } });
 
-      channel.on('postgres_changes', { event: '*', schema: 'public', table: ctx.table }, payload => {
+  const filterObj = pgFilter ? { event: '*', schema: 'public', table: ctx.table, filter: pgFilter } : { event: '*', schema: 'public', table: ctx.table };
+
+  channel.on('postgres_changes', filterObj, payload => {
         try {
           const ev = (payload.eventType || payload.type || payload.event || '').toUpperCase();
           const row = payload.record || payload.new || payload.old || payload;
@@ -126,6 +143,13 @@
       console.warn('subscribe error', e);
       throw e;
     }
+  }
+
+  // small helper to generate a simple hash from string for channel naming
+  function hashCode(s) {
+    try {
+      let h = 0; for (let i = 0; i < s.length; i++) { h = (Math.imul(31, h) + s.charCodeAt(i)) | 0; } return Math.abs(h).toString(36);
+    } catch (e) { return 'h'; }
   }
 
   // Public API: create, update, delete helpers that also push to Supabase
@@ -242,7 +266,7 @@
       return;
     }
 
-    // try to subscribe immediately
+    // try to subscribe immediately (subscribe() will no-op if no filter/userId set)
     try { await subscribe(); } catch (e) { console.warn('initial subscribe failed', e); }
 
     // re-subscribe on visibility or reconnect events
@@ -261,6 +285,28 @@
     emit('supabase:sync-ready', { table: ctx.table });
   }
 
+  // Helpers to set user/filter before subscribing. These are safe to call before or after init.
+  function setUserId(id) {
+    ctx.userId = id || null;
+    // clear explicit filter if any (userId takes precedence)
+    if (ctx.userId) ctx.filter = null;
+    clearTimeout(ctx.debounceResubscribe);
+    ctx.debounceResubscribe = setTimeout(() => subscribe().catch(()=>{}), 200);
+  }
+
+  function setFilter(f) {
+    ctx.filter = f || null;
+    // don't clear userId; explicit filter wins
+    clearTimeout(ctx.debounceResubscribe);
+    ctx.debounceResubscribe = setTimeout(() => subscribe().catch(()=>{}), 200);
+  }
+
+  function allowUnfiltered(v = true) {
+    ctx.allowUnfiltered = !!v;
+    clearTimeout(ctx.debounceResubscribe);
+    ctx.debounceResubscribe = setTimeout(() => subscribe().catch(()=>{}), 200);
+  }
+
   // Install public API on window
   window.supabaseSync = {
     init,
@@ -268,6 +314,9 @@
     update,
     remove,
     mergeRow, // useful for apps that want to inject server rows manually
+    setUserId,
+    setFilter,
+    allowUnfiltered,
     _ctx: ctx,
   };
 
