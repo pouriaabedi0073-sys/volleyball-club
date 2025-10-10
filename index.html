@@ -17,11 +17,13 @@
 <!-- Ensure Supabase library is loaded early for auth UI -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script>
-      // Minimal Supabase client initializer: prefer window vars if set, otherwise use project defaults
+      // Ensure config defaults (copied from reset-password.html) so client can be created safely
+      if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
+      if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
+
+      // Minimal Supabase client initializer: prefer existing window.supabase or the UMD `supabase`, then create client
       (function(){
         try {
-          if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
-          if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
           const lib = (window.supabase && typeof window.supabase.createClient === 'function') ? window.supabase : (typeof supabase !== 'undefined' ? supabase : null);
           if (!lib) return;
           if (!window.__supabase_client_initialized) {
@@ -2644,9 +2646,10 @@ function readShareColors() {
                 <div id="accountPhone" style="color:#666;font-size:0.98em;">—</div>
               </div>
             </div>
-            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <div style="display:flex;gap:8px;margin-bottom:10px;">
               <button id="editProfileBtn" class="btn">ویرایش پروفایل</button>
-              <button id="syncProfileBtn" class="btn">همگام‌سازی روزانه</button>
+              <button id="syncProfileBtn" class="btn">همگام‌سازی (ذخیره بکاپ)</button>
+              <button id="restoreBackupBtn" class="btn">دریافت/بازیابی آخرین بکاپ</button>
               <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">خروج</button>
             </div>
             <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
@@ -2666,83 +2669,52 @@ function readShareColors() {
             </form>
           </div>
 <script>
-// فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
+// Simplified profile + minimal single-device sync (single-account, single-device)
+// Goals: keep it tiny and predictable. Push: insert a player row. Pull: fetch recent players.
+// This removes the complex queue/backup logic and is intended for testing with one device/account.
 
 function fillProfileUI(profile) {
   document.getElementById('accountName').textContent = ((profile.first_name||'') + ' ' + (profile.last_name||'')).trim() || '—';
   document.getElementById('accountEmail').textContent = profile.email || '—';
   document.getElementById('accountPhone').textContent = profile.phone || '—';
   if (profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
-  document.getElementById('editFirstName').value = profile.first_name || '';
-  document.getElementById('editLastName').value = profile.last_name || '';
-  document.getElementById('editEmail').value = profile.email || '';
-  document.getElementById('editPhone').value = profile.phone || '';
-  document.getElementById('profileLastDevice').textContent = profile.last_sync_device ? 'آخرین دستگاه: ' + profile.last_sync_device : '';
-  updateProfileSyncHybridStatus();
 }
-
-function updateProfileSyncHybridStatus() {
-  const el = document.getElementById('profileSyncHybridStatus');
-  if (!window.syncHybrid || !window.syncHybrid.status) {
-    el.innerHTML = '<span style="color:#aaa;">همگام‌سازی جدولی: <span style="color:#aaa;">نامشخص</span></span>';
-    return;
-  }
-  const st = window.syncHybrid.status;
-  let icon = '';
-  let txt = '';
-  if (st.syncing) {
-    icon = '<span style="color:#0af;font-size:1.2em;">⏳</span>';
-    txt = 'در حال همگام‌سازی...';
-  } else if (st.online) {
-    icon = '<span style="color:#0a7;font-size:1.2em;">✔️</span>';
-    txt = 'همگام‌سازی فعال';
-  } else {
-    icon = '<span style="color:#f59e0b;font-size:1.2em;">⚠️</span>';
-    txt = 'آفلاین - همگام‌سازی متوقف';
-  }
-  el.innerHTML = icon + '<span>' + txt + '</span>';
-}
-
-window.addEventListener('syncHybrid:status', updateProfileSyncHybridStatus);
 
 async function loadProfile() {
   const client = window.supabase;
-  let user = null;
-  if (client && client.auth && typeof client.auth.getUser === 'function') {
-    const { data: ud } = await client.auth.getUser();
-    user = ud && ud.user ? ud.user : null;
-  }
+  if (!client || !client.auth || typeof client.auth.getUser !== 'function') return;
+  const { data: ud } = await client.auth.getUser();
+  const user = ud && ud.user ? ud.user : null;
   if (!user) return;
-  const { data: profile, error } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  const { data: profile } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
   if (profile) fillProfileUI(profile);
-  // fetch devices count and last seen for this user (if supabase client available)
-  try {
-    if (client && user && user.id) {
-      try {
-        // fetch device rows for this user, then deduplicate by device_id on the client
-        const devicesRes = await client.from('devices').select('id,device_id,device_name,last_seen').eq('user_id', user.id).order('last_seen', { ascending: false });
-        if (devicesRes && !devicesRes.error && Array.isArray(devicesRes.data)) {
-          const rows = devicesRes.data;
-          const seen = new Set();
-          const uniqueRows = [];
-          for (const r of rows) {
-            const did = r.device_id || ('id:' + (r.id || '')); // fallback
-            if (!seen.has(did)) { seen.add(did); uniqueRows.push(r); }
-          }
-          const deviceCount = seen.size;
-          document.getElementById('profileDeviceCount').textContent = 'تعداد دستگاه‌ها: ' + (deviceCount || 0);
-          if (uniqueRows.length > 0) {
-            const d = uniqueRows[0];
-            document.getElementById('profileLastDevice').textContent = 'آخرین دستگاه: ' + (d.device_name || d.device_id || d.id) + ' — ' + (new Date(d.last_seen).toLocaleString());
-          }
-        }
-      } catch(e) { console.debug('devices fetch failed', e); }
-    }
-  } catch(e) {}
-  // وضعیت تبادل داده
-  document.getElementById('profileStatus').textContent = error ? 'خطا در دریافت پروفایل' : 'ارتباط با سرور برقرار است';
+  // show a simple lastSync timestamp stored locally (in-memory fallback)
+  const last = localStorage.getItem('simpleSync:lastSync');
+  document.getElementById('profileLastDevice').textContent = last ? ('آخرین همگام‌سازی: ' + new Date(last).toLocaleString()) : '';
+  // hide advanced debug controls (we keep only a simple sync button)
+  const dbg = document.getElementById('profileDebugControls'); if (dbg) dbg.innerHTML = '';
 }
 
+// Minimal push: create a players row with a known minimal shape.
+async function simplePushPlayer(sample) {
+  const client = window.supabase;
+  if (!client) throw new Error('supabase client not available');
+  const { data, error } = await client.from('players').insert([sample]).select();
+  return { data, error };
+}
+
+// Minimal pull: fetch last 20 players for current user
+async function simplePullPlayers() {
+  const client = window.supabase;
+  if (!client || !client.auth || typeof client.auth.getUser !== 'function') return { data: [], error: 'no-client' };
+  const { data: ud } = await client.auth.getUser();
+  const user = ud && ud.user ? ud.user : null;
+  if (!user) return { data: [], error: 'not-authenticated' };
+  const res = await client.from('players').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20);
+  return res;
+}
+
+// Hook simple sync button handlers
 document.getElementById('editProfileBtn').onclick = function() {
   document.getElementById('editProfileForm').style.display = 'block';
 };
@@ -2752,11 +2724,8 @@ document.getElementById('cancelEditProfile').onclick = function() {
 document.getElementById('editProfileForm').onsubmit = async function(e) {
   e.preventDefault();
   const client = window.supabase;
-  let user = null;
-  if (client && client.auth && typeof client.auth.getUser === 'function') {
-    const { data: ud } = await client.auth.getUser();
-    user = ud && ud.user ? ud.user : null;
-  }
+  const { data: ud } = await client.auth.getUser();
+  const user = ud && ud.user ? ud.user : null;
   if (!user) return;
   const payload = {
     id: user.id,
@@ -2769,78 +2738,125 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
   document.getElementById('editProfileForm').style.display = 'none';
   await loadProfile();
 };
+
 document.getElementById('logoutBtn').onclick = async function() {
   if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === 'function') {
     await window.supabase.auth.signOut();
-    // نمایش فرم لاگین بعد از خروج
     document.getElementById('accountProfileContainer').style.display = 'none';
     const eb = document.getElementById('embeddedAuthBox');
     if (eb) eb.style.display = 'block';
   }
 };
+
+// Simple sync: push a test player then pull latest and update lastSync
+// New behavior: build a full snapshot and insert into `backups` table as JSONB
 document.getElementById('syncProfileBtn').onclick = async function() {
-  if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') {
-    document.getElementById('profileStatus').textContent = 'در حال همگام‌سازی...';
-    try {
-      await window.syncHybrid.backupNow();
-      document.getElementById('profileStatus').textContent = 'همگام‌سازی با موفقیت انجام شد';
-      await loadProfile();
-    } catch(e) {
-      document.getElementById('profileStatus').textContent = 'خطا در همگام‌سازی';
+  const client = window.supabase;
+  document.getElementById('profileStatus').textContent = 'در حال گرفتن بکاپ...';
+  try {
+    const { data: ud } = await client.auth.getUser();
+    const user = ud && ud.user ? ud.user : null;
+    if (!user) throw new Error('ابتدا وارد شوید');
+
+    // Tables to snapshot (match TABLES in sync-hybrid.js)
+    const tables = ['players','coaches','sessions','payments','competitions','training_plans','devices','notes','profiles'];
+    const snapshot = {};
+    for (const t of tables) {
+      try {
+        const res = await client.from(t).select('*').eq('user_id', user.id);
+        snapshot[t] = (res.error || !res.data) ? [] : res.data;
+      } catch(e) { snapshot[t] = []; }
     }
-  } else {
-    document.getElementById('profileStatus').textContent = 'ماژول همگام‌سازی فعال نیست';
+
+    const meta = { created_at: new Date().toISOString(), user_id: user.id, device_id: getDeviceId(), snapshot };
+
+    // Insert into backups table (as JSONB in data)
+    const up = await client.from('backups').insert([{ user_id: user.id, data: meta, device_id: getDeviceId(), operation: 'sync', revision: 1 }]).select();
+    if (up.error) throw up.error;
+    localStorage.setItem('simpleSync:lastSync', new Date().toISOString());
+    await loadProfile();
+    document.getElementById('profileStatus').textContent = 'بکاپ ذخیره شد';
+  } catch (e) {
+    document.getElementById('profileStatus').textContent = 'خطا در بکاپ: ' + (e.message || e);
   }
 };
-// وضعیت لحظه‌ای تبادل داده (مثال ساده)
+
+// Download latest backup from `backups` table for current user and import it
+document.getElementById('restoreBackupBtn').onclick = async function() {
+  const client = window.supabase;
+  document.getElementById('profileStatus').textContent = 'در حال دریافت بکاپ...';
+  try {
+    const { data: ud } = await client.auth.getUser();
+    const user = ud && ud.user ? ud.user : null;
+    if (!user) throw new Error('ابتدا وارد شوید');
+
+    // Get latest backup row from backups table
+    const res = await client.from('backups').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (res.error) throw res.error;
+    if (!res.data) { document.getElementById('profileStatus').textContent = 'بکاپی یافت نشد'; return; }
+    const meta = res.data.data || res.data; // data jsonb stored in `data`
+
+    if (!confirm('آیا مایل به بازیابی آخرین بکاپ هستید؟ این عمل ممکن است داده‌های محلی را بازنویسی کند.')) return;
+
+    const summary = await importSnapshot(meta, client, user.id);
+    document.getElementById('profileStatus').textContent = 'بازیابی انجام شد';
+    console.log('import summary', summary);
+    alert('بازیابی انجام شد. خلاصه:\n' + JSON.stringify(summary, null, 2));
+    await loadProfile();
+  } catch (e) {
+    document.getElementById('profileStatus').textContent = 'خطا در دریافت بکاپ: ' + (e.message || e);
+  }
+};
+
+// importSnapshot(meta, client, uid): import snapshot object into DB (row-by-row insert/update)
+async function importSnapshot(meta, client, uid) {
+  client = client || window.supabase;
+  const snapshot = meta && meta.snapshot ? meta.snapshot : (meta.data && meta.data.snapshot ? meta.data.snapshot : {});
+  const summary = {};
+  const tables = Object.keys(snapshot || {});
+  for (const table of tables) {
+    const rows = Array.isArray(snapshot[table]) ? snapshot[table] : [];
+    summary[table] = { total: rows.length, inserted: 0, updated: 0, errors: 0 };
+    for (const r of rows) {
+      try {
+        const row = Object.assign({}, r);
+        // ensure user_id is set to current user for user-scoped tables
+        if ('user_id' in row) row.user_id = uid;
+        // try insert
+        const ins = await client.from(table).insert([row]).select();
+        if (ins.error) {
+          // try update by id if present
+          if (row.id) {
+            const upd = await client.from(table).update(row).eq('id', row.id).select();
+            if (upd.error) summary[table].errors++;
+            else summary[table].updated++;
+          } else {
+            summary[table].errors++;
+          }
+        } else {
+          summary[table].inserted++;
+        }
+      } catch (e) {
+        summary[table].errors++;
+      }
+    }
+  }
+  return summary;
+}
+
+// Periodic connectivity check (lightweight)
 setInterval(async ()=>{
   const client = window.supabase;
   if (!client) return;
   try {
-    const { error } = await client.from('profiles').select('id').limit(1);
-    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
+    const { error } = await client.from('players').select('id').limit(1);
+    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : document.getElementById('profileStatus').textContent || 'ارتباط با سرور برقرار است';
   } catch { document.getElementById('profileStatus').textContent = 'ارتباط قطع است'; }
-}, 10000);
-// فعال‌سازی اکشن دکمه‌های ورود، ثبت‌نام و بازیابی
-document.getElementById('loginBtn')?.addEventListener('click', async function(e) {
-  e.preventDefault();
-  // ...اینجا کد ورود قبلی خود را قرار دهید یا فراخوانی کنید...
-});
-document.getElementById('signupBtn')?.addEventListener('click', async function(e) {
-  e.preventDefault();
-  // ...اینجا کد ثبت‌نام قبلی خود را قرار دهید یا فراخوانی کنید...
-});
-document.getElementById('recoveryBtn')?.addEventListener('click', async function(e) {
-  e.preventDefault();
-  // ...اینجا کد بازیابی قبلی خود را قرار دهید یا فراخوانی کنید...
-});
-// بارگذاری اولیه پروفایل بعد از لاگین
+}, 15000);
+
+// load profile once DOM ready
 document.addEventListener('DOMContentLoaded', loadProfile);
 
-// Add debug controls for sync queue and dead-letter
-(function installProfileDebugControls(){
-  try {
-    const container = document.getElementById('profileDebugControls');
-    if (!container) return;
-    const btnQueue = document.createElement('button'); btnQueue.className='btn'; btnQueue.textContent = 'نمایش صف همگام‌سازی';
-    const btnDead = document.createElement('button'); btnDead.className='btn'; btnDead.textContent = 'نمایش Dead-letter';
-    const btnFlush = document.createElement('button'); btnFlush.className='btn'; btnFlush.textContent = 'تلاش مجدد Flush';
-    container.appendChild(btnQueue); container.appendChild(btnDead); container.appendChild(btnFlush);
-    btnQueue.addEventListener('click', ()=>{
-      try { const q = localStorage.getItem('syncHybridQueue'); const arr = q ? JSON.parse(q) : []; alert('queue length: ' + (arr.length || 0)); } catch(e){ alert('خواندن صف با خطا مواجه شد: ' + e); }
-    });
-    btnDead.addEventListener('click', ()=>{
-      try { const ops = localStorage.getItem('syncHybrid:deadLetterOps'); const backs = localStorage.getItem('syncHybrid:deadLetterBackups'); const o = ops ? JSON.parse(ops) : []; const b = backs ? JSON.parse(backs) : []; alert('deadLetterOps: ' + (o.length||0) + '\ndeadLetterBackups: ' + (b.length||0)); } catch(e){ alert('خواندن dead-letter با خطا مواجه شد: ' + e); }
-    });
-    btnFlush.addEventListener('click', async ()=>{
-      try {
-        if (window.syncHybrid && typeof window.syncHybrid.flush === 'function') { await window.syncHybrid.flush(); alert('flush triggered'); return; }
-        window.dispatchEvent(new Event('online'));
-        alert('flush requested (online event dispatched)');
-      } catch(e){ alert('flush action failed: ' + e); }
-    });
-  } catch(e) { console.debug('installProfileDebugControls failed', e); }
-})();
 </script>
          <!-- END: embedded auth box -->
        </div>
