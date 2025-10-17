@@ -47,9 +47,16 @@
     // recommended: provide a userId or filter before subscribing; leaving these null prevents unfiltered subs
     userId: null,
     filter: null,
+    // group_email for shared access
+    groupEmail: null,
     // allow unfiltered subscriptions only if explicitly enabled by the app (dangerous)
     allowUnfiltered: false,
   };
+
+  // helper: which tables have a user_id column
+  function tableHasUserId(table) {
+    return table !== 'shared_backups';
+  }
 
   // Emit a global CustomEvent so UI code can react
   function emit(eventName, detail) {
@@ -100,28 +107,50 @@
   async function subscribe() {
     if (!ctx.supabase) return;
     try {
-      // require either a filter or a userId (which will be translated to user_id filter)
-      if (!ctx.filter && !ctx.userId && !ctx.allowUnfiltered && !window.SUPABASE_SYNC_ALLOW_UNFILTERED) {
-        console.warn('supabaseSync: subscription skipped because no filter/userId provided; call supabaseSync.setUserId(id) or supabaseSync.setFilter(filter) to enable subscriptions');
+      // require either a filter, userId, or groupEmail (which will be translated to appropriate filters)
+      if (!ctx.filter && !ctx.userId && !ctx.groupEmail && !ctx.allowUnfiltered && !window.SUPABASE_SYNC_ALLOW_UNFILTERED) {
+        console.warn('supabaseSync: subscription skipped because no filter/userId/groupEmail provided; call supabaseSync.setUserId(id), setGroupEmail(email), or setFilter(filter) to enable subscriptions');
         return;
       }
 
       // build filter string for postgres_changes; prefer explicit filter if provided
       let pgFilter = ctx.filter;
-      if (!pgFilter && ctx.userId) pgFilter = `user_id=eq.${ctx.userId}`;
+      if (!pgFilter) {
+        if (ctx.userId && ctx.groupEmail && tableHasUserId(ctx.table)) {
+          // Filter for both user_id and group_email (only when table supports user_id)
+          pgFilter = `or=(user_id.eq.${ctx.userId},group_email.eq.${ctx.groupEmail})`;
+        } else if (ctx.userId && tableHasUserId(ctx.table)) {
+          // Only apply user_id filter when the table actually has user_id
+          pgFilter = `user_id=eq.${ctx.userId}`;
+        } else if (ctx.groupEmail) {
+          pgFilter = `group_email=eq.${ctx.groupEmail}`;
+        }
+      }
 
-      // create channel name unique to table and filter
-      const channelName = `realtime_${ctx.table}` + (ctx.userId ? `_${ctx.userId}` : (ctx.filter ? `_${hashCode(String(ctx.filter))}` : ''));
+      // create channel name unique to table and filter/user/group
+      const channelName = `realtime_${ctx.table}` + (
+        ctx.userId ? `_${ctx.userId}` : 
+        ctx.groupEmail ? `_group_${hashCode(ctx.groupEmail)}` :
+        ctx.filter ? `_${hashCode(String(ctx.filter))}` : 
+        ''
+      );
+
       if (ctx.channel) {
         try { await ctx.channel.unsubscribe(); } catch(e){}
         ctx.channel = null;
       }
 
-  const channel = ctx.supabase.channel(channelName, { config: { broadcast: { self: false } } });
+      // create a new channel (wrapped to catch creation errors)
+      let channel;
+      try {
+        channel = ctx.supabase.channel(channelName, { config: { broadcast: { self: false } } });
+      } catch (chErr) {
+        console.warn('supabaseSync: failed to create channel object', chErr);
+        throw chErr;
+      }
 
-  const filterObj = pgFilter ? { event: '*', schema: 'public', table: ctx.table, filter: pgFilter } : { event: '*', schema: 'public', table: ctx.table };
-
-  channel.on('postgres_changes', filterObj, payload => {
+      const filterObj = pgFilter ? { event: '*', schema: 'public', table: ctx.table, filter: pgFilter } : { event: '*', schema: 'public', table: ctx.table };
+      channel.on('postgres_changes', filterObj, payload => {
         try {
           const ev = (payload.eventType || payload.type || payload.event || '').toUpperCase();
           const row = payload.record || payload.new || payload.old || payload;
@@ -135,6 +164,21 @@
         } catch (e) { console.warn('realtime payload handler error', e); }
       }).subscribe(status => {
         console.info('Supabase realtime status', status);
+        // detect closed/errored and schedule reconnect
+        try {
+          const state = (status && status.realtime_state) || (status && status.state) || null;
+          if (state && (String(state).toLowerCase().indexOf('closed') !== -1 || String(state).toLowerCase().indexOf('error') !== -1)) {
+            // schedule reconnect with backoff
+            const backoff = Math.min(30000, (ctx._reconnectAttempts || 0) * 2000 + 1000);
+            ctx._reconnectAttempts = (ctx._reconnectAttempts || 0) + 1;
+            console.info('supabaseSync: realtime appears closed; scheduling reconnect in', backoff);
+            setTimeout(() => {
+              subscribe().catch(()=>{});
+            }, backoff);
+          } else {
+            ctx._reconnectAttempts = 0; // reset on healthy status
+          }
+        } catch(e) { console.debug('reconnect check failed', e); }
       });
 
       ctx.channel = channel;
@@ -160,6 +204,10 @@
     row[ctx.key] = row[ctx.key] || uid('m_');
     row.created_at = row.created_at || now;
     row.last_modified = row.last_modified || now;
+    // Handle group_email if provided
+    if (obj.group_email || ctx.groupEmail) {
+      row.group_email = (obj.group_email || ctx.groupEmail).toLowerCase();
+    }
 
     // optimistic local insert
     try { mergeRow(row, 'INSERT'); } catch(e){}
@@ -192,10 +240,19 @@
     } catch(e){}
 
     try {
-      const { data, error } = await ctx.supabase.from(ctx.table).update(toSend).eq(ctx.key, id).select();
+      // determine onConflict key
+      const conflictMap = {
+        devices: ['user_id', 'device_id'],
+        shared_backups: ['group_email'],
+        profiles: ['id']
+      };
+      const onConflictCols = conflictMap[ctx.table] || [ctx.key || 'id'];
+      const onConflict = onConflictCols.join(',');
+      const payload = Object.assign({}, toSend, { [ctx.key]: id });
+      const { data, error } = await ctx.supabase.from(ctx.table).upsert([payload], { onConflict }).select();
       if (error) throw error;
       if (Array.isArray(data) && data[0]) mergeRow(data[0], 'UPDATE');
-  try { await writeLastSyncMetadata(data && data[0] ? data[0] : toSend); } catch(e) { /* ignore */ }
+      try { await writeLastSyncMetadata(data && data[0] ? data[0] : toSend); } catch(e) { /* ignore */ }
       return { data, error: null };
     } catch (e) {
       console.warn('update sync error', e);
@@ -243,13 +300,25 @@
       const device = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : 'browser';
       const payload = {};
       payload[ctx.table] = [rowPayload];
-      // upsert into profiles (requires RLS/permissions configured appropriately)
-      try {
-        await ctx.supabase.from('profiles').upsert({ id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: payload }, { onConflict: 'id' });
-      } catch (e) {
-        // fallback: try update
-        try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
-      }
+        // upsert into profiles (requires RLS/permissions configured appropriately)
+        try {
+          try {
+            const { data: { user: authUser } = {} } = await ctx.supabase.auth.getUser();
+            if (!authUser) {
+              console.warn('writeLastSyncMetadata: no authenticated user');
+            } else {
+              const upsertPayload = { user_id: authUser.id, last_sync_at: now, last_sync_device: device, last_sync_payload: payload };
+              const res = await ctx.supabase.from('profiles').upsert(upsertPayload, { onConflict: 'user_id', ignoreDuplicates: false }).select().single();
+              if (res && res.error) throw res.error;
+            }
+          } catch (e) {
+            // fallback: try update by user_id
+            try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('user_id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
+          }
+        } catch (e) {
+          // top-level guard
+          console.warn('writeLastSyncMetadata upsert failed', e);
+        }
     } catch (e) {
       console.warn('writeLastSyncMetadata failed', e);
     }
@@ -316,6 +385,15 @@
     mergeRow, // useful for apps that want to inject server rows manually
     setUserId,
     setFilter,
+    setGroupEmail: (email) => {
+      if (email) {
+        ctx.groupEmail = email.toLowerCase();
+      } else {
+        ctx.groupEmail = null;
+      }
+      // Re-subscribe with new group email filter
+      subscribe().catch(() => {});
+    },
     allowUnfiltered,
     _ctx: ctx,
   };
@@ -325,8 +403,14 @@
   setTimeout(() => {
     waitForSupabase(8000).then(sup => {
       ctx.supabase = sup;
-      // try to init but ignore errors
-      init().catch(()=>{});
+      // Only auto-init if explicitly enabled by the host page to avoid accidental unfiltered subscriptions
+      const auto = (typeof window.SUPABASE_SYNC_AUTO_INIT !== 'undefined') ? (window.SUPABASE_SYNC_AUTO_INIT === true) : false;
+      if (auto) {
+        // try to init but ignore errors
+        init().catch(()=>{});
+      } else {
+        console.debug('supabaseSync auto-init suppressed; set window.SUPABASE_SYNC_AUTO_INIT = true to enable automatic init after client ready.');
+      }
     }).catch(()=>{
       console.info('Supabase client not found; supabaseSync will wait until client is available.');
     });

@@ -3,7 +3,7 @@
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<script src="sync-hybrid.js"></script>
+<!-- sync-hybrid removed: use backupClient (backup.js) for backup/restore flows -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>مدیریت باشگاه والیبال</title>
@@ -17,23 +17,73 @@
 <!-- Ensure Supabase library is loaded early for auth UI -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script>
-      // Ensure config defaults (copied from reset-password.html) so client can be created safely
-      if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
-      if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
-
-      // Minimal Supabase client initializer: prefer existing window.supabase or the UMD `supabase`, then create client
+      // Minimal Supabase client initializer: prefer window vars if set, otherwise use project defaults
       (function(){
         try {
-          const lib = (window.supabase && typeof window.supabase.createClient === 'function') ? window.supabase : (typeof supabase !== 'undefined' ? supabase : null);
-          if (!lib) return;
-          if (!window.__supabase_client_initialized) {
-            window.supabase = lib.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-            window.__supabase_client_initialized = true;
-            console.info('Supabase client initialized inline.');
-          }
-        } catch (e) {
-          console.warn('Supabase inline init failed:', e);
-        }
+          if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
+          if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
+          // Initialize client if supabase lib is available
+          try {
+              if (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function') {
+              const client = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+              window.supabase = client;
+              window.supabaseClient = client;
+            } else if (window.supabase && typeof window.supabase.createClient === 'function') {
+              // already present (UMD injected), create a namespaced client
+              const client = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+              window.supabase = client;
+              window.supabaseClient = client;
+            }
+          } catch(e) { console.warn('supabase client init failed', e); }
+
+          // Supabase .from(...).select wrapper to catch select lists containing player_name (debug helper)
+          try {
+            const sup = window.supabase;
+            if (sup && typeof sup.from === 'function') {
+              const _from = sup.from.bind(sup);
+              sup.from = function(table) {
+                const q = _from(table);
+                if (q && typeof q.select === 'function') {
+                  const _select = q.select.bind(q);
+                  q.select = function(sel) {
+                    try {
+                      if (String(sel || '').includes('player_name')) {
+                        console.group('%cDEBUG: detected player_name in supabase select','color:#b45309;font-weight:bold');
+                        console.log('table:', table);
+                        console.log('select:', sel);
+                        console.trace();
+                        console.groupEnd();
+                      }
+                    } catch(e){}
+                    return _select.apply(this, arguments);
+                  };
+                }
+                return q;
+              };
+            }
+          } catch(e) { console.warn('supabase select wrapper install failed', e); }
+
+          console.info('Debug wrapper for player_name installed.');
+
+          // Runtime detector: catch any runtime attempts to call supabase.from('users')
+          try {
+            const sup = window.supabase;
+            if (sup && typeof sup.from === 'function') {
+              const _from = sup.from.bind(sup);
+              sup.from = function(table) {
+                if (String(table).toLowerCase() === 'users') {
+                  try {
+                    console.group('%cDEBUG: runtime supabase.from("users") detected','color:#b91c1c;font-weight:bold');
+                    console.trace();
+                    console.groupEnd();
+                  } catch (e) { console.warn('users detect trace failed', e); }
+                }
+                return _from.apply(this, arguments);
+              };
+            }
+          } catch (e) { console.warn('install users runtime detector failed', e); }
+
+        } catch (e) { console.warn('supabase init wrapper failed', e); }
       })();
     </script>
 <link rel="manifest" href="./manifest.json">
@@ -1809,6 +1859,21 @@ function readShareColors() {
     return { colorA: a, colorB: b };
   } catch (e) { return { colorA: '#ff6b6b', colorB: '#ff9ac2' }; }
 }
+
+// helper to enable/disable backup buttons (keeps original button elements)
+function enableBackupButtons(enable = true) {
+  try {
+    const ids = ['backupNowBtn', 'restoreBackupBtn', 'backupHistoryBtn'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.disabled = !enable;
+      if (enable) el.classList.remove('opacity-50'); else el.classList.add('opacity-50');
+    });
+  } catch (e) {
+    console.error('enableBackupButtons error', e);
+  }
+}
 </script>
 </head>
 <body class="mobile-active sports-bg">
@@ -2637,31 +2702,72 @@ function readShareColors() {
              </div>
            </div>
           <!-- Account profile container (static profile) -->
+          <style>
+            /* Profile card responsive adjustments: 2 columns on desktop, stacked on mobile */
+            .profile-card-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; align-items:stretch; }
+            .profile-card-rows + .profile-card-rows { margin-top:8px; }
+            @media (max-width:600px) {
+              .profile-card-rows { grid-template-columns: 1fr; }
+              .profile-card-rows .btn { width:100% !important; }
+            }
+            #backupHistoryBox { overflow:auto; max-height:320px; }
+            #accountProfileContainer { overflow:hidden; padding:8px; box-sizing:border-box; }
+          </style>
           <div id="accountProfileContainer" style="margin-top:12px;display:none;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-              <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid #eee;">
-              <div>
-                <div id="accountName" style="font-size:1.2em;font-weight:600;">—</div>
-                <div id="accountEmail" style="color:#666;font-size:0.98em;">—</div>
-                <div id="accountPhone" style="color:#666;font-size:0.98em;">—</div>
+            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+              <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee;background:#f8fafc;">
+              <div style="flex:1;min-width:0;">
+                <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:2px;">—</div>
+                <div id="accountEmail" style="color:#666;font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
+                <div id="accountPhone" style="color:#666;font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
+                <div id="accountBio" style="color:#4b5563;font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;">—</div>
               </div>
             </div>
-              <div style="display:flex;gap:8px;margin-bottom:10px;">
-              <button id="editProfileBtn" class="btn">ویرایش پروفایل</button>
-              <button id="syncProfileBtn" class="btn">همگام‌سازی (ذخیره بکاپ)</button>
-              <button id="restoreBackupBtn" class="btn">دریافت/بازیابی آخرین بکاپ</button>
-              <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">خروج</button>
+            <!-- Profile card container: layout kept responsive and preserves original buttons/onclic handlers -->
+            <div class="flex flex-col items-center gap-3 text-center w-full max-w-md mx-auto p-3" style="box-sizing:border-box;">
+              <!-- top title area removed to keep layout compact; edit button moved next to history below -->
+
+              <!-- Backup status (moved above buttons) -->
+              <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#16a34a;">✅ سیستم بکاپ آماده است</div>
+
+              <!-- Connection status shown above buttons -->
+              <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;width:100%;">ارتباط با سرور برقرار است</div>
+
+              <!-- Row 1: Backup Now | Restore -->
+              <div class="profile-card-rows" style="width:100%;">
+                <button id="backupNowBtn" class="btn primary" onclick="handleManualBackup()" style="display:inline-flex;align-items:center;gap:8px;">💾 ایجاد بک‌آپ جدید</button>
+                <button id="restoreBackupBtn" class="btn" onclick="handleRestoreBackup()" style="display:inline-flex;align-items:center;gap:8px;">♻️ بازگردانی آخرین بک‌آپ</button>
+              </div>
+
+              <!-- Row 2: Edit | History -->
+              <div class="profile-card-rows" style="width:100%;">
+                <button id="editProfileBtn" class="btn" onclick="openEditProfile()">✏️ ویرایش پروفایل</button>
+                <button id="backupHistoryBtn" class="btn" onclick="showBackupHistory()" style="display:inline-flex;align-items:center;gap:8px;">🕒 تاریخچه بک‌آپ‌ها</button>
+              </div>
+
+              <!-- Backup history box (hidden by default) placed below the status and rows -->
+              <div id="backupHistoryBox" class="hidden bg-white border rounded-xl p-3 shadow-inner mt-2 w-full text-sm text-right overflow-auto" style="display:none;max-height:320px;">
+                <!-- Backup list populated dynamically by showBackupHistory() -->
+                <div id="backupHistoryList">&nbsp;</div>
+                <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button onclick="toggleBackupHistory()" class="text-red-500 text-xs">بستن</button></div>
+              </div>
+
+              <!-- Row 3: Logout below history box -->
+              <div class="flex justify-center w-full" style="margin-top:8px;">
+                <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">🚪 خروج</button>
+              </div>
+
+              <!-- keep legacy profile status element for other messages (moved above buttons) -->
             </div>
-            <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
-            <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:8px;"></div>
-            <div id="profileDeviceCount" style="font-size:0.95em;color:#333;margin-bottom:4px;">تعداد دستگاه‌ها: —</div>
+            <!-- profileDeviceCount removed per request: debug device count hidden in production UI -->
             <div id="profileLastDevice" style="font-size:0.95em;color:#666;margin-bottom:8px;"></div>
             <div id="profileDebugControls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
             <form id="editProfileForm" style="display:none;margin-top:12px;">
-              <div class="form-group"><label for="editFirstName">نام</label><input type="text" id="editFirstName" class="form-control"></div>
-              <div class="form-group"><label for="editLastName">نام خانوادگی</label><input type="text" id="editLastName" class="form-control"></div>
-              <div class="form-group"><label for="editEmail">ایمیل</label><input type="email" id="editEmail" class="form-control"></div>
-              <div class="form-group"><label for="editPhone">تلفن</label><input type="text" id="editPhone" class="form-control"></div>
+              <div class="form-group"><label for="editDisplayName">نام نمایشی</label><input type="text" id="editDisplayName" class="form-control"></div>
+              <div class="form-group"><label for="editEmail">ایمیل</label><input type="email" id="editEmail" class="form-control" dir="ltr"></div>
+              <div class="form-group"><label for="editPhoneNumber">تلفن همراه</label><input type="text" id="editPhoneNumber" class="form-control" dir="ltr"></div>
+              <div class="form-group"><label for="editBio">درباره من</label><textarea id="editBio" class="form-control" rows="3"></textarea></div>
+              <div class="form-group"><label for="editAvatarUrl">لینک تصویر پروفایل</label><input type="url" id="editAvatarUrl" class="form-control" dir="ltr"></div>
               <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
                 <button type="submit" class="btn primary">ذخیره</button>
                 <button type="button" id="cancelEditProfile" class="btn">لغو</button>
@@ -2669,194 +2775,698 @@ function readShareColors() {
             </form>
           </div>
 <script>
-// Simplified profile + minimal single-device sync (single-account, single-device)
-// Goals: keep it tiny and predictable. Push: insert a player row. Pull: fetch recent players.
-// This removes the complex queue/backup logic and is intended for testing with one device/account.
+// فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
 
 function fillProfileUI(profile) {
-  document.getElementById('accountName').textContent = ((profile.first_name||'') + ' ' + (profile.last_name||'')).trim() || '—';
+  document.getElementById('accountName').textContent = profile.display_name || '—';
   document.getElementById('accountEmail').textContent = profile.email || '—';
-  document.getElementById('accountPhone').textContent = profile.phone || '—';
+  // normalize phone field: support phone_number or phone
+  document.getElementById('accountPhone').textContent = (profile.phone_number || profile.phone || '') || '—';
   if (profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+  document.getElementById('editDisplayName').value = profile.display_name || '';
+  document.getElementById('editEmail').value = profile.email || '';
+  document.getElementById('editPhoneNumber').value = profile.phone_number || '';
+  document.getElementById('editBio').value = profile.bio || '';
+  document.getElementById('editAvatarUrl').value = profile.avatar_url || '';
+  document.getElementById('profileLastDevice').textContent = profile.last_sync_device ? 'آخرین دستگاه: ' + profile.last_sync_device : '';
+  // populate visible bio block in account view if present
+  try { const ab = document.getElementById('accountBio'); if (ab) ab.textContent = profile.bio || '—'; } catch(_){}
+  //updateProfileSyncHybridStatus();
+  // Ensure profile container is visible when we have profile data
+  try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(e) {}
 }
 
-async function loadProfile() {
-  const client = window.supabase;
-  if (!client || !client.auth || typeof client.auth.getUser !== 'function') return;
-  const { data: ud } = await client.auth.getUser();
-  const user = ud && ud.user ? ud.user : null;
-  if (!user) return;
-  const { data: profile } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
-  if (profile) fillProfileUI(profile);
-  // show a simple lastSync timestamp stored locally (in-memory fallback)
-  const last = localStorage.getItem('simpleSync:lastSync');
-  document.getElementById('profileLastDevice').textContent = last ? ('آخرین همگام‌سازی: ' + new Date(last).toLocaleString()) : '';
-  // hide advanced debug controls (we keep only a simple sync button)
-  const dbg = document.getElementById('profileDebugControls'); if (dbg) dbg.innerHTML = '';
+// Open edit profile form and prefill fields from DB or auth metadata
+window.openEditProfile = async function openEditProfile() {
+  try {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const { userId, user } = await getCurrentUserId();
+    if (!userId) return; // guard: avoid sending undefined to PostgREST
+
+    // Try to fetch profile by user_id
+    let profile = null;
+    try {
+      console.debug('openEditProfile: fetching profile by user_id', userId);
+      const res = await client.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+      profile = res && res.data ? res.data : null;
+      if (res && res.error) console.debug('openEditProfile: fetch by user_id error', res.error);
+    } catch(e) { /* ignore */ }
+
+    // If not found, try by email
+    if (!profile && user && user.email) {
+      try {
+        console.debug('openEditProfile: fetching profile by email', user.email);
+        const res2 = await client.from('profiles').select('*').eq('email', user.email).maybeSingle();
+        profile = res2 && res2.data ? res2.data : profile;
+        if (res2 && res2.error) console.debug('openEditProfile: fetch by email error', res2.error);
+      } catch(e) { /* ignore */ }
+    }
+
+    // Prefill form fields
+    try { document.getElementById('editDisplayName').value = profile?.display_name || (user.user_metadata && (user.user_metadata.name || '')) || ''; } catch(_){}
+    try { document.getElementById('editEmail').value = profile?.email || user.email || ''; } catch(_){}
+  try { document.getElementById('editPhoneNumber').value = profile?.phone_number || profile?.phone || (user.user_metadata && user.user_metadata.phone) || ''; } catch(_){}
+    try { document.getElementById('editBio').value = profile?.bio || ''; } catch(_){}
+    try { document.getElementById('editAvatarUrl').value = profile?.avatar_url || (user.user_metadata && user.user_metadata.avatar_url) || ''; } catch(_){}
+
+    // Show the form
+    try { document.getElementById('editProfileForm').style.display = 'block'; } catch(_){ }
+  } catch (err) {
+    console.warn('openEditProfile failed', err);
+  }
 }
 
-// Minimal push: create a players row with a known minimal shape.
-async function simplePushPlayer(sample) {
-  const client = window.supabase;
-  if (!client) throw new Error('supabase client not available');
-  const { data, error } = await client.from('players').insert([sample]).select();
-  return { data, error };
+// New backup status management
+function updateBackupStatus(message, isError = false) {
+  const el = document.getElementById('profileSyncHybridStatus');
+  if (!el) return;
+  
+  const icon = isError ? 
+    '<span style="color:#ef4444;font-size:1.1em;">❌</span>' : 
+    '<span style="color:#0a7;font-size:1.1em;">✅</span>';
+  
+  el.innerHTML = icon + '<span>' + message + '</span>';
 }
 
-// Minimal pull: fetch last 20 players for current user
-async function simplePullPlayers() {
-  const client = window.supabase;
-  if (!client || !client.auth || typeof client.auth.getUser !== 'function') return { data: [], error: 'no-client' };
-  const { data: ud } = await client.auth.getUser();
-  const user = ud && ud.user ? ud.user : null;
-  if (!user) return { data: [], error: 'not-authenticated' };
-  const res = await client.from('players').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20);
-  return res;
+// Backup handler
+window.handleBackupNow = async function handleBackupNow() {
+  const spinner = document.getElementById('backupNowSpinner');
+  const btn = document.getElementById('backupNowBtn');
+  if (!window.backupSync) {
+    updateBackupStatus('سیستم بکاپ در دسترس نیست', true);
+    return;
+  }
+  
+  try {
+    spinner.style.display = 'inline-block';
+    btn.disabled = true;
+    
+    // Get user email for group sync
+    const { data: { user } } = await window.supabase.auth.getUser();
+    if (!user?.email) throw new Error('کاربر لاگین نشده است');
+    
+    // Set group email and create backup with force flag
+    window.backupSync.setGroupEmail(user.email);
+    const result = await window.backupSync.createBackup({ force: true });
+    
+    updateBackupStatus(`✅ بکاپ در ${new Date().toLocaleString()} انجام شد`);
+  } catch (error) {
+    console.error('Backup failed:', error);
+    updateBackupStatus('خطا در ایجاد بکاپ: ' + error.message, true);
+  } finally {
+    spinner.style.display = 'none';
+    btn.disabled = false;
+  }
 }
 
-// Hook simple sync button handlers
+// Restore handler
+window.handleRestoreBackup = async function handleRestoreBackup() {
+  const btn = document.getElementById('restoreBackupBtn');
+  if (!window.backupSync) {
+    updateBackupStatus('سیستم بکاپ در دسترس نیست', true);
+    return;
+  }
+  
+  if (!confirm('آیا مطمئن هستید؟ این عمل داده‌های فعلی را با آخرین بکاپ جایگزین می‌کند.')) {
+    return;
+  }
+  
+  try {
+    btn.disabled = true;
+
+    // Use backupSync helper to get the current user email (handles auth check)
+    if (!window.backupSync || typeof window.backupSync.getCurrentUserEmail !== 'function') {
+      throw new Error('سیستم بکاپ در دسترس نیست');
+    }
+    const email = await window.backupSync.getCurrentUserEmail();
+    if (!email) throw new Error('کاربر لاگین نشده است');
+
+    // Set group email and restore
+    window.backupSync.setGroupEmail(email);
+    const result = await window.backupSync.restoreFromLatest();
+
+    updateBackupStatus('✅ بازگردانی از آخرین بکاپ انجام شد');
+
+    // Reload the page to reflect restored data
+    setTimeout(() => window.location.reload(), 1500);
+  } catch (error) {
+    console.error('Restore failed:', error);
+    updateBackupStatus('خطا در بازگردانی بکاپ: ' + (error && error.message ? error.message : String(error)), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// New compatibility wrapper used by UI: calls backupSync.createBackup({ force: true })
+window.handleManualBackup = async function handleManualBackup() {
+  if (!window.backupSync || typeof window.backupSync.createBackup !== 'function') {
+    alert('سیستم بکاپ در دسترس نیست');
+    return;
+  }
+  try {
+    // Make sure user is authenticated and group email is set to avoid RLS errors
+    if (typeof window.backupSync.getCurrentUserEmail !== 'function') {
+      alert('سیستم بکاپ در دسترس نیست');
+      return;
+    }
+    const email = await window.backupSync.getCurrentUserEmail();
+    if (!email) return alert('لطفاً ابتدا وارد شوید');
+    window.backupSync.setGroupEmail(email);
+
+    const res = await window.backupSync.createBackup({ force: true });
+    if (res && res.ok) {
+      alert('✅ بک‌آپ با موفقیت ذخیره شد');
+      updateBackupStatus('بکاپ ذخیره شد');
+    } else {
+      alert('⚠️ خطا در بک‌آپ: ' + (res && res.reason ? res.reason : 'نامشخص'));
+      updateBackupStatus('خطا در ایجاد بکاپ', true);
+    }
+  } catch (err) {
+    console.error('handleManualBackup failed', err);
+    alert('⚠️ خطا در بک‌آپ: ' + (err && err.message ? err.message : String(err)));
+  }
+}
+
+// showBackupHistory: fetch recent backups from DB and render box
+window.showBackupHistory = async function showBackupHistory() {
+  try {
+    const client = window.supabase;
+    if (!client) return alert('کلاینت Supabase آماده نیست');
+    if (!window.backupSync || typeof window.backupSync.getCurrentUserEmail !== 'function') {
+      return alert('سیستم بکاپ در دسترس نیست');
+    }
+    const email = await window.backupSync.getCurrentUserEmail();
+    if (!email) return alert('کاربر لاگین نشده است');
+    // ensure group email set for consistency
+    window.backupSync.setGroupEmail(email);
+    const { data, error } = await client
+      .from('backups')
+      .select('backup_id, created_at')
+      .eq('group_email', email)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (error) {
+      console.warn('showBackupHistory failed', error);
+      return alert('⚠️ خطا در دریافت تاریخچه');
+    }
+    const box = document.getElementById('backupHistoryBox');
+    box.innerHTML = (data && data.length === 0)
+      ? '<p>هیچ بک‌آپی وجود ندارد</p>'
+      : data.map(b => `
+      <div style="margin-bottom:8px;padding:8px;border-bottom:1px solid rgba(0,0,0,0.04);">
+        <b>${new Date(b.created_at).toLocaleString()}</b> — ${b.backup_id}
+        <button style="margin-left:8px;" onclick="restoreBackup('${b.backup_id}')">🔁 بازیابی</button>
+      </div>
+    `).join('');
+    // Toggle the box: if hidden, open it; if visible, close it
+    if (box.style.display === 'none' || box.style.display === '') toggleBackupHistory(); else toggleBackupHistory();
+  } catch (err) {
+    console.error('showBackupHistory error', err);
+    alert('⚠️ خطا در دریافت تاریخچه');
+  }
+}
+
+// restoreBackup by id (called from history list)
+async function restoreBackup(backupId) {
+  try {
+    if (!window.backupSync || typeof window.backupSync.restoreById !== 'function') {
+      alert('سیستم بکاپ در دسترس نیست');
+      return;
+    }
+    await window.backupSync.restoreById(backupId);
+    alert('✅ داده‌ها از بک‌آپ انتخابی بازیابی شدند');
+    setTimeout(()=>window.location.reload(), 1200);
+  } catch (err) {
+    console.error('restoreBackup failed', err);
+    alert('❌ بک‌آپ یافت نشد');
+  }
+}
+
+// Show initial status
+updateBackupStatus('سیستم بکاپ آماده است');
+
+async function loadProfile(passedUser) {
+  const client = window.supabase || (window.getSupabaseClient && window.getSupabaseClient());
+  if (!client || !client.auth || typeof client.auth.getUser !== 'function') {
+    console.debug('loadProfile: supabase client not available');
+    return;
+  }
+  // get the authenticated user using destructuring (safe default)
+  const { data: { user } = {} } = await client.auth.getUser();
+  const currentUser = (passedUser && passedUser.id) ? passedUser : user;
+  const userId = currentUser && currentUser.id ? currentUser.id : null;
+  // clear any previously-loaded profile to avoid showing cached data for a different user
+  if (window._loadedProfile && window._loadedProfile.user_id && window._loadedProfile.user_id !== userId) {
+    window._loadedProfile = null;
+  }
+  if (!currentUser || !userId) {
+    console.debug('loadProfile: no authenticated user available');
+    return;
+  }
+  let profile = null;
+  let selectError = null;
+  try {
+  // query profile by user_id (use .single() so we get either a row or a clear error)
+  const { data: profileData, error: profileError } = await client.from('profiles').select('*').eq('user_id', userId).single();
+    if (profileError) {
+      // PGRST116 = no rows found (PostgREST). If it's that, treat as empty; otherwise surface the error
+      if (profileError && String(profileError.code) === 'PGRST116') {
+        profile = null;
+      } else {
+        selectError = profileError;
+        console.error('loadProfile query error', profileError);
+      }
+    } else {
+      profile = profileData || null;
+    }
+  } catch (err) {
+    selectError = err;
+    console.error('loadProfile failed', err);
+  }
+    try {
+    if (profile) {
+      // Found existing profile - populate UI and keep a reference
+      window._loadedProfile = profile;
+      fillProfileUI(profile);
+      // Hide the edit form when we have a stored profile
+      try { const f = document.getElementById('editProfileForm'); if (f) f.style.display = 'none'; } catch(_){ }
+    } else {
+      // No profile row yet: prefill edit form and show it so user can complete their profile
+      try {
+        // ensure the account container is visible so the user sees the edit area
+        try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(_){ }
+        document.getElementById('editEmail').value = currentUser.email || '';
+        document.getElementById('accountEmail').textContent = currentUser.email || '—';
+        // ensure main display reflects current signed-in user when no stored profile exists
+        document.getElementById('accountName').textContent = ((currentUser.user_metadata && (currentUser.user_metadata.name || currentUser.user_metadata.full_name)) || '—');
+        document.getElementById('accountPhone').textContent = '';
+        document.getElementById('accountBio').textContent = '';
+        try { document.getElementById('accountAvatar').src = './icons/logo.png'; } catch(_){}
+        // try to prefill display name from auth metadata if available
+        const metaName = (currentUser.user_metadata && (currentUser.user_metadata.name || currentUser.user_metadata.full_name)) || '';
+        document.getElementById('editDisplayName').value = metaName || '';
+        document.getElementById('editPhoneNumber').value = (currentUser.user_metadata && currentUser.user_metadata.phone) || '';
+        document.getElementById('editBio').value = '';
+        document.getElementById('editAvatarUrl').value = (currentUser.user_metadata && currentUser.user_metadata.avatar_url) || '';
+        // Make the edit form visible so the user can complete their profile immediately
+        try { const f = document.getElementById('editProfileForm'); if (f) { f.style.display = 'block'; const first = document.getElementById('editDisplayName'); if (first && typeof first.focus === 'function') first.focus(); } } catch(_){ }
+      } catch (e) { /* ignore DOM errors */ }
+    }
+  } catch (e) { console.error('loadProfile post-processing failed', e); }
+  // devices table removed in new backup-focused schema. Skipping devices fetch.
+  try {
+    // Keep profileLastDevice DOM unchanged; show placeholder or rely on profile data
+    // document.getElementById('profileLastDevice').textContent = '';
+  } catch(e) {}
+  // وضعیت تبادل داده
+  document.getElementById('profileStatus').textContent = selectError ? 'خطا در دریافت پروفایل' : 'ارتباط با سرور برقرار است';
+
+  // Configure backup sync with user email
+  try {
+    if (window.backupSync) {
+      const email = (profile && profile.email) ? profile.email : (currentUser.email || null);
+      if (email) window.backupSync.setGroupEmail(email);
+    }
+  } catch(e) { console.debug('backup sync configuration failed:', e); }
+}
+
 document.getElementById('editProfileBtn').onclick = function() {
-  document.getElementById('editProfileForm').style.display = 'block';
+  // Fetch latest profile from DB just before showing the edit form
+  (async function(){
+    try {
+      const client = getSupabaseClient();
+      if (!client) return;
+      const { userId, user } = await getCurrentUserId();
+      if (userId && user) {
+        try {
+          const { data: profile, error } = await client.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+          if (profile) fillProfileUI(profile);
+            else {
+            // no profile row yet — prefill email and display name from auth
+            document.getElementById('editEmail').value = user.email || '';
+            document.getElementById('editDisplayName').value = (user.user_metadata && user.user_metadata.name) || '';
+            document.getElementById('editPhoneNumber').value = (user.user_metadata && user.user_metadata.phone) || '';
+            document.getElementById('editAvatarUrl').value = (user.user_metadata && user.user_metadata.avatar_url) || '';
+          }
+        } catch(e) { console.debug('prefetch profile failed', e); }
+      } else {
+        // fallback: ensure form has some sensible values
+        await ensureProfileFormPopulated();
+      }
+    } catch(e) { console.debug('open edit profile failed', e); }
+    document.getElementById('editProfileForm').style.display = 'block';
+  })();
 };
 document.getElementById('cancelEditProfile').onclick = function() {
   document.getElementById('editProfileForm').style.display = 'none';
 };
+
+// Defensive binding: ensure edit button triggers openEditProfile even if inline handler fails
+(function(){
+  try {
+    const btn = document.getElementById('editProfileBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async function(e){
+      try {
+        if (typeof window.openEditProfile === 'function') {
+          await window.openEditProfile();
+          return;
+        }
+        // fallback: ensure email field is populated from auth
+        await ensureProfileFormPopulated();
+        document.getElementById('editProfileForm').style.display = 'block';
+      } catch(err) { console.debug('defensive edit click failed', err); }
+    });
+  } catch(e) { console.debug('bind editProfileBtn failed', e); }
+})();
+
+// NOTE: previous dynamic profile-card builder removed to preserve original static button elements.
+// Provide small helpers to toggle the backup history box and ensure showBackupHistory() displays it.
+function toggleBackupHistory() {
+  const box = document.getElementById('backupHistoryBox');
+  if (!box) return;
+  if (box.style.display === 'none' || box.style.display === '') {
+    box.style.display = 'block';
+    box.style.maxHeight = '360px';
+    box.style.opacity = '1';
+  } else {
+    box.style.maxHeight = '0';
+    box.style.opacity = '0';
+    setTimeout(()=>{ box.style.display = 'none'; }, 220);
+  }
+}
+function showBackupHistoryBox(){ toggleBackupHistory(); }
+function hideBackupHistory(){ toggleBackupHistory(); }
+
+// Ensure edit form has sensible defaults (prefill email from auth user if empty)
+async function ensureProfileFormPopulated() {
+  const client = window.supabase;
+  if (!client) return;
+  let user = null;
+  if (client.auth && typeof client.auth.getUser === 'function') {
+    const { data: ud } = await client.auth.getUser();
+    user = ud && ud.user ? ud.user : null;
+  }
+  // If email input empty, set it from auth user
+  try {
+    const emailEl = document.getElementById('editEmail');
+    if (emailEl && (!emailEl.value || emailEl.value.trim() === '') && user && user.email) {
+      emailEl.value = user.email;
+    }
+  } catch(e) {}
+}
 document.getElementById('editProfileForm').onsubmit = async function(e) {
   e.preventDefault();
   const client = window.supabase;
-  const { data: ud } = await client.auth.getUser();
-  const user = ud && ud.user ? ud.user : null;
-  if (!user) return;
-  const payload = {
-    id: user.id,
-    first_name: document.getElementById('editFirstName').value,
-    last_name: document.getElementById('editLastName').value,
-    email: document.getElementById('editEmail').value,
-    phone: document.getElementById('editPhone').value
-  };
-  await client.from('profiles').upsert(payload);
-  document.getElementById('editProfileForm').style.display = 'none';
-  await loadProfile();
-};
+  if (!client) return;
+  let user = null;
+  if (client.auth && typeof client.auth.getUser === 'function') {
+    const { data: ud } = await client.auth.getUser();
+    user = ud && ud.user ? ud.user : null;
+  }
+  if (!user) return alert('لطفاً ابتدا وارد شوید');
 
+  // Merge form inputs with any already-loaded profile to avoid saving empty values
+  const existing = window._loadedProfile || {};
+  const inputDisplay = (document.getElementById('editDisplayName') && document.getElementById('editDisplayName').value) || '';
+  const inputEmail = (document.getElementById('editEmail') && document.getElementById('editEmail').value) || '';
+  const inputPhone = (document.getElementById('editPhoneNumber') && document.getElementById('editPhoneNumber').value) || '';
+  const inputBio = (document.getElementById('editBio') && document.getElementById('editBio').value) || '';
+  const inputAvatar = (document.getElementById('editAvatarUrl') && document.getElementById('editAvatarUrl').value) || '';
+
+  const payload = {
+    user_id: user.id,
+    display_name: inputDisplay || existing.display_name || '',
+    email: inputEmail || existing.email || user.email || '',
+    phone_number: inputPhone || existing.phone_number || existing.phone || '',
+    bio: inputBio || existing.bio || '',
+    avatar_url: inputAvatar || existing.avatar_url || '',
+    updated_at: new Date().toISOString()
+  };
+
+  // Try to update auth email if it was changed in the form (best-effort)
+  try {
+    const newEmail = (payload.email || '').trim();
+    if (newEmail && newEmail !== (user.email || '')) {
+      if (client.auth && typeof client.auth.updateUser === 'function') {
+        document.getElementById('profileStatus').textContent = 'در حال به‌روزرسانی ایمیل...';
+        const upd = await client.auth.updateUser({ email: newEmail });
+        if (upd && upd.error) {
+          console.warn('auth.updateUser failed', upd.error);
+          document.getElementById('profileStatus').textContent = 'خطا در به‌روزرسانی ایمیل (سرور)';
+        }
+      }
+    }
+  } catch (err) {
+    console.debug('update auth email error', err);
+  }
+
+  // Merge any offline local profile data if present (non-destructive)
+  try {
+    if (typeof STORAGE_KEY !== 'undefined') {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const localState = JSON.parse(raw || '{}');
+          if (localState && typeof localState === 'object') {
+            const maybeProfiles = localState.profiles || (localState.profile ? [localState.profile] : null);
+            if (Array.isArray(maybeProfiles) && maybeProfiles.length > 0) {
+              const lp = maybeProfiles[0];
+              const legacyName = lp.first_name || lp.last_name ? ((lp.first_name||'') + ' ' + (lp.last_name||'')).trim() : null;
+              payload.display_name = payload.display_name || lp.display_name || legacyName || lp.name || '';
+              payload.phone_number = payload.phone_number || lp.phone_number || lp.phone || '';
+              payload.email = payload.email || lp.email || '';
+              payload.bio = payload.bio || lp.bio || '';
+              payload.avatar_url = payload.avatar_url || lp.avatar_url || lp.photo || '';
+            }
+          }
+        } catch(e) { /* ignore parse errors */ }
+      }
+    }
+  } catch(e) { /* ignore */ }
+
+  // Upsert profile and refresh UI
+  try {
+    // Re-fetch authoritative auth user just in case
+    const { data: ud2 } = await client.auth.getUser();
+    const authUser = ud2 && ud2.user ? ud2.user : null;
+    if (!authUser || !authUser.id) {
+      document.getElementById('profileStatus').textContent = 'لطفاً ابتدا وارد شوید';
+      return;
+    }
+
+    let saved = null;
+
+        // 1) Try to find an existing profile for this user_id
+    if (!authUser || !authUser.id) {
+      console.warn('saveProfile: no auth user id available');
+      document.getElementById('profileStatus').textContent = 'لطفاً ابتدا وارد شوید';
+      return;
+    }
+    const { data: byId } = await client.from('profiles').select('*').eq('user_id', authUser.id).maybeSingle();
+    if (byId) {
+      // update the existing row by user_id
+      const { data: updated, error: updateErr } = await client.from('profiles').update(payload).eq('user_id', authUser.id).select().maybeSingle();
+      if (updateErr) {
+        console.error('profiles update by user_id failed', updateErr);
+        document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
+        return;
+      }
+      saved = updated;
+    } else {
+      // 2) No profile for this user_id — check if a profile exists with the same email
+      const { data: byEmail } = await client.from('profiles').select('*').eq('email', payload.email).maybeSingle();
+      if (byEmail) {
+        // Update the existing row that matches the email and attach it to this user_id
+        const upObj = Object.assign({}, payload, { user_id: authUser.id });
+        const { data: updated, error: updateErr } = await client.from('profiles').update(upObj).eq('email', payload.email).select().maybeSingle();
+        if (updateErr) {
+          console.error('profiles update by email failed', updateErr);
+          document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
+          return;
+        }
+        saved = updated;
+      } else {
+        // 3) No profile found — insert a new one
+        const { data: inserted, error: insertErr } = await client.from('profiles').insert(payload).select().maybeSingle();
+        if (insertErr) {
+          console.error('profiles insert failed', insertErr);
+          document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
+          return;
+        }
+        saved = inserted;
+      }
+    }
+
+        if (saved) {
+      window._loadedProfile = saved;
+      fillProfileUI(saved);
+    }
+    document.getElementById('editProfileForm').style.display = 'none';
+    document.getElementById('profileStatus').textContent = 'پروفایل ذخیره شد';
+    try { if (typeof enableBackupButtons === 'function') enableBackupButtons(); } catch(_){}
+
+    // reload profile to ensure UI consistency
+    try { await loadProfile(); } catch(e){ console.debug('post-save loadProfile failed', e); }
+
+    // Try to update auth user metadata with some fields
+    try {
+      const meta = {};
+      if (payload.phone_number) meta.phone = payload.phone_number;
+      if (payload.display_name) meta.name = payload.display_name;
+      if (payload.bio) meta.bio = payload.bio;
+      if (payload.avatar_url) meta.avatar_url = payload.avatar_url;
+      if (Object.keys(meta).length > 0 && client.auth && typeof client.auth.updateUser === 'function') {
+        try { await client.auth.updateUser({ data: { user_metadata: meta } }); } catch(e){ console.debug('update user metadata failed', e); }
+      }
+    } catch(e) { console.debug('auth metadata update error', e); }
+
+    // Refresh profile from DB for full consistency (best-effort)
+    try { await loadProfile(); } catch(e) { console.debug('post-save loadProfile failed', e); }
+  } catch (e) {
+    console.error('profile save error', e);
+    document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
+  }
+};
 document.getElementById('logoutBtn').onclick = async function() {
   if (window.supabase && window.supabase.auth && typeof window.supabase.auth.signOut === 'function') {
     await window.supabase.auth.signOut();
+    // نمایش فرم لاگین بعد از خروج
     document.getElementById('accountProfileContainer').style.display = 'none';
     const eb = document.getElementById('embeddedAuthBox');
     if (eb) eb.style.display = 'block';
   }
 };
+// Improved Backup Now button handler (replaced legacy daily button)
+document.getElementById('backupNowBtn')?.addEventListener('click', async function _backupNowClicked(e) {
+  e.preventDefault();
+  const btn = document.getElementById('backupNowBtn');
+  const spinner = document.getElementById('backupNowSpinner');
+  const status = document.getElementById('profileStatus');
+  if (!window.backupSync || typeof window.backupSync.createBackup !== 'function') {
+    if (status) status.textContent = 'ماژول پشتیبان فعال نیست';
+    return;
+  }
+    try {
+    // disable UI while running
+    btn.disabled = true; btn.style.opacity = '0.7';
+    if (spinner) spinner.style.display = 'inline-block';
+    if (status) status.textContent = 'در حال همگام‌سازی...';
 
-// Simple sync: push a test player then pull latest and update lastSync
-// New behavior: build a full snapshot and insert into `backups` table as JSONB
-document.getElementById('syncProfileBtn').onclick = async function() {
-  const client = window.supabase;
-  document.getElementById('profileStatus').textContent = 'در حال گرفتن بکاپ...';
-  try {
-    const { data: ud } = await client.auth.getUser();
-    const user = ud && ud.user ? ud.user : null;
-    if (!user) throw new Error('ابتدا وارد شوید');
-
-    // Tables to snapshot (match TABLES in sync-hybrid.js)
-    const tables = ['players','coaches','sessions','payments','competitions','training_plans','devices','notes','profiles'];
-    const snapshot = {};
-    for (const t of tables) {
-      try {
-        const res = await client.from(t).select('*').eq('user_id', user.id);
-        snapshot[t] = (res.error || !res.data) ? [] : res.data;
-      } catch(e) { snapshot[t] = []; }
+  // call the backup client (create snapshot, upload or persist pending)
+  const result = await window.backupSync.createBackup({ groupEmail: (window.user && window.user.email) || (window.state && window.state.profile && window.state.profile.email) });
+    // backupNow returns an object with details; if it contains an error, surface it
+    if (result && result.error) {
+      console.warn('backupNow returned error', result.error, result);
+      if (status) status.textContent = 'خطا در همگام‌سازی: ' + String(result.error).slice(0,140);
+    } else {
+  if (status) status.textContent = 'بک‌آپ با موفقیت انجام شد';
+      try { await loadProfile(); } catch(_) {}
     }
-
-    const meta = { created_at: new Date().toISOString(), user_id: user.id, device_id: getDeviceId(), snapshot };
-
-    // Insert into backups table (as JSONB in data)
-    const up = await client.from('backups').insert([{ user_id: user.id, data: meta, device_id: getDeviceId(), operation: 'sync', revision: 1 }]).select();
-    if (up.error) throw up.error;
-    localStorage.setItem('simpleSync:lastSync', new Date().toISOString());
-    await loadProfile();
-    document.getElementById('profileStatus').textContent = 'بکاپ ذخیره شد';
-  } catch (e) {
-    document.getElementById('profileStatus').textContent = 'خطا در بکاپ: ' + (e.message || e);
+  } catch (err) {
+    console.warn('backupNow error (thrown)', err);
+    if (status) {
+      if (err && err.message) status.textContent = 'خطا: ' + String(err.message).slice(0,120);
+      else status.textContent = 'خطا در همگام‌سازی';
+    }
+  } finally {
+    // restore UI
+    if (spinner) spinner.style.display = 'none';
+    btn.disabled = false; btn.style.opacity = '';
   }
-};
-
-// Download latest backup from `backups` table for current user and import it
-document.getElementById('restoreBackupBtn').onclick = async function() {
-  const client = window.supabase;
-  document.getElementById('profileStatus').textContent = 'در حال دریافت بکاپ...';
+});
+// Handler for fetching the latest shared backup (manual trigger)
+document.getElementById('fetchSharedBackupBtn')?.addEventListener('click', async function _fetchSharedBackupClicked(e) {
+  e.preventDefault();
+  const btn = document.getElementById('fetchSharedBackupBtn');
+  const status = document.getElementById('profileStatus');
   try {
-    const { data: ud } = await client.auth.getUser();
-    const user = ud && ud.user ? ud.user : null;
-    if (!user) throw new Error('ابتدا وارد شوید');
-
-    // Get latest backup row from backups table
-    const res = await client.from('backups').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (res.error) throw res.error;
-    if (!res.data) { document.getElementById('profileStatus').textContent = 'بکاپی یافت نشد'; return; }
-    const meta = res.data.data || res.data; // data jsonb stored in `data`
-
-    if (!confirm('آیا مایل به بازیابی آخرین بکاپ هستید؟ این عمل ممکن است داده‌های محلی را بازنویسی کند.')) return;
-
-    const summary = await importSnapshot(meta, client, user.id);
-    document.getElementById('profileStatus').textContent = 'بازیابی انجام شد';
-    console.log('import summary', summary);
-    alert('بازیابی انجام شد. خلاصه:\n' + JSON.stringify(summary, null, 2));
-    await loadProfile();
-  } catch (e) {
-    document.getElementById('profileStatus').textContent = 'خطا در دریافت بکاپ: ' + (e.message || e);
-  }
-};
-
-// importSnapshot(meta, client, uid): import snapshot object into DB (row-by-row insert/update)
-async function importSnapshot(meta, client, uid) {
-  client = client || window.supabase;
-  const snapshot = meta && meta.snapshot ? meta.snapshot : (meta.data && meta.data.snapshot ? meta.data.snapshot : {});
-  const summary = {};
-  const tables = Object.keys(snapshot || {});
-  for (const table of tables) {
-    const rows = Array.isArray(snapshot[table]) ? snapshot[table] : [];
-    summary[table] = { total: rows.length, inserted: 0, updated: 0, errors: 0 };
-    for (const r of rows) {
-      try {
-        const row = Object.assign({}, r);
-        // ensure user_id is set to current user for user-scoped tables
-        if ('user_id' in row) row.user_id = uid;
-        // try insert
-        const ins = await client.from(table).insert([row]).select();
-        if (ins.error) {
-          // try update by id if present
-          if (row.id) {
-            const upd = await client.from(table).update(row).eq('id', row.id).select();
-            if (upd.error) summary[table].errors++;
-            else summary[table].updated++;
-          } else {
-            summary[table].errors++;
-          }
-        } else {
-          summary[table].inserted++;
+    btn.disabled = true; btn.style.opacity = '0.6';
+    if (status) status.textContent = 'در حال دریافت بک‌آپ گروهی...';
+    if (!window.backupSync || typeof window.backupSync.restoreFromLatest !== 'function') {
+      if (status) status.textContent = 'ماژول پشتیبان فعال نیست';
+      return;
+    }
+    // use restoreFromLatest to pull and restore the latest shared backup for the group
+    const sb = await window.backupSync.restoreFromLatest();
+    if (!sb || !sb.data) {
+      if (status) status.textContent = 'هیچ بک‌آپ گروهی یافت نشد';
+      return;
+    }
+    const snapshot = sb && sb.snapshot ? sb.snapshot : (sb && sb.data ? sb.data : null);
+    // merge snapshot into window.state (backupClient.mergeGroupBackups already does this when called directly)
+    try {
+      if (snapshot) {
+        // If backupClient exposed a merge helper, use it; otherwise rely on mergeSnapshotIntoState existing on window
+        if (window.backupClient && typeof window.backupClient._internal !== 'undefined' && typeof window.backupClient._internal.decompressToJson === 'function') {
+          // backupClient already merged; nothing to do
+        } else if (typeof window.mergeSnapshotIntoState === 'function') {
+          try { window.mergeSnapshotIntoState({ tables: snapshot }); } catch(_){}
         }
-      } catch (e) {
-        summary[table].errors++;
       }
+      if (status) status.textContent = 'بک‌آپ گروهی با موفقیت بارگذاری شد';
+      try { if (typeof loadProfile === 'function') await loadProfile(); } catch(_){ }
+    } catch (mErr) {
+      console.warn('merge shared backup failed', mErr);
+      if (status) status.textContent = 'ادغام بک‌آپ گروهی ناموفق بود';
     }
+  } catch (e) {
+    console.warn('fetchSharedBackup failed', e);
+    if (status) status.textContent = 'دریافت بک‌آپ گروهی ناموفق';
+  } finally {
+    btn.disabled = false; btn.style.opacity = '';
   }
-  return summary;
-}
-
-// Periodic connectivity check (lightweight)
+});
+// وضعیت لحظه‌ای تبادل داده (مثال ساده)
 setInterval(async ()=>{
   const client = window.supabase;
   if (!client) return;
   try {
-    const { error } = await client.from('players').select('id').limit(1);
-    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : document.getElementById('profileStatus').textContent || 'ارتباط با سرور برقرار است';
+    const { error } = await client.from('profiles').select('id').limit(1);
+    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
   } catch { document.getElementById('profileStatus').textContent = 'ارتباط قطع است'; }
-}, 15000);
+}, 10000);
+// فعال‌سازی اکشن دکمه‌های ورود، ثبت‌نام و بازیابی
+document.getElementById('loginBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد ورود قبلی خود را قرار دهید یا فراخوانی کنید...
+});
+document.getElementById('signupBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد ثبت‌نام قبلی خود را قرار دهید یا فراخوانی کنید...
+});
+document.getElementById('recoveryBtn')?.addEventListener('click', async function(e) {
+  e.preventDefault();
+  // ...اینجا کد بازیابی قبلی خود را قرار دهید یا فراخوانی کنید...
+});
+// بارگذاری اولیه پروفایل بعد از لاگین
+document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    const client = window.supabase || (window.getSupabaseClient && window.getSupabaseClient());
+    if (client && client.auth && typeof client.auth.getSession === 'function') {
+      try {
+        const { data } = await client.auth.getSession();
+        const session = data && data.session;
+        if (session && session.user) {
+          // If session exists on first load, immediately show profile (or edit form when missing)
+          await loadProfile(session.user);
+          return;
+        }
+      } catch (e) {
+        console.debug('initial getSession failed', e);
+      }
+    }
+  } catch (e) { console.debug('DOMContentLoaded loadProfile guard failed', e); }
+  // fallback: call loadProfile without provided user
+  try { await loadProfile(); } catch(e) { console.debug('fallback loadProfile failed', e); }
+});
 
-// load profile once DOM ready
-document.addEventListener('DOMContentLoaded', loadProfile);
-
+// Debug controls for sync queue / dead-letter removed from profile view per user request.
+(function installProfileDebugControls(){
+  // no-op placeholder so other code can safely call this without errors
+  try { /* intentionally empty */ } catch(e) { console.debug('installProfileDebugControls noop failed', e); }
+})();
 </script>
          <!-- END: embedded auth box -->
        </div>
@@ -3533,8 +4143,9 @@ function calculateTimeToNextCategory(age, category) {
   const client = getSupabaseClient();
     if (!client) { setEmbeddedStatus(false); return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
     const { data, error } = await client.auth.signInWithPassword({ email, password });
-    if (data && data.session && window.syncHybrid && typeof window.syncHybrid.init === 'function') {
-      try { await window.syncHybrid.init(); } catch(e){ console.warn('syncHybrid.init failed after login', e); }
+    if (data && data.session) {
+      // initialize backup client flush attempt (best-effort)
+  // Auto backup after login disabled
     }
       if (error) {
         // map common supabase/auth errors to Persian messages
@@ -3610,9 +4221,9 @@ function calculateTimeToNextCategory(age, category) {
     try {
   const client = getSupabaseClient();
   if (!client) { setEmbeddedStatus(false); if (spinner) spinner.classList.remove('running'); signupBtn.disabled = false; return showAlert(alertEl,'کلاینت Supabase مقداردهی نشده یا آماده نیست','danger'); }
-  const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.href } });
-  if (data && data.session && window.syncHybrid && typeof window.syncHybrid.init === 'function') {
-    try { await window.syncHybrid.init(); } catch(e){ console.warn('syncHybrid.init failed after signup', e); }
+  const { data, error } = await client.auth.signUp({ email, password, options:{ emailRedirectTo: 'https://pouriaabedi0073-sys.github.io/volleyball-club/confirm-signup.html' }});
+  if (data && data.session) {
+  // Auto backup after signup disabled
   }
       if (error) showAlert(alertEl, error.message || 'خطا در ثبت نام','danger');
       else {
@@ -3723,58 +4334,26 @@ function calculateTimeToNextCategory(age, category) {
     catch(_){}
   }
 
-  // If supabaseSync exists, initialize it for the app's primary table (notes) once client is ready
+  // Initialize backup sync if available
   try {
     const client = getSupabaseClient();
-    // supabaseSync auto-init is disabled by default to avoid creating implicit dependencies
-    // If you want to enable realtime sync for a table, set `window.SUPABASE_SYNC_AUTO_INIT = true;`
-    // and optionally `window.SUPABASE_SYNC_TABLE = 'your_table'; window.SUPABASE_SYNC_KEY = 'id';` before the client loads.
-    if (client && window.supabaseSync && typeof window.supabaseSync.init === 'function') {
-      try {
-        window.supabaseSync._ctx.supabase = client;
-        const auto = window.SUPABASE_SYNC_AUTO_INIT === true;
-        if (auto) {
-          const table = window.SUPABASE_SYNC_TABLE || 'notes';
-          const key = window.SUPABASE_SYNC_KEY || 'id';
-          // attempt to set userId first so subscriptions are filtered; fall back to init without user id
-          (async function(){
-            try {
-              const { data: u } = await client.auth.getUser();
-              const user = u && u.user;
-              if (user && typeof window.supabaseSync.setUserId === 'function') {
-                try { window.supabaseSync.setUserId(user.id); } catch(_){ }
-              }
-            } catch(_){}
-            try { window.supabaseSync.init({ table, key }); } catch(e){ console.warn('init supabaseSync failed', e); }
-          })();
-        } else {
-          console.debug('supabaseSync auto-init disabled; set window.SUPABASE_SYNC_AUTO_INIT = true to enable');
+    if (client && window.backupSync) {
+      // Get user email for backup sync
+      (async () => {
+        try {
+          const { data: { user } } = await client.auth.getUser();
+          if (user?.email) {
+            window.backupSync.setGroupEmail(user.email);
+            console.info('✅ Backup sync initialized with user email');
+          }
+        } catch(e) {
+          console.debug('Backup sync initialization deferred until login');
         }
-      } catch(e) { console.warn('init supabaseSync failed', e); }
+      })();
     }
   } catch(e) {}
 
-  // Global listener: when realtime events arrive via supabaseSync, mark backup icon green
-  try {
-    window.addEventListener('supabase:realtime', (e) => {
-      try {
-        const detail = e.detail || {};
-        const backupIcon = document.getElementById('backupIcon');
-        const backupStatus = document.getElementById('backupStatus');
-  const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback');
-  try { updateSyncStatusUI('group-received', when + ' • ' + device); } catch(_){ }
-        // update last sync line with timestamp and optional device info
-        const when = new Date().toLocaleString();
-        let device = (detail.row && (detail.row.last_sync_device || detail.row.device)) || 'دستگاه دیگر';
-        if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${when} • ${device}`;
-        // fade icon back to neutral after a few seconds
-        setTimeout(()=>{ try { updateSyncStatusUI('default', '--'); } catch(_){ } }, 6000);
-      } catch (err) { /* ignore */ }
-    });
-  } catch(e) { console.warn('supabase realtime listener install failed', e); }
-
-  // Subscribe to shared_backups-like events for a given email.
-  // New flow: listen to generic supabase:realtime events emitted by `window.supabaseSync`.
+  // No realtime events needed for new backup system - it uses pull-based sync
   // This avoids direct coupling to a legacy `shared_backups` table while preserving UI behavior.
   function subscribeToSharedBackups(email) {
     try {
@@ -3833,48 +4412,10 @@ function calculateTimeToNextCategory(age, category) {
     } catch (e) { console.debug('ensureSharedBackupExists failed', e); }
   }
 
-  // Register this client device in `public.devices` so other devices can be identified
+  // Device registration removed for new backup-focused schema.
   async function registerDeviceForUser(user) {
-    try {
-      const client = getSupabaseClient(); if (!client || !user) return;
-      const deviceId = getDeviceId();
-      const deviceName = getDeviceName();
-      const nowIso = new Date().toISOString();
-      if (!deviceId || deviceId === 'dev_unknown') {
-        console.debug('registerDeviceForUser: invalid deviceId, skipping register');
-        return;
-      }
-      // Robust check: fetch any rows matching this device_id (there may be duplicates)
-      try {
-        const res = await client.from('devices').select('id,device_id,last_seen').eq('device_id', deviceId);
-        if (res && !res.error && Array.isArray(res.data) && res.data.length > 0) {
-          // Consolidate: pick the most-recent row (by last_seen) and update it; remove extras if present
-          const rows = res.data.slice();
-          rows.sort((a,b) => {
-            const ta = new Date(a.last_seen || 0).getTime();
-            const tb = new Date(b.last_seen || 0).getTime();
-            return tb - ta;
-          });
-          const keep = rows[0];
-          // best-effort delete duplicates (keep the most recent)
-          for (let i = 1; i < rows.length; i++) {
-            try { await client.from('devices').delete().eq('id', rows[i].id); } catch (delErr) { console.debug('devices: failed to delete duplicate', rows[i].id, delErr); }
-          }
-          try {
-            await client.from('devices').update({ device_name: deviceName, last_seen: nowIso, user_id: user.id }).eq('id', keep.id);
-            console.debug('devices: updated existing device row', keep.id, deviceId);
-            return;
-          } catch (updErr) { console.debug('devices: update existing failed', updErr); }
-        }
-      } catch(e) { console.debug('devices select failed', e); }
-
-      // No existing row found — insert a new device row (RLS should permit user to insert their own row)
-      try {
-        const ins = await client.from('devices').insert([{ user_id: user.id, device_id: deviceId, device_name: deviceName, last_seen: nowIso }]);
-        if (ins && ins.error) console.debug('devices insert error', ins.error);
-        else console.debug('devices registered', deviceId);
-      } catch(e) { console.debug('devices insert failed', e); }
-    } catch(e) { console.debug('registerDeviceForUser failed', e); }
+    // intentionally a no-op to preserve callers
+    return;
   }
 
   // If the shared_backups row exists but its data is empty ({} or null), seed it with the provided snapshot
@@ -3883,38 +4424,17 @@ function calculateTimeToNextCategory(age, category) {
       if (!email) return;
       const client = getSupabaseClient(); if (!client) return;
       const displayEmailLower = email.toLowerCase();
-      // Prefer enqueuing a seed op to the outbox so offline clients and realtime handle propagation.
-      if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
-        try {
-          const op = {
-            type: 'seed_shared_backup',
-            payload: { group_email: displayEmailLower, snapshot: snapshot },
-            ts: Date.now()
-          };
-          window.supabaseSync.enqueueOp(op);
-          // attempt immediate processing but don't block
-          try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
-          return;
-        } catch(e) { console.debug('enqueue seed_shared_backup failed', e); }
-      }
-
-      // Fallback: if outbox not available, try the legacy direct update (best-effort)
+      // New flow: create a backup snapshot via backupSync so shared_backups and backups are managed server-side
       try {
-        const sres = await client.from('shared_backups').select('id,data,last_sync_at,device_id').eq('group_email', displayEmailLower).maybeSingle();
-        if (sres && !sres.error && sres.data) {
-          const row = sres.data;
-          const isEmpty = !row.data || (typeof row.data === 'object' && Object.keys(row.data).length === 0) || (typeof row.data === 'string' && row.data === '{}');
-          if (isEmpty && snapshot) {
-            const nowIso = new Date().toISOString();
-            const deviceId = getDeviceId();
-            const deviceName = getDeviceName();
-            try {
-              const upd = await client.from('shared_backups').update({ data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }).eq('group_email', displayEmailLower).select();
-              if (upd && !upd.error) console.debug('seeded shared_backups for', displayEmailLower);
-            } catch(upErr) { console.debug('seed shared_backups update failed', upErr); }
+        if (window.backupSync && typeof window.backupSync.createBackup === 'function') {
+          if (snapshot) {
+            // set group email and create a backup (this will call mark_shared_backup RPC server-side)
+            window.backupSync.setGroupEmail(displayEmailLower);
+            await window.backupSync.createBackup();
+            return;
           }
         }
-      } catch(e) { console.debug('ensureSeedSharedBackup fallback failed', e); }
+      } catch(e) { console.debug('ensureSeedSharedBackup via backupSync failed', e); }
     } catch(e) { console.debug('ensureSeedSharedBackup failed', e); }
   }
 
@@ -4004,32 +4524,43 @@ function calculateTimeToNextCategory(age, category) {
       if (payload && payload.record && payload.record.data) raw = payload.record.data;
       let parsed = null;
       try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch(e){ parsed = raw; }
-      // Wait for supabaseSync module availability
-      const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
-      const ok = await waitForSyncModule();
-      if (!ok) {
-        try { updateSyncStatusUI('pending', 'ماژول همگام‌سازی در دسترس نیست'); } catch(_){ }
-        return;
-      }
-      // Apply parsed payload to supabaseSync
-      if (Array.isArray(parsed)) {
-        parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(e){ console.warn('mergeRow failed', e); } });
-      } else if (typeof parsed === 'object') {
-        Object.keys(parsed).forEach(tbl => {
-          const rows = parsed[tbl];
-          if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(e){ console.warn('mergeRow failed', e); } });
-        });
-      }
-      try { updateSyncStatusUI('ok', 'واردسازی گروهی انجام شد'); } catch(_){ }
-      // update visible status lines in profile UI
+
+      // New flow: apply parsed snapshot to the app state directly using mergeSnapshotIntoState
       try {
-        const syncStatusText = document.getElementById('syncStatusText');
-        const syncStatusLine = document.getElementById('syncStatusLine');
-        const lastSyncLine = document.getElementById('lastSyncLine');
-        if (syncStatusText) syncStatusText.textContent = 'وارد شد';
-        if (syncStatusLine) syncStatusLine.style.display = 'block';
-        if (lastSyncLine) { lastSyncLine.style.display = 'block'; lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date().toLocaleString()}`; }
-      } catch(_){ }
+        if (Array.isArray(parsed)) {
+          // legacy array-of-items shape: try to convert into table -> rows mapping
+          const tables = {};
+          parsed.forEach(item => { if (item && item.table && item.row) { tables[item.table] = tables[item.table] || []; tables[item.table].push(item.row); } });
+          if (Object.keys(tables).length > 0) {
+            if (typeof window.mergeSnapshotIntoState === 'function') {
+              window.mergeSnapshotIntoState({ tables });
+            } else {
+              // best-effort: apply rows into window.state
+              Object.keys(tables).forEach(tbl => { window.state = window.state || {}; window.state[tbl] = window.state[tbl] || []; const map = new Map((window.state[tbl]||[]).map(r=>[r.id,r])); tables[tbl].forEach(row=>{ if(!row||!row.id) return; const ex = map.get(row.id); if(!ex) { window.state[tbl].push(row); map.set(row.id,row); } else { const a=new Date(ex.last_modified||0).getTime(); const b=new Date(row.last_modified||0).getTime(); if(b>=a){ const idx = window.state[tbl].findIndex(x=>x&&x.id===row.id); if(idx!==-1) window.state[tbl][idx] = Object.assign({}, ex, row); } } }); });
+            }
+          }
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          // object shaped snapshot { table: [rows] }
+          if (typeof window.mergeSnapshotIntoState === 'function') {
+            window.mergeSnapshotIntoState({ tables: parsed });
+          } else {
+            // fallback merge
+            Object.keys(parsed).forEach(tbl => { const rows = parsed[tbl] || []; window.state = window.state || {}; window.state[tbl] = window.state[tbl] || []; const map = new Map((window.state[tbl]||[]).map(r=>[r.id,r])); rows.forEach(row=>{ if(!row||!row.id) return; const ex = map.get(row.id); if(!ex) { window.state[tbl].push(row); map.set(row.id,row); } else { const a=new Date(ex.last_modified||0).getTime(); const b=new Date(row.last_modified||0).getTime(); if(b>=a){ const idx = window.state[tbl].findIndex(x=>x&&x.id===row.id); if(idx!==-1) window.state[tbl][idx] = Object.assign({}, ex, row); } } }); });
+          }
+        }
+        try { updateSyncStatusUI('ok', 'واردسازی گروهی انجام شد'); } catch(_){ }
+        // update visible status lines in profile UI
+        try {
+          const syncStatusText = document.getElementById('syncStatusText');
+          const syncStatusLine = document.getElementById('syncStatusLine');
+          const lastSyncLine = document.getElementById('lastSyncLine');
+          if (syncStatusText) syncStatusText.textContent = 'وارد شد';
+          if (syncStatusLine) syncStatusLine.style.display = 'block';
+          if (lastSyncLine) { lastSyncLine.style.display = 'block'; lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date().toLocaleString()}`; }
+        } catch(_){ }
+      } catch (e) {
+        console.warn('autoImportSharedPayload merge error', e);
+      }
     } catch(e) { console.warn('autoImportSharedPayload error', e); }
   }
 
@@ -4056,7 +4587,7 @@ function calculateTimeToNextCategory(age, category) {
       let profile = null;
       let fetchFailed = false; // track whether profile fetch ultimately failed
       try {
-        const res = await client.from('profiles').select('first_name,last_name,phone,avatar_url,email').eq('id', user.id).maybeSingle();
+  const res = await client.from('profiles').select('display_name,phone_number,avatar_url,email,bio,user_id,created_at,updated_at').eq('user_id', user.id).maybeSingle();
         console.debug('profiles select result:', res);
         profile = res.data || null;
         if (res.error) throw res.error;
@@ -4065,7 +4596,7 @@ function calculateTimeToNextCategory(age, category) {
         console.debug('detailed error object:', err);
         // retry with a generic select in case PostgREST rejected the explicit columns (avoid 406)
         try {
-          const res2 = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          const res2 = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
           console.debug('profiles fallback select result:', res2);
           profile = res2.data || null;
           if (res2.error) throw res2.error;
@@ -4095,13 +4626,15 @@ function calculateTimeToNextCategory(age, category) {
       } catch(_){}
       try { window.ProfileComponent.mount(mount); } catch(e) { console.warn('ProfileComponent mount failed', e); }
     } else {
-      // fallback to legacy static rendering
-      document.getElementById('accountName').textContent = (profile && (profile.first_name || profile.last_name)) ? `${profile.first_name||''} ${profile.last_name||''}`.trim() : (user.email || 'کاربر');
-      const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
-      const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
-      document.getElementById('accountEmail').textContent = displayEmailLower || displayEmail;
-      document.getElementById('accountPhone').textContent = profile?.phone || '';
-      if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
+  // fallback to legacy static rendering
+  document.getElementById('accountName').textContent = (profile && profile.display_name) ? profile.display_name : (user.email || 'کاربر');
+  const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
+  const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
+  document.getElementById('accountEmail').textContent = displayEmailLower || displayEmail;
+  // normalize phone property
+  document.getElementById('accountPhone').textContent = (profile && (profile.phone_number || profile.phone)) ? (profile.phone_number || profile.phone) : '';
+  try { document.getElementById('accountBio').textContent = (profile && profile.bio) ? profile.bio : ''; } catch(_){ }
+  if (profile && profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
     }
   } catch(e) { console.warn('mounting ProfileComponent failed', e); }
   // Render last sync info if available on profile
@@ -4132,15 +4665,29 @@ function calculateTimeToNextCategory(age, category) {
       if (!profile) {
         try {
           console.debug('No profile found — attempting to upsert minimal profile');
-          const up = await client.from('profiles').upsert({ id: user.id, email: user.email || '' }, { returning: 'representation' });
+          // Prefer RPC auto_profile_upsert if available for security and simplicity
+          try {
+            if (client && typeof client.rpc === 'function') {
+              await client.rpc('auto_profile_upsert', { p_email: user.email || '' });
+            }
+          } catch(rpcErr) { console.debug('auto_profile_upsert rpc failed', rpcErr); }
+          const up = await client.from('profiles').upsert(
+            { user_id: user.id, email: user.email || '' },
+            { onConflict: 'email', returning: 'representation' }
+          );
           console.debug('profiles upsert result:', up);
           if (!up.error) {
             profile = up.data && Array.isArray(up.data) ? up.data[0] : up.data; // handle different client return shapes
             // try to re-fetch authoritative profile row (in case upsert returned null shape)
             try {
-              const ref = await client.from('profiles').select('first_name,last_name,phone,avatar_url,email').eq('id', user.id).maybeSingle();
-              console.debug('re-fetch after upsert result:', ref);
-              if (ref && !ref.error) profile = ref.data || profile;
+              const { userId: reUid } = await getCurrentUserId();
+              if (reUid) {
+                const ref = await client.from('profiles').select('display_name,phone_number,avatar_url,email,bio,user_id,created_at,updated_at').eq('user_id', reUid).maybeSingle();
+                console.debug('re-fetch after upsert result:', ref);
+                if (ref && !ref.error) profile = ref.data || profile;
+              } else {
+                console.debug('re-fetch after upsert skipped: no userId');
+              }
             } catch (rf) { console.debug('re-fetch after upsert failed', rf); }
           }
         } catch (uerr) {
@@ -4148,6 +4695,22 @@ function calculateTimeToNextCategory(age, category) {
           fetchFailed = true;
         }
       }
+      // After profile is present and user is authenticated, set up backupSync group email and prompt restore
+      try {
+        // ensure supabaseClient exists (use given constants or existing instance)
+        try {
+          const SUPABASE_URL = window.SUPABASE_URL || 'https://wtycgduarwpgnxxvwtgz.supabase.co';
+          const SUPABASE_KEY = window.SUPABASE_KEY || window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
+          if (typeof supabase !== 'undefined' && supabase && !window.supabaseClient) {
+            try { window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(_){ }
+          }
+        } catch(_){ }
+
+        if (window.backupSync && typeof window.backupSync.setGroupEmail === 'function') {
+          try { await window.backupSync.setGroupEmail((profile && profile.email) ? profile.email : (user.email || '')); } catch(e) { console.debug('setGroupEmail failed', e); }
+          try { await window.backupSync.promptRestoreIfNoLocalData(); } catch(e) { console.debug('promptRestoreIfNoLocalData failed', e); }
+        }
+      } catch(e) { console.warn('backupSync post-login setup failed', e); }
       // Replace old import button handler with new sync controls wiring
       try {
         async function performImportLastSync() {
@@ -4180,36 +4743,43 @@ function calculateTimeToNextCategory(age, category) {
               }
             } catch (sharedErr) { console.warn('shared_backups read failed', sharedErr); }
             if (!payload) {
-              const res = await client.from('profiles').select('last_sync_payload,last_sync_at,last_sync_device').eq('id', user.id).maybeSingle();
-              if (res && res.error) throw res.error;
-              payload = res.data && res.data.last_sync_payload;
-              if (!payload) {
-                try {
-                  const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-                  if (bres && !bres.error && bres.data && bres.data.data) {
-                    payload = bres.data.data;
-                    try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
-                  }
-                } catch(be) { console.warn('backup fallback read failed', be); }
+              const { userId: pUid } = await getCurrentUserId();
+              if (pUid) {
+                const res = await client.from('profiles').select('last_sync_payload,last_sync_at,last_sync_device').eq('user_id', pUid).maybeSingle();
+                if (res && res.error) throw res.error;
+                payload = res.data && res.data.last_sync_payload;
+                if (!payload) {
+                  try {
+                    const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', pUid).order('created_at', { ascending: false }).limit(1).maybeSingle();
+                    if (bres && !bres.error && bres.data && bres.data.data) {
+                      payload = bres.data.data;
+                      try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
+                    }
+                  } catch(be) { console.warn('backup fallback read failed', be); }
+                }
+              } else {
+                console.debug('performImportLastSync: skipped profile/backups lookup - no userId');
               }
             }
             if (!payload) { try { showToast('هیچ همگام‌سازی آخر ذخیره‌شده‌ای پیدا نشد'); } catch(_){ } return; }
             let parsed = null; try { parsed = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch(pe){ parsed = payload; }
-            const waitForSyncModule = () => new Promise(r => { if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') return r(true); let t = setInterval(()=>{ if (window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') { clearInterval(t); r(true); } }, 150); setTimeout(()=>{ clearInterval(t); r(false); }, 4000); });
-            const ok = await waitForSyncModule();
-            if (ok && window.supabaseSync && typeof window.supabaseSync.mergeRow === 'function') {
-              if (Array.isArray(parsed)) {
-                parsed.forEach(item => { if (item && item.table && item.row) try{ window.supabaseSync.mergeRow(item.row, 'UPDATE'); }catch(_){} });
-              } else if (typeof parsed === 'object') {
-                Object.keys(parsed).forEach(tbl => {
-                  const rows = parsed[tbl];
-                  if (Array.isArray(rows)) rows.forEach(r => { try{ window.supabaseSync._ctx.table = tbl; window.supabaseSync.mergeRow(r, 'UPDATE'); }catch(_){} });
-                });
+            try {
+              // Merge parsed snapshot into local state. Prefer existing merge helper if available.
+              if (parsed) {
+                if (typeof mergeSnapshotIntoState === 'function') {
+                  mergeSnapshotIntoState({ tables: parsed });
+                } else {
+                  // naive merge: replace or assign top-level tables
+                  window.state = window.state || {};
+                  Object.keys(parsed).forEach(tbl => { try { window.state[tbl] = parsed[tbl]; } catch(_){} });
+                }
+                try { showToast('همگام‌سازی وارد شد'); } catch(_){ }
+                try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
+              } else {
+                try { showToast('هیچ دادهٔ همگام‌سازی برای واردسازی وجود ندارد'); } catch(_){ }
               }
-              try { showToast('همگام‌سازی وارد شد'); } catch(_){ /* fallback */ }
-              try { const backupIcon = document.getElementById('backupIcon'); if (backupIcon) { backupIcon.style.background = 'linear-gradient(180deg,#34d399,#10b981)'; backupIcon.style.border='none'; } const backupStatus = document.getElementById('backupStatus'); if (backupStatus) { backupStatus.textContent='همگام‌سازی وارد شد'; backupStatus.style.color='var(--accent)'; } } catch(_){ }
-            } else {
-              try { showToast('ماژول همگام‌سازی در دسترس نیست'); } catch(_){ /* fallback */ }
+            } catch(err) {
+              console.warn('import last sync failed during merge', err);
             }
           } catch (err) {
             console.warn('import last sync failed', err);
@@ -4245,11 +4815,15 @@ function calculateTimeToNextCategory(age, category) {
         // derive a snapshot from last_sync_payload/profile/backups as in backupNow
         let snapshot = null;
         try {
-          const res = await getSupabaseClient().from('profiles').select('last_sync_payload').eq('id', user.id).maybeSingle();
-          if (res && !res.error && res.data && res.data.last_sync_payload) snapshot = res.data.last_sync_payload;
+          const { userId: ssUid } = await getCurrentUserId();
+          if (ssUid) {
+            const res = await getSupabaseClient().from('profiles').select('last_sync_payload').eq('user_id', ssUid).maybeSingle();
+            if (res && !res.error && res.data && res.data.last_sync_payload) snapshot = res.data.last_sync_payload;
+          } else console.debug('seed snapshot fetch skipped: no userId');
         } catch(_){}
+        // legacy backups.data column no longer exists; skip trying to read it
         if (!snapshot) {
-          try { const bres = await getSupabaseClient().from('backups').select('data').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(); if (bres && !bres.error && bres.data && bres.data.data) snapshot = bres.data.data; } catch(_){ }
+          // fallback left intentionally empty; snapshot may be created later via backupSync
         }
         if (!snapshot) {
           // as a last resort, create a minimal snapshot from profile
@@ -4314,13 +4888,12 @@ function calculateTimeToNextCategory(age, category) {
         } catch(e) { console.warn('applyStatus failed', e); }
       }
 
-      // initial apply from existing status
-      try { if (window.syncHybrid && window.syncHybrid.status) applyStatus(window.syncHybrid.status); } catch(_){}
-
-      // listen for events
-      window.addEventListener('syncHybrid:status', (ev) => { try { applyStatus(ev && ev.detail ? ev.detail : {}); } catch(_){} });
-      // show flush/queue events in the UI as transient messages
-      window.addEventListener('syncHybrid:flush', (ev) => { try { const d = ev && ev.detail ? ev.detail : {}; if (d && d.success) { const txt = document.getElementById('syncStatusText'); if (txt) txt.textContent = 'همگام‌سازی به‌پایان رسید'; setTimeout(()=>{ try{ const l = document.getElementById('syncStatusLine'); if (l) l.style.display = 'none'; }catch(_){} }, 3000); } } catch(_){} });
+  // initial apply derived from online/pending uploads
+  try { applyStatus({ online: navigator.onLine, syncing: false }); } catch(_){ }
+  // listen for connectivity or pending changes
+  window.addEventListener('online', ()=>{ try { applyStatus({ online: true, syncing: false }); } catch(_){} });
+  window.addEventListener('offline', ()=>{ try { applyStatus({ online: false, syncing: false }); } catch(_){} });
+  window.addEventListener('storage', (ev) => { try { if (!ev.key || ev.key === 'backup:pendingUploads') applyStatus({ online: navigator.onLine, syncing: false }); } catch(_){} });
     } catch(e) { console.debug('sync status wiring skipped', e); }
   })();
 
@@ -4370,6 +4943,8 @@ function calculateTimeToNextCategory(age, category) {
             } catch(_){ }
           } catch(_){ }
           try { if (typeof window.loadProfile === 'function') await window.loadProfile(); } catch(e){ console.warn('loadProfile on edit toggle failed', e); }
+          // prefetch and populate the edit form fields from DB/auth so the user sees current values
+          try { if (typeof openEditProfile === 'function') await openEditProfile(); } catch(e) { console.warn('openEditProfile prefetch failed', e); }
           try { const rect = pe.getBoundingClientRect(); console.debug('profileEditBox rect after open:', rect); } catch(_){ }
           try { pe.scrollIntoView({behavior:'smooth', block:'start'}); } catch(_){ }
           try { setTimeout(()=>{ const f = document.getElementById('profileFirst'); if (f) f.focus(); }, 120); } catch(_){ }
@@ -4408,6 +4983,34 @@ function calculateTimeToNextCategory(age, category) {
   }
 
   setEmbeddedStatus(!!getSupabaseClient());
+
+  // Helper: safely obtain current authenticated user's id
+  // Returns { userId, user } or null if not available. Logs a debug warning when missing.
+  async function getCurrentUserId() {
+    try {
+      const client = getSupabaseClient();
+      if (!client || !client.auth || typeof client.auth.getUser !== 'function') {
+        console.debug('getCurrentUserId: Supabase client not ready');
+        return { userId: null, user: null };
+      }
+      const { data: { user } = {} } = await client.auth.getUser();
+      const userId = user && user.id ? user.id : null;
+      if (!userId) console.warn('Skipped profile/user-scoped query: no userId available');
+      return { userId, user };
+    } catch (e) {
+      console.warn('getCurrentUserId failed', e);
+      return { userId: null, user: null };
+    }
+  }
+
+  // Debug helper: returns userId or null and logs which caller skipped
+  async function debugCheckUserGuard(context) {
+    try {
+      const { userId } = await getCurrentUserId();
+      if (!userId) console.warn(`Skipped user-scoped query (${context}): no userId`);
+      return userId;
+    } catch (e) { console.warn('debugCheckUserGuard failed', e); return null; }
+  }
 
   // try to update later if client is created after script parse
   let tries = 0;
@@ -4537,19 +5140,60 @@ function imageFileToDataURL(file, maxKB) {
   // prefer the authenticated user's email to avoid accidental overwrites
   const emailField = (document.getElementById('profileEmail') && document.getElementById('profileEmail').value) || '';
   const email = user.email || emailField || '';
-        const phone = (document.getElementById('profilePhone') && document.getElementById('profilePhone').value) || '';
+        const phone_number = (document.getElementById('profilePhone') && document.getElementById('profilePhone').value) || '';
   const avatar_el = document.getElementById('accountAvatar');
   const avatar_url = (avatar_el && avatar_el.src) ? avatar_el.src : null;
+  const bio = (document.getElementById('profileBio') && document.getElementById('profileBio').value) || '';
 
-        const payload = { id: user.id, first_name, last_name, phone, email, avatar_url };
-        const { data, error } = await client.from('profiles').upsert(payload, { returning: 'representation' });
-        if (error) throw error;
-        // update UI
-        try { document.getElementById('accountName').textContent = `${first_name} ${last_name}`.trim() || email; } catch(_){}
-  try { if (avatar_url) document.getElementById('accountAvatar').src = avatar_url; } catch(_){ }
-  try { document.getElementById('accountPhone').textContent = phone || ''; } catch(_){ }
-        try { const msg = document.getElementById('profileMsg'); if (msg) { msg.textContent = 'پروفایل ذخیره شد'; setTimeout(()=>{ msg.textContent = ''; }, 2500); } } catch(_){}
-        return data;
+        const payload = { 
+          id: user.id,
+          display_name: document.getElementById('profileDisplayName').value || '',
+          phone_number, 
+          email,
+          avatar_url,
+          bio,
+          updated_at: new Date().toISOString()
+        };
+        // safer flow: try to find existing profile by user id
+        let saved = null;
+        try {
+              if (!user || !user.id) throw new Error('Not signed in');
+              const { data: byId } = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+              if (byId) {
+                const { data: updated, error: updateErr } = await client.from('profiles').update(payload).eq('user_id', user.id).select().maybeSingle();
+                if (updateErr) throw updateErr;
+                saved = updated;
+              } else {
+                // check by email then update/insert accordingly
+                const { data: byEmail } = await client.from('profiles').select('*').eq('email', email).maybeSingle();
+                if (byEmail) {
+                  const upObj = Object.assign({}, payload, { user_id: user.id });
+                  const { data: updated, error: updateErr } = await client.from('profiles').update(upObj).eq('email', email).select().maybeSingle();
+                  if (updateErr) throw updateErr;
+                  saved = updated;
+                } else {
+                  const { data: inserted, error: insertErr } = await client.from('profiles').insert(payload).select().maybeSingle();
+                  if (insertErr) throw insertErr;
+                  saved = inserted;
+                }
+              }
+        } catch (dbErr) {
+          console.error('saveProfile DB error', dbErr);
+          try { const msg = document.getElementById('profileMsg'); if (msg) msg.textContent = 'خطا در ذخیره پروفایل'; } catch(_){ }
+          throw dbErr;
+        }
+            // update UI from saved record
+            try { document.getElementById('accountName').textContent = (saved && saved.display_name) ? saved.display_name : (payload.display_name || email); } catch(_){ }
+            try { if (saved && saved.avatar_url) document.getElementById('accountAvatar').src = saved.avatar_url; else if (avatar_url) document.getElementById('accountAvatar').src = avatar_url; } catch(_){ }
+            try { document.getElementById('accountPhone').textContent = (saved && saved.phone_number) ? saved.phone_number : (phone_number || ''); } catch(_){ }
+            try { const msg = document.getElementById('profileMsg'); if (msg) { msg.textContent = 'پروفایل ذخیره شد'; setTimeout(()=>{ msg.textContent = ''; }, 2500); } } catch(_){ }
+
+            // ensure backup buttons only called if the helper exists
+            try { if (typeof enableBackupButtons === 'function') enableBackupButtons(true); } catch(_){}
+
+            // Refresh profile to be safe and to avoid stale data across users
+            try { await loadProfile(); } catch(e) { console.debug('post-save loadProfile failed', e); }
+            return saved;
       } catch (e) {
         console.error('saveProfile error', e);
         try { const msg = document.getElementById('profileMsg'); if (msg) msg.textContent = 'خطا در ذخیره پروفایل'; } catch(_){}
@@ -4591,76 +5235,32 @@ function imageFileToDataURL(file, maxKB) {
         const deviceId = getDeviceId();
         const deviceName = getDeviceName();
         const nowIso = new Date().toISOString();
-        // Prefer enqueuing a backup record to the outbox so offline processing and realtime can handle it.
+        // New flow: delegate to the backupSync module which handles snapshot->storage->backups metadata->mark_shared_backup
         let resData = null;
-        if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
-          try {
-            window.supabaseSync.enqueueOp({ type: 'backup_record', payload: { user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }, ts: Date.now() });
-            try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
-            resData = { queued: true };
-          } catch(e) {
-            console.debug('enqueue backup_record failed', e);
-            resData = null;
-          }
-        }
-
-        // Fallback: if enqueuing not supported or failed, perform legacy update/insert
-        if (!resData) {
-          try {
-            const updated = await client.from('backups').update({ data: snapshot, device_id: deviceId, operation: 'sync', updated_at: nowIso, created_at: nowIso }).eq('user_id', user.id).select();
-            console.debug('backup update result:', updated);
-            if (updated && !updated.error && updated.data && updated.data.length > 0) {
-              resData = updated.data;
-            }
-          } catch (updErr) {
-            console.debug('backup update failed (will try insert):', updErr);
-          }
-          if (!resData) {
-            try {
-              const ins = await client.from('backups').insert([{ user_id: user.id, data: snapshot, device_id: deviceId, operation: 'sync', revision: 1, created_at: nowIso, updated_at: nowIso }]);
-              if (ins && ins.error) throw ins.error;
-              resData = ins.data;
-            } catch (insErr) {
-              console.debug('backup insert failed:', insErr);
-              throw insErr;
-            }
-          }
-        }
-
-        // Additionally, try to upsert a shared backup keyed by the user's email so devices using the same email can sync
         try {
-          const email = (profile && profile.email) ? profile.email : (user.email || null);
-          const emailLower = email ? email.toLowerCase() : null;
-          if (emailLower) {
-            // Prefer enqueuing ops to the outbox so offline devices and realtime handle propagation
-            if (window.supabaseSync && typeof window.supabaseSync.enqueueOp === 'function') {
-              try {
-                window.supabaseSync.enqueueOp({ type: 'shared_backups_upsert', payload: { group_email: emailLower, snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso }, ts: Date.now() });
-                window.supabaseSync.enqueueOp({ type: 'profiles_last_sync', payload: { id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: { shared_backups: [ snapshot ] } }, ts: Date.now() });
-                try { window.supabaseSync.processOutbox && window.supabaseSync.processOutbox(); } catch(_){ }
-                console.debug('enqueued shared_backups and profiles last_sync ops');
-              } catch(e) {
-                console.debug('enqueue of shared_backups/profile ops failed', e);
-                // fall through to legacy direct writes below
-              }
-            }
-
-            // Fallback: perform legacy upsert if supabaseSync not available or enqueue failed
+          if (window.backupSync && typeof window.backupSync.createBackup === 'function') {
+            // set group email if we have a profile email
             try {
-              const sharedPayload = { group_email: emailLower, data: snapshot, device_id: deviceId, last_sync_device: deviceName, last_sync_at: nowIso };
-              const su = await client.from('shared_backups').upsert([Object.assign({}, sharedPayload, { created_at: nowIso })], { onConflict: 'group_email' });
-              if (su && su.error) console.debug('shared_backups upsert error', su.error, su);
-              else console.debug('shared_backups upserted', su && su.data ? su.data : null);
-            } catch (sErr) { console.debug('shared_backups upsert failed', sErr); }
-
-            try {
-              const payloadObj = { shared_backups: [ snapshot ] };
-              const upRes = await client.from('profiles').upsert({ id: user.id, last_sync_at: nowIso, last_sync_device: deviceName, last_sync_payload: payloadObj }, { onConflict: 'id', returning: 'minimal' });
-              if (upRes && upRes.error) console.debug('profiles last_sync upsert error', upRes.error, upRes);
-              else console.debug('profiles last_sync upserted');
-            } catch(pErr) { console.debug('profiles last_sync upsert failed', pErr); }
+              const email = (profile && profile.email) ? profile.email : (user.email || null);
+              if (email) window.backupSync.setGroupEmail(email.toLowerCase());
+            } catch(_){ }
+            const r = await window.backupSync.createBackup({ revision: 1 });
+            resData = r;
+          } else {
+            // backupSync not ready yet: persist a small pending flag locally and queue an attempt
+            const pendingKey = 'backup:pendingLocalSnapshot';
+            try { localStorage.setItem(pendingKey, JSON.stringify({ ts: Date.now(), snapshot })); } catch(_){ }
+            resData = { ok: 'pending-local' };
           }
-        } catch(sbErr) { console.debug('shared backup write failed', sbErr); }
+        } catch (e) {
+          console.debug('backupSync.createBackup failed, falling back to pending local save', e);
+          const pendingKey = 'backup:pendingLocalSnapshot';
+          try { localStorage.setItem(pendingKey, JSON.stringify({ ts: Date.now(), snapshot })); } catch(_){ }
+          resData = { ok: 'pending-local' };
+        }
+
+        // shared_backups/profile last_sync handling is now owned by server via mark_shared_backup RPC invoked by backupSync
+        // Nothing further to do here; backupSync.createBackup will call mark_shared_backup when appropriate.
         try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
         return resData;
       } catch (e) {
@@ -9722,8 +10322,8 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
         // window.location.href = '/profile.html?id=' + data[0].id;
         btn.textContent = 'ذخیره بازیکن';
         btn.disabled = false;
-        // همگام‌سازی بعد از ثبت
-        if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+  // trigger background backup (uses backupNow helper which writes shared_backups and backups)
+  try { if (typeof backupNow === 'function') backupNow().catch(e=>console.warn('background backup failed', e)); } catch(e){}
       } catch (err) {
         alert('خطای غیرمنتظره: ' + err.message);
         btn.textContent = 'ذخیره بازیکن';
@@ -9756,7 +10356,7 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
         // رفرش لیست یا بستن فرم
         btn.textContent = 'ثبت پرداخت';
         btn.disabled = false;
-        if (window.syncHybrid && typeof window.syncHybrid.backupNow === 'function') window.syncHybrid.backupNow();
+  try { if (typeof backupNow === 'function') backupNow().catch(e=>console.warn('background backup failed', e)); } catch(e){}
       } catch (err) {
         alert('خطای غیرمنتظره: ' + err.message);
         btn.textContent = 'ثبت پرداخت';
@@ -9796,21 +10396,25 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
     // Helper to fetch and update state
     async function fetchTable(table, stateKey, extra = {}) {
       let q = window.supabase.from(table).select('*');
-      if (table !== 'notes' && table !== 'shared_backups') q = q.eq('user_id', user.id);
+      if (table !== 'notes' && table !== 'shared_backups') {
+        const uId = await debugCheckUserGuard('loadAllDataFromServer:' + table);
+        if (!uId) return; // skip reading user-scoped table when no user
+        q = q.eq('user_id', uId);
+      }
       if (extra.order) q = q.order(extra.order, { ascending: false });
       let { data, error } = await q;
       if (!error && data) state[stateKey] = data;
       else console.warn('Load failed for', table, error);
     }
 
-    await fetchTable('players', 'players');
-    await fetchTable('payments', 'payments');
-    await fetchTable('coaches', 'coaches');
-    await fetchTable('sessions', 'sessions');
-    await fetchTable('competitions', 'competitions');
-    await fetchTable('training_plans', 'trainingPlans');
-    await fetchTable('devices', 'devices');
-    await fetchTable('notes', 'notes');
+  await fetchTable('players', 'players');
+  await fetchTable('payments', 'payments');
+  await fetchTable('coaches', 'coaches');
+  await fetchTable('sessions', 'sessions');
+  await fetchTable('competitions', 'competitions');
+  await fetchTable('training_plans', 'trainingPlans');
+  // devices table removed in new schema; skip
+  await fetchTable('notes', 'notes');
     // Optionally: shared_backups, backups, etc.
 
     // Call render functions if available
@@ -9827,6 +10431,39 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
   window.loadAllDataFromServer = loadAllDataFromServer;
   // Example: after successful login
   // await loadAllDataFromServer();
+  </script>
+  <script>
+    // Auto-patch Supabase on load so select/insert/update are normalized
+    (function() {
+      function ensurePatch() {
+        try {
+          if (window.syncHybrid && typeof window.syncHybrid.ensureSupabasePatched === 'function') {
+            try { window.syncHybrid.ensureSupabasePatched(); console.info('✅ Supabase auto-patched on load'); } catch(e) { console.debug('ensureSupabasePatched failed', e); }
+            return;
+          }
+          // If syncHybrid isn't present, attempt lightweight header normalization for Supabase fetch calls
+          if (window.fetch && window.SUPABASE_ANON_KEY && window.SUPABASE_URL) {
+            // no-op: the fetch wrapper earlier already normalizes apikey header when matching SUPABASE_URL
+            console.info('Supabase fetch wrapper active (no syncHybrid)');
+            return;
+          }
+        } catch (e) { /* ignore */ }
+        setTimeout(ensurePatch, 300);
+      }
+      if (document.readyState === 'complete' || document.readyState === 'interactive') ensurePatch();
+      else document.addEventListener('DOMContentLoaded', ensurePatch);
+    })();
+  </script>
+  </script>
+
+  <!-- Load new backup module and expose singleton to non-module scripts -->
+  <script type="module">
+    try {
+      import('./sync-backup.js').then(mod => {
+        try { window.backupSync = mod.default || mod.backupSync || null; }
+        catch(e) { console.debug('assigning backupSync failed', e); }
+      }).catch(e => console.debug('loading sync-backup.js failed', e));
+    } catch(e) { console.debug('module import failed', e); }
   </script>
 </body>
 </html>
