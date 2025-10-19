@@ -2908,8 +2908,36 @@ window.handleRestoreBackup = async function handleRestoreBackup() {
 
     updateBackupStatus('✅ بازگردانی از آخرین بکاپ انجام شد');
 
-    // Reload the page to reflect restored data
-    setTimeout(() => window.location.reload(), 1500);
+    // Show success feedback without forcing a reload so the in-memory state
+    // and the scheduled renderers in restoreData() can update the UI.
+    try {
+      if (typeof showToast === 'function') {
+        showToast('✅ بازیابی با موفقیت انجام شد', 'success');
+      } else if (typeof window.toastr !== 'undefined' && typeof window.toastr.success === 'function') {
+        window.toastr.success('بازیابی با موفقیت انجام شد');
+      } else {
+        // Fallback: non-blocking alert
+        setTimeout(() => { try { /* avoid blocking immediate UI updates */ alert('✅ بازیابی با موفقیت انجام شد'); } catch(_){} }, 150);
+      }
+    } catch (e) { console.debug('show success toast failed', e); }
+
+    // Conditional reload fallback: only reload if the restored state doesn't appear
+    // to have been applied after a short grace period. This avoids wiping newly
+    // restored in-memory UI by an unconditional reload.
+    setTimeout(() => {
+      try {
+        const key = (typeof STORAGE_KEY !== 'undefined') ? STORAGE_KEY : 'vb_dashboard_v8';
+        const raw = localStorage.getItem(key);
+        let ok = false;
+        if (raw) {
+          try { const obj = JSON.parse(raw); ok = obj && (Array.isArray(obj.players) || Array.isArray(obj.competitions) || Object.keys(obj).length > 0); } catch(e) { ok = true; }
+        }
+        if (!ok) {
+          console.warn('Restored state not detected in localStorage; performing reload as fallback');
+          window.location.reload();
+        }
+      } catch (e) { console.warn('conditional reload check failed', e); }
+    }, 1500);
   } catch (error) {
     console.error('Restore failed:', error);
     updateBackupStatus('خطا در بازگردانی بکاپ: ' + (error && error.message ? error.message : String(error)), true);
@@ -2995,8 +3023,30 @@ async function restoreBackup(backupId) {
       return;
     }
     await window.backupSync.restoreById(backupId);
-    alert('✅ داده‌ها از بک‌آپ انتخابی بازیابی شدند');
-    setTimeout(()=>window.location.reload(), 1200);
+    // Non-blocking success feedback (use showToast if available)
+    if (typeof showToast === 'function') {
+      try { showToast('✅ داده‌ها از بک‌آپ انتخابی بازیابی شدند'); } catch (_) { /* ignore */ }
+    } else {
+      try { alert('✅ داده‌ها از بک‌آپ انتخابی بازیابی شدند'); } catch (_) { /* ignore */ }
+    }
+    // Conditional reload fallback: only reload if the project's storage key does not contain restored data
+    const _key = (window && window.STORAGE_KEY) ? window.STORAGE_KEY : 'vb_dashboard_v8';
+    setTimeout(() => {
+      try {
+        const restored = localStorage.getItem(_key);
+        if (!restored || restored.length < 10) {
+          // nothing sensible restored — reload as last resort
+          try { window.location.reload(); } catch (_) { /* ignore */ }
+        } else {
+          // If the app exposes a renderer, trigger a refresh of the UI to pick up restored state
+          if (typeof window.renderAll === 'function') {
+            try { window.renderAll(); } catch (_) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        try { window.location.reload(); } catch (_) { /* ignore */ }
+      }
+    }, 1200);
   } catch (err) {
     console.error('restoreBackup failed', err);
     alert('❌ بک‌آپ یافت نشد');
@@ -5838,12 +5888,12 @@ function openMatchForm(editId) {
 }
 
 // --- Share card generation ---
-function openShareOverlay(matchId) {
+async function openShareOverlay(matchId) {
   const m = (state.competitions||[]).find(x=>x.id===matchId);
-  if (!m) return alert('مسابقه پیدا نشد');
-  console.debug('openShareOverlay called for', matchId);
+  if (!m) { console.warn('openShareOverlay: match not found', matchId); return; }
+  console.debug('openShareOverlay called for', matchId, 'resolved to', m && m.id);
   // fill overlay fields (use safe checks because markup may vary)
-  const elTitle = qs('#shareTitle'); if (elTitle) elTitle.textContent = m.title || (m.teamA + ' vs ' + m.teamB);
+  const elTitle = qs('#shareTitle'); if (elTitle) elTitle.textContent = `${m.teamA || ''} vs ${m.teamB || ''}`;
   const elKind = qs('#shareKind'); if (elKind) elKind.textContent = mapKindToPersian(m.kind) || '-';
   const elDate = qs('#shareDate'); if (elDate) elDate.textContent = m.date || '-';
   const elVenue = qs('#shareVenue'); if (elVenue) elVenue.textContent = m.venue || '-';
@@ -5857,7 +5907,7 @@ function openShareOverlay(matchId) {
   const tA = qs('#shareTeamA'); const tB = qs('#shareTeamB');
   if (tA) tA.textContent = m.teamA || '';
   if (tB) tB.textContent = m.teamB || '';
-  // show overlay
+  // show overlay AFTER fields are populated so capture sees the correct DOM
   const overlayEl = qs('#shareOverlay');
   if (overlayEl) overlayEl.classList.remove('hide');
   // make sure backdrop is below modal content and content accepts pointer events
@@ -5877,6 +5927,12 @@ function openShareOverlay(matchId) {
     if (card) card.style.background = `linear-gradient(180deg, ${a}, ${b})`;
   }
   applyCardColors();
+
+  // ensure DOM had a chance to paint with the new content (helps capture match correct text)
+  try {
+    await new Promise(r => setTimeout(r, 40));
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+  } catch(e) { console.debug('openShareOverlay paint wait failed', e); }
   // support both live input and change events (some mobile pickers only fire change)
   if (colorAInput) {
     colorAInput.disabled = false;
@@ -5915,6 +5971,20 @@ function openShareOverlay(matchId) {
     if (colorAInput) colorAInput.style.pointerEvents = 'auto';
     if (colorBInput) colorBInput.style.pointerEvents = 'auto';
   } catch (e) { console.debug('swatch click wiring failed', e); }
+  // Extra defensive styling: ensure native color pickers can open above the overlay
+  try {
+    [colorAInput, colorBInput].forEach(inp => {
+      if (!inp) return;
+      // prefer not to override styles the page intentionally set, only fill missing pieces
+      if (!inp.style.position) inp.style.position = 'relative';
+      // make sure they sit above modal/backdrop so native pickers can render
+      const currentZ = parseInt(inp.style.zIndex || '0', 10) || 0;
+      if (currentZ < 10002) inp.style.zIndex = '10002';
+      inp.style.visibility = 'visible';
+      if (!inp.style.opacity) inp.style.opacity = '1';
+      inp.style.pointerEvents = 'auto';
+    });
+  } catch(e) { console.debug('color input enhancement failed', e); }
   // insert court image behind the gradient if available
   const courtImgPath = 'icons/court.png';
   if (card) {
@@ -6135,6 +6205,12 @@ async function captureAndShareModal(match) {
   }
   // If an external implementation is registered, call it -- but guard against self-delegation.
   try {
+    // Give the browser a tiny moment to finish layout/paint after openShareOverlay
+    // This prevents captures that miss the last DOM updates (colors/logos/z-index)
+    await new Promise(res => setTimeout(res, 80));
+    // also wait two rAFs for extra safety
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+
     if (typeof window._captureAndShareModalImpl === 'function' && window._captureAndShareModalImpl !== captureAndShareModal) {
       return await window._captureAndShareModalImpl(match);
     }
@@ -10186,34 +10262,56 @@ function openBirthdayModal(playerId) {
         alert('متن پیام در کلیپ‌بورد کپی شد. آن را در برنامه پیامک الصاق و شماره را وارد کنید.');
       }
     });
-    if (imgBtn) imgBtn.addEventListener('click', () => {
+    if (imgBtn) imgBtn.addEventListener('click', async () => {
       // clone the card and replace textarea with full-message div so the entire text is captured
       const card = qs('#birthdayCard');
       const clone = card.cloneNode(true);
       const textarea = clone.querySelector('#birthdayMessageText');
-      const fullText = qs('#birthdayMessageText')?.value || defaultMsg;
+      // normalize Persian characters and ensure proper joining
+      let fullText = (qs('#birthdayMessageText')?.value || defaultMsg) || '';
+      try {
+        fullText = String(fullText)
+          .replace(/ي/g, 'ی')
+          .replace(/ك/g, 'ک')
+          .replace(/\u200C/g, ' ') // replace zero-width non-joiner with space to avoid rendering issues
+          .trim();
+      } catch(e) { /* ignore normalization errors */ }
       if (textarea) {
         const div = document.createElement('div');
+        // important: set explicit Persian-capable font and RTL alignment
         div.style.whiteSpace = 'pre-wrap';
         div.style.fontSize = '15px';
         div.style.direction = 'rtl';
+        div.style.textAlign = 'right';
         div.style.lineHeight = '1.4';
         div.style.padding = '10px';
         div.style.borderRadius = '8px';
         div.style.border = '1px solid rgba(0,0,0,0.06)';
+        div.style.wordBreak = 'keep-all';
+        div.style.fontFamily = "'Vazirmatn', 'IRANSans', 'Tahoma', 'Arial', sans-serif";
         div.textContent = fullText;
         textarea.parentNode.replaceChild(div, textarea);
       }
-      // place clone off-screen for rendering
+      // place clone off-screen for rendering and set font on the clone container too
       clone.style.boxSizing = 'border-box';
       clone.style.width = card.offsetWidth + 'px';
       clone.style.background = getComputedStyle(card).backgroundColor || '#ffffff';
       clone.style.padding = getComputedStyle(card).padding;
       clone.style.position = 'fixed';
       clone.style.left = '-9999px';
+      clone.style.fontFamily = "'Vazirmatn', 'IRANSans', 'Tahoma', 'Arial', sans-serif";
       document.body.appendChild(clone);
-      html2canvas(clone, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
-        canvas.toBlob(blob => {
+      try {
+        // wait for fonts to be available (improves complex-script shaping)
+        if (document.fonts && typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
+      } catch(e) { /* ignore */ }
+      // use a slightly lower scale to avoid glyph separation issues
+      try {
+        await html2canvas(clone, { backgroundColor: '#ffffff', scale: 1.5 }).then(canvas => {
+          return new Promise((res) => {
+            canvas.toBlob(blob => { res(blob); }, 'image/png');
+          });
+        }).then(blob => {
           if (!blob) return alert('خطا در تولید تصویر');
           const file = new File([blob], `${normPersian(p.name).replace(/\s+/g,'_')}_birthday.png`, { type: 'image/png' });
           if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -10226,8 +10324,8 @@ function openBirthdayModal(playerId) {
             a.click();
             URL.revokeObjectURL(url);
           }
-        });
-      }).catch(err => alert('خطا در آماده‌سازی تصویر')).finally(() => { clone.remove(); });
+        }).catch(err => { console.error('html2canvas error', err); alert('خطا در آماده‌سازی تصویر'); });
+      } finally { try { clone.remove(); } catch(e){} }
     });
   // share-link removed per user request
   }, 50);

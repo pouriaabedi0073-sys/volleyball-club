@@ -319,7 +319,75 @@
     mergeGroupBackups,
     restoreBackup,
     scheduleDaily,
-    _internal: { buildSnapshot, compressJson, decompressToJson }
+    _internal: { buildSnapshot, compressJson, decompressToJson },
+    // New helpers: getDeviceId, saveBackup, loadLatestBackup
+    getDeviceId: function() {
+      try {
+        let deviceId = null;
+        try { deviceId = localStorage.getItem('device_id'); } catch(_) { deviceId = null; }
+        if (!deviceId) {
+          try { deviceId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'dev_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); } catch(_) { deviceId = 'dev_' + Date.now(); }
+          try { localStorage.setItem('device_id', deviceId); } catch(_){}
+        }
+        return deviceId;
+      } catch(e) { LOG('getDeviceId failed', e); return null; }
+    },
+    saveBackup: async function(options = {}) {
+      try {
+        if (!window.supabase) throw new Error('Supabase client not available');
+        const user = window.state && window.state.user ? window.state.user : (window.currentUser || {});
+        const email = options.groupEmail || user.email || (window.currentUser && window.currentUser.email) || null;
+        const user_id = user.id || (window.currentUser && window.currentUser.id) || null;
+        if (!email) throw new Error('groupEmail required to save backup');
+
+        const device_id = window.backupClient.getDeviceId();
+        const mainKey = options.storageKey || (window.STORAGE_KEY || 'vb_dashboard_v8');
+        const localData = (() => { try { return JSON.parse(localStorage.getItem(mainKey) || '{}'); } catch(_) { return {}; } })();
+
+        const payload = {
+          backup_id: options.id || (Date.now().toString(36) + Math.random().toString(36).slice(2,8)),
+          group_email: email.toLowerCase(),
+          user_id: user_id,
+          device_id: device_id,
+          backup_data: localData,
+          size_bytes: (new Blob([JSON.stringify(localData)])).size,
+          created_at: new Date().toISOString()
+        };
+
+        const res = await window.supabase.from('backups').insert([payload]);
+        if (res && res.error) throw res.error;
+        LOG('saveBackup: saved', payload.backup_id);
+        return { ok: true, id: payload.backup_id };
+      } catch (e) { LOG('saveBackup failed', e); throw e; }
+    },
+    loadLatestBackup: async function(options = {}) {
+      try {
+        if (!window.supabase) throw new Error('Supabase client not available');
+        const user = window.state && window.state.user ? window.state.user : (window.currentUser || {});
+        const email = options.groupEmail || user.email || (window.currentUser && window.currentUser.email) || null;
+        if (!email) throw new Error('groupEmail required to load backup');
+
+        const q = await window.supabase.from('backups').select('backup_data, created_at').eq('group_email', email.toLowerCase()).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (q.error) throw q.error;
+        const data = q && q.data ? q.data.backup_data : null;
+        if (!data) return { ok: false, reason: 'no_backup' };
+
+        // Safe restore: write only the main app key and device id entries
+        const mainKey = options.storageKey || (window.STORAGE_KEY || 'vb_dashboard_v8');
+        try { localStorage.setItem(mainKey, JSON.stringify(data)); } catch(e){ LOG('loadLatestBackup: failed to set mainKey', e); }
+        try { if (data && data.device_id) localStorage.setItem('device_id', JSON.stringify(data.device_id)); } catch(_){}
+        try { if (data && data.vb_device_id_v1) localStorage.setItem('vb_device_id_v1', JSON.stringify(data.vb_device_id_v1)); } catch(_){}
+
+        // Hydrate in-memory state and trigger render helpers
+        try { window.state = data; } catch(_){}
+        try { if (typeof window.mergeSnapshotIntoState === 'function') window.mergeSnapshotIntoState({ tables: data }); } catch(_){}
+        try { if (typeof window.loadStateFromStorage === 'function') window.loadStateFromStorage(); } catch(_){}
+        try { if (typeof window.renderAll === 'function') window.renderAll(); } catch(_){}
+
+        LOG('loadLatestBackup: restored backup from', q && q.data && q.data.created_at);
+        return { ok: true };
+      } catch (e) { LOG('loadLatestBackup failed', e); throw e; }
+    }
   };
 
   // Attempt flush pending when coming online

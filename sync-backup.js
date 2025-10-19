@@ -10,6 +10,15 @@ export class BackupSync {
       compression: true,
       ...options
     };
+    // Prefer an explicit storageKey passed in options. Otherwise try to read
+    // a global STORAGE_KEY (set by the main app) and finally fall back to
+    // the legacy key used by the app.
+    try {
+      this.storageKey = this.options.storageKey || (typeof STORAGE_KEY !== 'undefined' ? STORAGE_KEY : null) || 'vb_dashboard_v8';
+    } catch (e) {
+      // If accessing STORAGE_KEY throws, fall back to default
+      this.storageKey = this.options.storageKey || 'vb_dashboard_v8';
+    }
     this._lastBackupTime = 0;
     this._pendingBackup = false;
     this._lastSnapshotHash = null;
@@ -23,28 +32,69 @@ export class BackupSync {
 
   // Create a snapshot of all data
   async createSnapshot() {
-    // Collect all data from localStorage
-    const snapshot = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      try {
-        snapshot[key] = JSON.parse(localStorage.getItem(key));
-      } catch (e) {
-        snapshot[key] = localStorage.getItem(key);
+    // Build a normalized snapshot in the form { tables: { ... }, meta: { ... }, raw: { ... } }
+    const snapshot = { tables: {}, meta: { created_at: new Date().toISOString() }, raw: {} };
+    try {
+      // include source device id if available
+      try { snapshot.meta.source = await this.getOrCreateDeviceId(); } catch (_) { }
+
+      // Prefer in-memory state when available (consistent with backup.js)
+      if (typeof window !== 'undefined' && window.state && typeof window.state === 'object') {
+        for (const [k, v] of Object.entries(window.state)) {
+          if (Array.isArray(v)) snapshot.tables[k] = v;
+        }
+      } else {
+        // Fallback: read app main key from localStorage and convert into tables
+        try {
+          const mainKey = this.storageKey || 'vb_dashboard_v8';
+          const raw = localStorage.getItem(mainKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            // if parsed already has 'tables', adopt it
+            if (parsed && typeof parsed === 'object' && parsed.tables && typeof parsed.tables === 'object') {
+              snapshot.tables = parsed.tables;
+            } else if (parsed && typeof parsed === 'object') {
+              // convert top-level arrays into tables
+              for (const [k, v] of Object.entries(parsed)) {
+                if (Array.isArray(v)) snapshot.tables[k] = v;
+              }
+            }
+          }
+          // Only read the app's main storage key to avoid scanning unrelated localStorage keys.
+          try {
+            const mainKey = this.storageKey || 'vb_dashboard_v8';
+            const mainRaw = localStorage.getItem(mainKey);
+            if (mainRaw) {
+              try { snapshot.raw[mainKey] = JSON.parse(mainRaw); } catch(_) { snapshot.raw[mainKey] = mainRaw; }
+            }
+            // Minimal explicit extras (do NOT scan all keys). Add only known safe keys.
+            const safeExtras = ['recentLoginEmails', 'vb_device_id_v1'];
+            for (const k of safeExtras) {
+              try {
+                const v = localStorage.getItem(k);
+                if (v === null || v === undefined) continue;
+                try { snapshot.raw[k] = JSON.parse(v); } catch (_) { snapshot.raw[k] = v; }
+              } catch(_) {}
+            }
+          } catch(_) {}
+        } catch (e) { console.debug('createSnapshot fallback parse failed', e); }
       }
+
+    } catch (e) {
+      console.debug('createSnapshot failed', e);
     }
 
-    // Add metadata
-    const summary = {
-      tables: Object.keys(snapshot),
-      row_counts: {},
-      total_size_kb: 0
-    };
+    // Build summary
+    const summary = { tables: Object.keys(snapshot.tables), row_counts: {}, total_size_kb: 0 };
+    for (const [table, rows] of Object.entries(snapshot.tables)) {
+      summary.row_counts[table] = Array.isArray(rows) ? rows.length : 0;
+      try { summary.total_size_kb += Math.round(JSON.stringify(rows).length / 1024); } catch(_){}
 
-    // Calculate row counts and size
-    for (const [table, data] of Object.entries(snapshot)) {
-      summary.row_counts[table] = Array.isArray(data) ? data.length : 1;
-      summary.total_size_kb += Math.round(JSON.stringify(data).length / 1024);
+    // include raw keys in summary counts
+    try {
+      const rawKeys = Object.keys(snapshot.raw || {});
+      if (rawKeys.length) summary.raw_keys = rawKeys;
+    } catch(_){}
     }
 
     return { snapshot, summary };
@@ -247,10 +297,133 @@ export class BackupSync {
   // Helper: restoreData applies a snapshot object into localStorage
   async restoreData(snapshot) {
     try {
-      if (!snapshot || typeof snapshot !== 'object') throw new Error('Invalid snapshot');
-      for (const [key, value] of Object.entries(snapshot)) {
-        try { localStorage.setItem(key, JSON.stringify(value)); } catch(e) { console.debug('localStorage set failed for', key, e); }
+      if (!snapshot || typeof snapshot !== 'object') {
+        console.warn('restoreData: invalid snapshot');
+        return false;
       }
+
+      // Expect normalized snapshot: { tables: { players: [...], sessions: [...] }, meta: {...} }
+      const tables = snapshot.tables || (snapshot && snapshot.backup_data && snapshot.backup_data.tables) || null;
+      if (!tables) {
+        // If caller passed an older shape where snapshot itself is the tables object, accept that
+        if (typeof snapshot === 'object' && Object.keys(snapshot).length > 0 && Object.keys(snapshot).every(k => Array.isArray(snapshot[k]))) {
+          // snapshot is already tables
+          snapshot = { tables: snapshot };
+        }
+      }
+
+      // Merge into window.state by id with last_modified semantics
+      try {
+        window.state = window.state || {};
+        const tbls = (snapshot && snapshot.tables) ? snapshot.tables : (typeof snapshot === 'object' ? snapshot : {});
+        for (const [table, rows] of Object.entries(tbls)) {
+          if (!Array.isArray(rows)) continue;
+          window.state[table] = window.state[table] || [];
+          const local = window.state[table];
+          const map = new Map(local.map(r => [r.id, r]));
+          for (const row of rows) {
+            if (!row || !row.id) continue;
+            const existing = map.get(row.id);
+            if (!existing) {
+              local.push(row);
+              map.set(row.id, row);
+            } else {
+              const a = new Date(existing.last_modified || 0).getTime();
+              const b = new Date(row.last_modified || 0).getTime();
+              if (b >= a) {
+                const idx = local.findIndex(x => x && x.id === row.id);
+                if (idx !== -1) local[idx] = Object.assign({}, existing, row);
+              }
+            }
+          }
+        }
+      } catch (e) { console.debug('restoreData: merge into window.state failed', e); }
+
+      // Persist merged state back into localStorage under main key (do not overwrite auth tokens)
+      try {
+        const mainKey = (typeof window !== 'undefined' && window.STORAGE_KEY) ? window.STORAGE_KEY : (this.storageKey || 'vb_dashboard_v8');
+        // Build a storage object: include only top-level arrays (tables)
+        const storageObj = {};
+        for (const [k, v] of Object.entries(window.state)) {
+          if (Array.isArray(v)) storageObj[k] = v;
+        }
+        try { localStorage.setItem(mainKey, JSON.stringify(storageObj)); } catch (e) { console.warn('restoreData: failed to persist merged state', e); }
+
+        // Optionally persist device ids if present in snapshot.meta
+        try {
+          if (snapshot.meta && snapshot.meta.source) {
+            try { localStorage.setItem('device_id', JSON.stringify(snapshot.meta.source)); } catch(_){}
+          }
+          if (snapshot.vb_device_id_v1) {
+            try { localStorage.setItem('vb_device_id_v1', JSON.stringify(snapshot.vb_device_id_v1)); } catch(_){}
+          }
+        } catch (_) {}
+      } catch (e) { console.debug('restoreData: persist merged state failed', e); }
+
+      // Restore any 'raw' keys included in the snapshot, but do not overwrite auth tokens
+      try {
+        if (snapshot && snapshot.raw && typeof snapshot.raw === 'object') {
+          for (const [k, v] of Object.entries(snapshot.raw)) {
+            if (!k) continue;
+            // Skip known auth keys
+            if (/auth|token|sb-/.test(k)) continue;
+            try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { console.debug('restoreData: failed to restore raw key', k, e); }
+          }
+        }
+      } catch (_) {}
+
+      // Ensure the app's primary `state` variable is synced with window.state
+      try {
+        if (typeof state !== 'undefined' && typeof window !== 'undefined' && typeof window.state !== 'undefined') {
+          try {
+            // Merge properties from window.state into the app's `state` object
+            Object.assign(state, window.state);
+            console.log('🔁 Merged window.state into global state');
+          } catch (mergeErr) {
+            console.debug('restoreData: failed to merge window.state into state', mergeErr);
+          }
+        }
+        // Auto-save if host exposes saveState()
+        try {
+          if (typeof saveState === 'function') {
+            try { saveState(); console.log('💾 Auto-saved merged state via saveState()'); } catch (sErr) { console.debug('restoreData: saveState() threw', sErr); }
+          }
+        } catch (_) {}
+      } catch (_) {}
+
+      // Post-restore: sync state into host and call a page-specific render function
+      try {
+        // همگام‌سازی stateها
+        try {
+          if (typeof window.state === 'object') {
+            if (typeof state === 'object') Object.assign(state, window.state);
+            if (typeof saveState === 'function') {
+              try { saveState(); console.log('� LocalStorage saved after restore'); } catch(sErr) { console.debug('saveState failed', sErr); }
+            }
+          }
+        } catch (syncErr) { console.debug('post-restore state sync failed', syncErr); }
+
+        // 🔁 بازسازی UI بعد از بازیابی
+        if (typeof renderHome === 'function') {
+          console.log('🎨 Rendering Home after restore...');
+          renderHome();
+        } else if (typeof renderPlayersPage === 'function') {
+          console.log('🎨 Rendering Players after restore...');
+          renderPlayersPage();
+        } else if (typeof renderCoaches === 'function') {
+          console.log('🎨 Rendering Coaches after restore...');
+          renderCoaches();
+        } else if (typeof renderSessionsPage === 'function') {
+          console.log('🎨 Rendering Sessions after restore...');
+          renderSessionsPage();
+        } else {
+          console.warn('⚠️ No UI render function found — manual reload may be needed.');
+        }
+      } catch (err) {
+        console.error('❌ Post-restore render failed:', err);
+      }
+
+      console.log('✅ restoreData merge complete');
       return true;
     } catch (e) { console.error('restoreData failed', e); throw e; }
   }
@@ -300,13 +473,18 @@ export class BackupSync {
   // Check if local storage has app data (basic heuristic)
   localHasData() {
     try {
-      // Heuristic: check for any keys beyond known app shell keys
-      const keys = Object.keys(localStorage || {});
-      if (!keys || keys.length === 0) return false;
-      // ignore simple settings keys
-      const ignore = new Set(['autoImportToggle','device_id','__app_version']);
-      for (const k of keys) {
-        if (!ignore.has(k) && (localStorage.getItem(k) !== null)) return true;
+      // Check only the project's main storage key so we don't confuse other
+      // JSON data on the device with this project's local DB.
+      const key = this.storageKey || 'vb_dashboard_v8';
+      const raw = localStorage.getItem(key);
+      if (raw === null || raw === undefined) return false;
+      // Basic sanity: ensure parsed value looks like the app state (object with players/competitions)
+      try {
+        const obj = JSON.parse(raw);
+        if (obj && (Array.isArray(obj.players) || Array.isArray(obj.competitions) || Object.keys(obj).length > 0)) return true;
+      } catch (e) {
+        // If it's not JSON, still treat presence as data
+        return true;
       }
       return false;
     } catch (e) { console.warn('localHasData failed', e); return false; }
@@ -361,12 +539,9 @@ export default backupSync;
 // Utility: clear local backup keys stored in localStorage (names starting with 'backup-' or that key)
 export function clearLocalBackups() {
   try {
-    const keys = Object.keys(localStorage || {});
-    for (const k of keys) {
-      if (String(k).startsWith('backup-') || k === 'backup:pendingUploads') {
-        try { localStorage.removeItem(k); } catch(_){ }
-      }
-    }
+    // Avoid scanning all localStorage keys. Remove only known backup-related keys.
+    try { localStorage.removeItem('backup:pendingUploads'); } catch(_){}
+    // If any explicit backup- keys are known in the future, remove them here.
     return true;
   } catch(e) { console.warn('clearLocalBackups failed', e); return false; }
 }
