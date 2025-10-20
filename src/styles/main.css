@@ -1,0 +1,5 @@
+/* src/styles/main.css - placeholder for modularized styles.
+   The app currently inlines many styles in index.html; we'll move rules here gradually.
+*/
+:root { --migrated: 1; }
+body { min-height: 100%; }

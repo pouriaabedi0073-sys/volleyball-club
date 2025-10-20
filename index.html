@@ -2601,7 +2601,7 @@ function enableBackupButtons(enable = true) {
        <div class="card" style="padding:0;overflow:visible;">
          <!-- Settings card (separate) -->
          <div class="card" style="padding:12px 16px; margin:12px; border-radius:12px; background:linear-gradient(90deg,#facc15,#fbbf24);">
-             <div id="settingsBox" style="display:flex;justify-content:center;align-items:center;gap:12px;">
+              <div id="settingsBox" style="display:flex;justify-content:center;align-items:center;gap:12px;">
                <button id="settingsFromAccount" class="btn" style="padding:8px 12px;background:#111;color:#fff;border-radius:10px;border:none;font-weight:700;">تنظیمات</button>
                <button id="notificationsFromSettings" class="btn" style="padding:8px 10px;background:transparent;border:1px solid rgba(0,0,0,0.06);border-radius:10px;color:var(--muted);">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px;">0</span></button>
              </div>
@@ -2703,6 +2703,25 @@ function enableBackupButtons(enable = true) {
            </div>
           <!-- Account profile container (static profile) -->
           <style>
+            /* Inline spinner for auth buttons: sits beside text and animates when .running is toggled */
+            .inline-spinner {
+              display: inline-block;
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              box-sizing: border-box;
+              vertical-align: middle;
+              opacity: 0;
+              transition: opacity 120ms linear, transform 120ms linear;
+            }
+            .inline-spinner.running {
+              opacity: 1;
+              border: 2px solid rgba(255,255,255,0.25);
+              border-top-color: currentColor;
+              animation: __auth_spin 800ms linear infinite;
+              transform-origin: 50% 50%;
+            }
+            @keyframes __auth_spin { to { transform: rotate(360deg); } }
             /* Profile card responsive adjustments: 2 columns on desktop, stacked on mobile */
             .profile-card-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; align-items:stretch; }
             .profile-card-rows + .profile-card-rows { margin-top:8px; }
@@ -3139,6 +3158,33 @@ async function loadProfile(passedUser) {
       if (email) window.backupSync.setGroupEmail(email);
     }
   } catch(e) { console.debug('backup sync configuration failed:', e); }
+
+  // Post-load UI adjustments: show/hide settings and edit/backup controls based on email confirmation
+  try {
+    const isConfirmed = Boolean(currentUser && (currentUser.confirmed_at || currentUser.email_confirmed_at || currentUser.email_confirmed));
+    // Ensure embedded auth box is hidden when a user is loaded (stay on profile until logout)
+    try { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } catch(_){ }
+
+    // Show/hide the static Settings button based on confirmation state
+    try {
+      const settingsBtn = document.getElementById('settingsFromAccount');
+      if (settingsBtn) settingsBtn.style.display = isConfirmed ? '' : 'none';
+    } catch(e) { console.debug('settings show/hide failed', e); }
+
+    // Add extra bottom spacing for unconfirmed accounts so the account card doesn't overlap the menu
+    try {
+      const ac = document.getElementById('accountProfileContainer');
+      if (ac) ac.style.paddingBottom = isConfirmed ? '' : '56px';
+    } catch(e) { console.debug('account padding adjust failed', e); }
+
+    // Toggle edit & backup controls for unconfirmed accounts
+    try {
+      const showControls = Boolean(isConfirmed);
+      const ep = document.getElementById('editProfileToggle'); if (ep) ep.style.display = showControls ? '' : 'none';
+      const ids = ['backupNowBtn','restoreBackupBtn','backupHistoryBtn'];
+      ids.forEach(id => { try { const el = document.getElementById(id); if (el) el.style.display = showControls ? '' : 'none'; } catch(_){} });
+    } catch(e) { console.debug('edit/backup toggle failed', e); }
+  } catch(e) { console.debug('post-loadProfile UI adjustments failed', e); }
 }
 
 document.getElementById('editProfileBtn').onclick = function() {
@@ -4199,8 +4245,51 @@ function calculateTimeToNextCategory(age, category) {
     }
       if (error) {
         // map common supabase/auth errors to Persian messages
-        const msg = (error && error.message) ? error.message.toLowerCase() : '';
-        if (msg.includes('invalid password') || msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid grant')) {
+        const msg = (error && error.message) ? String(error.message).toLowerCase() : '';
+        // Detect email-not-confirmed / confirmation-required messages and show profile with resend option
+        if (msg.includes('email') && (msg.includes('confirm') || msg.includes('confirmation') || msg.includes('not confirmed') || msg.includes('unconfirmed') || msg.includes('confirm email'))) {
+          // show compact confirmation UI: 3-line hint, email, Logout & Resend buttons
+          try { showAlert(alertEl, 'لطفاً ایمیل خود را تأیید کنید — بعد از تأیید مجدداً وارد برنامه شوید', 'danger'); } catch(_){ }
+          try {
+            const ac = document.getElementById('accountProfileContainer'); if (ac) {
+              ac.style.display = 'block';
+              // clear contents of accountActions and show compact layout
+              const actions = document.getElementById('accountActions') || ac;
+              // remove/clear many controls and inject compact elements
+              try { actions.innerHTML = ''; } catch(_){}
+              // hint block
+              const hint = document.createElement('div');
+              hint.id = 'accountConfirmHint';
+              hint.style.fontSize = '0.95em';
+              hint.style.color = 'var(--muted)';
+              hint.style.margin = '6px 0 12px 0';
+              hint.style.lineHeight = '1.4';
+              hint.innerHTML = 'لطفاً ایمیل خود را تأیید کنید<br>بعد از تأیید ایمیل مجدداً وارد برنامه شوید.<br><small>ایمیل تأیید از طرف Supabase Auth ارسال می‌شود</small>';
+              actions.appendChild(hint);
+              // show user's email
+              const emDiv = document.createElement('div'); emDiv.style.marginBottom = '8px'; emDiv.style.fontWeight = '700'; emDiv.textContent = email || '';
+              actions.appendChild(emDiv);
+              // row for buttons
+              const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='6px';
+              // Logout
+              try {
+                const out = document.getElementById('logoutBtn') ? document.getElementById('logoutBtn') : document.createElement('button');
+                out.id = 'logoutBtn'; out.className = 'btn btn-ghost'; out.textContent = '🚪 خروج';
+                out.addEventListener('click', async ()=>{ try { const c = getSupabaseClient(); if (c && c.auth) await c.auth.signOut(); window.location.reload(); } catch(e){ console.debug('logout failed', e); } });
+                row.appendChild(out);
+              } catch(_){ }
+              // Resend confirmation
+              const b = document.createElement('button');
+              b.id = 'resendConfirmBtn'; b.className = 'btn btn-ghost'; b.textContent = 'ارسال مجدد ایمیل تأیید';
+              b.addEventListener('click', async ()=>{ try { await attemptResendConfirmation(email); alert('درخواست ارسال ایمیل تأیید ارسال شد. ایمیل خود را بررسی کنید'); } catch(e){ console.warn('resend attempt failed', e); alert('درخواست ارسال ایمیل تایید ناموفق بود'); } });
+              row.appendChild(b);
+              actions.appendChild(row);
+              // bottom spacing to avoid menu overlap
+              try { ac.style.paddingBottom = '56px'; } catch(_){ }
+            }
+          } catch(_){ }
+        }
+        else if (msg.includes('invalid password') || msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid grant')) {
           showAlert(alertEl,'رمز عبور اشتباه است','danger');
         } else if (msg.includes('user not found') || msg.includes('no user') || msg.includes('not found') || msg.includes('email not found')) {
           showAlert(alertEl,'کاربری با این ایمیل یافت نشد','danger');
@@ -4216,7 +4305,27 @@ function calculateTimeToNextCategory(age, category) {
         try {
           // Keep the embedded auth box visible and show the minimal account card below it
           const pc = document.getElementById('accountProfileContainer'); if (pc) { pc.style.display = 'block'; pc.scrollIntoView({behavior:'smooth', block:'start'}); }
-          if (window.loadProfile) await window.loadProfile(data.user);
+          if (window.loadProfile) {
+            // Ensure we have a stable user object from the auth client. Some Supabase setups
+            // may not immediately expose getUser() data right after signInWithPassword returns.
+            let userObj = (data && data.user) ? data.user : null;
+            try {
+              const client = getSupabaseClient();
+              if (client && (!userObj || !userObj.id) && client.auth && typeof client.auth.getUser === 'function') {
+                // poll briefly for the client to report the current user
+                for (let i = 0; i < 8; i++) {
+                  try {
+                    const { data: gu } = await client.auth.getUser();
+                    if (gu && gu.user && gu.user.id) { userObj = gu.user; break; }
+                  } catch(_){}
+                  await new Promise(r => setTimeout(r, 150));
+                }
+              }
+            } catch(e) { console.debug('post-login getUser poll failed', e); }
+            try { await window.loadProfile(userObj || data && data.user); } catch(e) { console.warn('loadProfile after login failed', e); }
+            // best-effort: refresh UI renderers so restored state shows immediately
+            try { if (typeof window.renderAll === 'function') window.renderAll(); } catch(_){}
+          }
           // Hide only the auth forms (keep account/profile card visible)
           try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
           // automatic background backup disabled to avoid unexpected POST errors
@@ -4290,26 +4399,28 @@ function calculateTimeToNextCategory(age, category) {
             const pc = document.getElementById('accountProfileContainer');
             if (pc) pc.style.display = 'block';
             if (!isConfirmed) {
-              // show a verification prompt instead of editable profile
+              // compact confirmation UI for unconfirmed signup
               try { document.getElementById('accountName').textContent = 'لطفاً ایمیل خود را تأیید کنید'; } catch(_){ }
               try { document.getElementById('accountEmail').textContent = email || ''; } catch(_){ }
-              // hide edit/save/backup buttons to avoid editing before confirmation
-              try { document.getElementById('editProfileToggle').style.display = 'none'; } catch(_){ }
-              try { document.getElementById('logoutBtn').style.display = 'inline-block'; } catch(_){ }
-              try { document.getElementById('backupNowBtn').style.display = 'none'; } catch(_){ }
-              // inject a "Resend confirmation" button so user can request another email if needed
               try {
-                const container = document.getElementById('accountActions') || document.getElementById('accountProfileContainer');
-                if (container && !document.getElementById('resendConfirmBtn')) {
-                  const b = document.createElement('button');
-                  b.id = 'resendConfirmBtn';
-                  b.className = 'btn btn-ghost';
-                  b.textContent = 'ارسال مجدد ایمیل تأیید';
-                  b.style.marginLeft = '8px';
-                  b.addEventListener('click', async ()=>{
-                    try { await attemptResendConfirmation(email); } catch(e){ console.warn('resend attempt failed', e); alert('درخواست ارسال ایمیل تایید ناموفق بود'); }
-                  });
-                  container.appendChild(b);
+                const ac = document.getElementById('accountProfileContainer'); if (ac) {
+                  ac.style.display = 'block';
+                  const actions = document.getElementById('accountActions') || ac;
+                  try { actions.innerHTML = ''; } catch(_){ }
+                  const hint = document.createElement('div');
+                  hint.id = 'accountConfirmHint'; hint.style.fontSize='0.95em'; hint.style.color='var(--muted)'; hint.style.margin='6px 0 12px 0'; hint.style.lineHeight='1.4';
+                  hint.innerHTML = 'لطفاً ایمیل خود را تأیید کنید<br>بعد از تأیید ایمیل مجدداً وارد برنامه شوید.<br><small>ایمیل تأیید از طرف Supabase Auth ارسال می‌شود</small>';
+                  actions.appendChild(hint);
+                  const emDiv = document.createElement('div'); emDiv.style.marginBottom='8px'; emDiv.style.fontWeight='700'; emDiv.textContent = email || '';
+                  actions.appendChild(emDiv);
+                  const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='6px';
+                  const out = document.getElementById('logoutBtn') ? document.getElementById('logoutBtn') : document.createElement('button');
+                  out.id='logoutBtn'; out.className='btn btn-ghost'; out.textContent='🚪 خروج'; out.addEventListener('click', async ()=>{ try { const c = getSupabaseClient(); if (c && c.auth) await c.auth.signOut(); window.location.reload(); } catch(e){ console.debug('logout failed', e); } });
+                  row.appendChild(out);
+                  const b = document.createElement('button'); b.id='resendConfirmBtn'; b.className='btn btn-ghost'; b.textContent='ارسال مجدد ایمیل تأیید'; b.addEventListener('click', async ()=>{ try { await attemptResendConfirmation(email); alert('درخواست ارسال ایمیل تأیید ارسال شد. ایمیل خود را بررسی کنید'); } catch(e){ console.warn('resend attempt failed', e); alert('درخواست ارسال ایمیل تایید ناموفق بود'); } });
+                  row.appendChild(b);
+                  actions.appendChild(row);
+                  try { ac.style.paddingBottom='56px'; } catch(_){ }
                 }
               } catch(_){ }
               // attempt to register device even if account unconfirmed so devices table is populated
@@ -5150,6 +5261,37 @@ function imageFileToDataURL(file, maxKB) {
         if (dbg) dbg.textContent = 'وضعیت: سشن معتبر یافت شد؛ در حال بارگذاری پروفایل...';
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
         try { await window.loadProfile(session.user); if (dbg) dbg.textContent = 'پروفایل بارگذاری شد'; } catch(e){ console.warn('restore loadProfile failed', e); if (dbg) dbg.textContent = 'پروفایل یافت نشد (خطا در loadProfile)'; }
+
+        // After successful login/profile load: if local app state is empty, offer to restore the latest shared backup
+        try {
+          const key = (typeof STORAGE_KEY !== 'undefined') ? STORAGE_KEY : 'vb_dashboard_v8';
+          const raw = localStorage.getItem(key);
+          const isEmptyLocal = !(raw && raw.length > 10);
+          // If local is empty and backupSync provides restoreFromLatest, ask the user whether to import
+          if (isEmptyLocal && window.backupSync && typeof window.backupSync.restoreFromLatest === 'function') {
+            // Avoid prompting during initial signup flows where UI intentionally hides backup buttons
+            // Use a confirm dialog to ask the user — non-blocking fallback if window.confirm unavailable
+            let accept = false;
+            try {
+              accept = confirm('به نظر می‌رسد داده‌های محلی شما خالی است. آیا می‌خواهید آخرین بک‌آپ گروهی را وارد کنید؟ (در غیر این صورت ادامه با داده‌های محلی فعلی)');
+            } catch(e) { accept = false; }
+            if (accept) {
+              try {
+                if (dbg) dbg.textContent = 'در حال بازیابی آخرین بک‌آپ...';
+                await window.backupSync.restoreFromLatest();
+                // render or reload UI to pick up restored data
+                try { if (typeof renderAll === 'function') renderAll(); else window.location.reload(); } catch(_){ window.location.reload(); }
+                return; // restored and reloaded
+              } catch(err) {
+                console.warn('restoreFromLatest failed', err);
+                try { alert('بازیابی از بک‌آپ ناموفق بود، ادامه با داده محلی'); } catch(_){ }
+              }
+            } else {
+              // user declined; ensure backup buttons are enabled so they can create/import manually
+              try { if (typeof enableBackupButtons === 'function') enableBackupButtons(true); } catch(_){ }
+            }
+          }
+        } catch(e) { console.debug('post-login restore prompt failed', e); }
       } else {
         if (dbg) dbg.textContent = 'وضعیت: سشن معتبر وجود ندارد — نمایش فرم لاگین';
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
@@ -6616,6 +6758,9 @@ function showView(viewId, params = {}, noPush = false) {
   if (viewId === 'home') {
     qs('#appHeader').style.display = 'flex';
     renderHome();
+    // notifications loader moved to end-of-file to ensure the debug script
+    // is loaded after all main app code and window-level helpers are defined.
+    // (no-op here)
   } else {
     qs('#appHeader').style.display = 'none';
   }
@@ -9979,6 +10124,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (unread > 0) { b.style.display = 'inline-block'; b.textContent = String(unread > 99 ? '99+' : unread); }
         else b.style.display = 'none';
       });
+      // update account icon dot if present
+      try {
+        const acc = document.getElementById('accountMenu');
+        if (acc) {
+          let dot = acc.querySelector('.account-notif-dot');
+          if (!dot) {
+            dot = document.createElement('span');
+            dot.className = 'account-notif-dot';
+            acc.style.position = acc.style.position || 'relative';
+            acc.appendChild(dot);
+          }
+          dot.style.display = unread > 0 ? 'block' : 'none';
+        }
+      } catch(e){}
     } catch (e) { console.warn('updateNotificationsBadge failed', e); }
   }
 
@@ -9986,23 +10145,119 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const el = document.getElementById('notificationsContent');
       if (!el) return;
+      // mark all as read when opening the notifications view
+      try {
+        if (state && Array.isArray(state.notifications)) {
+          state.notifications.forEach(n => { if (n) n.read = true; });
+          try { if (typeof saveState === 'function') saveState(); } catch(e){}
+          try { updateNotificationsBadge(); } catch(e){}
+        }
+      } catch(e){}
       el.innerHTML = '';
-      const arr = state.notifications || [];
+      const arr = (state.notifications || []).slice().sort((a,b)=> (b && b.ts? b.ts:0) - (a && a.ts? a.ts:0));
       if (!arr.length) {
         el.innerHTML = '<div class="muted" style="padding:12px;">هیچ اعلانی وجود ندارد</div>';
         return;
       }
+      // render newest first (arr already sorted desc)
       arr.forEach(n => {
-        const r = document.createElement('div');
-        r.className = 'notification-item card';
-        r.style.padding = '10px';
-        r.style.marginBottom = '8px';
-        r.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="flex:1"><div style="font-weight:700">${escapeHtml(n.title||'بدون عنوان')}</div><div style="color:var(--muted);font-size:13px;margin-top:6px;">${escapeHtml(n.body||'')}</div></div><div style="flex:0 0 auto;margin-left:8px;color:var(--muted);font-size:12px;">${new Date(n.ts||Date.now()).toLocaleString()}</div></div>`;
-        r.addEventListener('click', ()=>{ n.read = true; updateNotificationsBadge(); renderNotifications(); if (n.onClick) try{ n.onClick(n); } catch(_){ } });
-        el.appendChild(r);
+        try {
+          const r = document.createElement('div');
+          const typeClass = n && n.type ? 'type-' + String(n.type).replace(/[^a-z0-9\-]/gi,'').toLowerCase() : '';
+          r.className = 'notif-card ' + typeClass;
+          // full width card styling (keeps existing theme classes but enforces full width)
+          r.style.width = '100%';
+          r.style.boxSizing = 'border-box';
+          r.style.padding = '12px 14px';
+          r.style.marginBottom = '10px';
+          r.style.position = 'relative';
+
+          // close button positioned top-left (won't overlap content)
+          const btn = document.createElement('button');
+          btn.className = 'close-btn';
+          btn.title = 'حذف';
+          btn.setAttribute('data-id', String(n.id));
+          btn.textContent = '✖';
+          // style: top-left corner, subtle, non-intrusive
+          btn.style.position = 'absolute';
+          btn.style.top = '8px';
+          btn.style.left = '8px';
+          btn.style.background = 'transparent';
+          btn.style.border = 'none';
+          btn.style.cursor = 'pointer';
+          btn.style.fontSize = '14px';
+          btn.style.padding = '4px';
+          btn.style.lineHeight = '1';
+
+          // content wrapper with left padding so the close button doesn't overlap (RTL aware)
+          const content = document.createElement('div');
+          content.style.paddingLeft = '36px';
+          content.style.paddingRight = '6px';
+          content.style.textAlign = 'right';
+
+          const titleDiv = document.createElement('div');
+          titleDiv.className = 'title';
+          titleDiv.innerHTML = escapeHtml(n.title || 'بدون عنوان');
+          titleDiv.style.fontWeight = '700';
+          titleDiv.style.marginBottom = '6px';
+
+          const bodyDiv = document.createElement('div');
+          bodyDiv.className = 'body';
+          bodyDiv.innerHTML = escapeHtml(n.body || '');
+          bodyDiv.style.marginBottom = '8px';
+
+          // Format timestamp to Jalali if helper exists
+          let tsStr = '';
+          try {
+            if (n.ts && typeof window.isoToJalali === 'function') {
+              // convert numeric ts -> ISO -> jalali
+              const iso = new Date(Number(n.ts)).toISOString();
+              tsStr = isoToJalali(iso) + ' - ' + new Date(Number(n.ts)).toLocaleTimeString();
+            } else {
+              tsStr = new Date(Number(n.ts||Date.now())).toLocaleString();
+            }
+          } catch(e){ tsStr = new Date(Number(n.ts||Date.now())).toLocaleString(); }
+
+          const tsDiv = document.createElement('div');
+          tsDiv.className = 'ts';
+          tsDiv.textContent = tsStr;
+          tsDiv.style.color = 'var(--muted)';
+          tsDiv.style.fontSize = '13px';
+
+          content.appendChild(titleDiv);
+          content.appendChild(bodyDiv);
+          content.appendChild(tsDiv);
+
+          // click on card (but not on close btn) marks as read and triggers optional onClick
+          r.addEventListener('click', (ev)=>{
+            if (ev.target && ev.target.classList && ev.target.classList.contains('close-btn')) return;
+            try { if (n) n.read = true; } catch(_){}
+            try{ if (typeof saveState === 'function') saveState(); } catch(e){}
+            try{ updateNotificationsBadge(); } catch(e){}
+            try{ if (n && typeof n.onClick === 'function') n.onClick(n); } catch(e){}
+            // keep view showing; do not auto-close view
+            renderNotifications();
+          });
+
+          // close button handler: remove and persist
+          btn.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            try { state.notifications = (state.notifications || []).filter(x=>String(x.id) !== String(btn.getAttribute('data-id'))); } catch(_){ }
+            try{ if (typeof saveState === 'function') saveState(); } catch(e){}
+            try{ updateNotificationsBadge(); } catch(e){}
+            renderNotifications();
+          });
+
+          r.appendChild(btn);
+          r.appendChild(content);
+          el.appendChild(r);
+        } catch (e) { console.warn('renderNotifications: item render failed', e); }
       });
     } catch(e) { console.warn('renderNotifications failed', e); }
   }
+
+    // expose for console testing
+    window.renderNotifications = renderNotifications;
 
   // wire notifications button in account area to the view
   try {
@@ -10017,7 +10272,23 @@ document.addEventListener('DOMContentLoaded', () => {
       Array.from(document.querySelectorAll('.notifications-badge')).forEach(b => { if (cnt>0) { b.style.display='inline-block'; b.textContent = String(cnt>99?'99+':cnt); } else b.style.display='none'; });
     }
     // call once and also when badge updates
-    try { syncClassBadges(); } catch(_){}
+    try { syncClassBadges(); } catch(_){ }
+    // ensure account icon has a dot element
+    try {
+      const acc = document.getElementById('accountMenu');
+      if (acc) {
+        let dot = acc.querySelector('.account-notif-dot');
+        if (!dot) {
+          dot = document.createElement('span');
+          dot.className = 'account-notif-dot';
+          acc.style.position = acc.style.position || 'relative';
+          acc.appendChild(dot);
+        }
+        // update visibility now
+        const cnt = (state.notifications||[]).filter(n=>!n.read).length;
+        dot.style.display = cnt>0 ? 'block' : 'none';
+      }
+    } catch(e){}
   } catch(e) { console.warn('wire notifications handlers failed', e); }
 
   // safe HTML escape helper for small UI snippets
@@ -10041,8 +10312,89 @@ document.addEventListener('DOMContentLoaded', () => {
   on('#backDebtors', 'click', () => { if (!goBack()) showView('payments'); });
   // BMI filter: use dropdown #filterBmi on players page
   on('#filterBmi', 'change', renderPlayersPage);
-  on('#settingsFromAccount', 'click', () => showView('settings'));
+  // settings button is created dynamically for confirmed users; notifications quick-action remains
   on('#notificationsFromSettings', 'click', () => { showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+  // transient DOM toast fallback: guaranteed visible popup for a few seconds
+  function showTransientMessage(msg, ms = 5000) {
+    try {
+      // remove existing transient if present
+      const existing = document.getElementById('__transient_toast');
+      if (existing) { try { existing.remove(); } catch(_){} }
+      const d = document.createElement('div');
+      d.id = '__transient_toast';
+      d.setAttribute('role','status');
+      d.style.position = 'fixed';
+      d.style.left = '50%';
+      d.style.transform = 'translateX(-50%)';
+      d.style.bottom = '84px';
+      d.style.zIndex = 99999;
+      d.style.background = 'rgba(17,24,39,0.98)';
+      d.style.color = '#fff';
+      d.style.padding = '12px 16px';
+      d.style.borderRadius = '10px';
+      d.style.boxShadow = '0 6px 24px rgba(2,6,23,0.24)';
+      d.style.fontSize = '14px';
+      d.style.direction = 'rtl';
+      d.style.textAlign = 'right';
+      d.style.maxWidth = '92%';
+      d.style.opacity = '0';
+      d.style.transition = 'opacity 220ms ease';
+      d.textContent = String(msg || '');
+      document.body.appendChild(d);
+      // force paint then fade in
+      window.getComputedStyle(d).opacity;
+      d.style.opacity = '1';
+      // remove after timeout
+      setTimeout(()=>{
+        try { d.style.opacity = '0'; setTimeout(()=>{ try { d.remove(); } catch(_){} }, 260); } catch(_){}
+      }, Math.max(2000, ms || 5000));
+      return d;
+    } catch(e) { try { alert(msg); } catch(_){} }
+  }
+  // Settings button: only open settings if user is authenticated; otherwise show a hint
+  on('#settingsFromAccount', 'click', async function(){
+    try {
+      // prefer getCurrentUserId helper which returns { userId, user }
+      if (typeof getCurrentUserId === 'function') {
+        const { userId } = await getCurrentUserId();
+        if (userId) { try { showView('settings'); } catch(_){}; return; }
+      } else {
+        const client = getSupabaseClient();
+        if (client && client.auth && typeof client.auth.getUser === 'function') {
+          try {
+            const { data } = await client.auth.getUser();
+            const u = data && data.user ? data.user : null;
+            if (u && u.id) { try { showView('settings'); } catch(_){}; return; }
+          } catch(_){}
+        }
+      }
+    } catch(e) { console.debug('settings auth check failed', e); }
+    // Not authenticated: show a small inline hint under the Settings button for a few seconds
+    try {
+      const btn = document.getElementById('settingsFromAccount');
+      const hintId = 'settingsAuthHint';
+      // remove existing hint if present
+      try { const ex = document.getElementById(hintId); if (ex) ex.remove(); } catch(_){ }
+      const hint = document.createElement('div');
+      hint.id = hintId;
+      hint.style.marginTop = '8px';
+      hint.style.fontSize = '0.95em';
+      hint.style.color = 'var(--muted)';
+      hint.style.background = 'transparent';
+      hint.style.direction = 'rtl';
+      hint.textContent = 'برای دسترسی به تنظیمات وارد حساب کاربری خود شوید.';
+      if (btn && btn.parentNode) {
+        // insert directly after the button
+        try { btn.parentNode.insertBefore(hint, btn.nextSibling); } catch(_) { btn.parentNode.appendChild(hint); }
+      } else {
+        // fallback: append to account container
+        try { const ac = document.getElementById('accountProfileContainer'); if (ac) ac.appendChild(hint); }
+        catch(_){}
+      }
+      // auto-hide after 9 seconds
+      setTimeout(()=>{ try { const el = document.getElementById(hintId); if (el) el.remove(); } catch(_){} }, 9000);
+    } catch(e) { console.debug('show settings auth hint failed', e); }
+  });
 
 // ensure Rank Editor link updates when showing settings
 function showSettingsAndRankInfo() {
@@ -10557,11 +10909,79 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
   <!-- Load new backup module and expose singleton to non-module scripts -->
   <script type="module">
     try {
-      import('./sync-backup.js').then(mod => {
-        try { window.backupSync = mod.default || mod.backupSync || null; }
+      import('./src/backup/index.js').then(mod => {
+        try { window.backupSync = mod.default || mod.backupSync || mod.backupSync || null; }
         catch(e) { console.debug('assigning backupSync failed', e); }
-      }).catch(e => console.debug('loading sync-backup.js failed', e));
+      }).catch(e => console.debug('loading src/backup/index.js failed', e));
     } catch(e) { console.debug('module import failed', e); }
   </script>
+
+  <!-- ✅ لود بعد از همه‌ی فایل‌های دیگر -->
+  <!-- Ensure a container for in-page notifications exists -->
+  <style>
+    #view-notifications {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      max-width: 360px;
+      z-index: 9999;
+      font-family: Vazirmatn, sans-serif;
+      direction: rtl;
+    }
+    #view-notifications h2 { display:none; }
+    #notificationsList { display:flex;flex-direction:column;gap:0.75rem; }
+    .notif-card {
+      background:#fff3cd;
+      padding:0.75rem 1rem;
+      border-radius:10px;
+      box-shadow:0 2px 5px rgba(0,0,0,0.12);
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      align-items:stretch;
+      animation:slidein 0.22s ease;
+      border-left:6px solid #ffc107;
+      width:95%;
+      margin:0 auto;
+      position:relative;
+      box-sizing:border-box;
+    }
+    .notif-card.type-birthday { border-left-color: #ff9800; }
+    .notif-card.type-session, .notif-card.type-training { border-left-color: #4caf50; }
+    .notif-card.type-competition { border-left-color: #2196f3; }
+    .notif-card .title { font-weight:700; text-align:right; }
+    .notif-card .body { color:var(--muted); font-size:14px; text-align:right; }
+    .notif-card .ts { color:var(--muted); font-size:12px; text-align:right; }
+    .notif-card .actions { display:flex; justify-content:flex-start; gap:8px; }
+  .notif-card button { background:transparent;border:none;font-size:16px;cursor:pointer;color:#555; }
+  .notif-card .close-btn { position:absolute; top:8px; right:8px; background:transparent;border:none;font-size:16px;cursor:pointer;color:#555; }
+  /* account dot overlay */
+  .account-notif-dot { position:absolute; width:10px; height:10px; border-radius:999px; background:#dc3545; right:8px; top:8px; box-shadow:0 0 0 2px rgba(255,255,255,0.5); display:none; }
+    @keyframes slidein { from { opacity:0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
+    .notifications-badge { background:#dc3545;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px; }
+    .badge-pop { transform: scale(1.15); transition: transform 0.25s ease; }
+  </style>
+  <div id="view-notifications" style="display:block;padding:8px;">
+    <h2>📢 اعلان‌ها</h2>
+    <div id="notificationsList"></div>
+  </div>
+  <script src="./notifications.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.initNotifications) {
+        try {
+          window.initNotifications();
+          console.log("✅ notifications initialized from index.html");
+        } catch(e) {
+          console.warn("⚠️ initNotifications failed:", e);
+        }
+      } else {
+        console.warn("⚠️ notifications.js not loaded yet.");
+      }
+    });
+  </script>
 </body>
+<!-- Modular bootstrap (ES Module) - loads compatibility shims and src modules -->
+<link rel="stylesheet" href="src/styles/main.css">
+<script type="module" src="src/main.js"></script>
 </html>
