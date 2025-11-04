@@ -305,14 +305,19 @@
       // run once now
       // Ensure container for notificationsList exists (per requirement)
       try {
+        // ensure the app's notifications view/content exist and use the canonical
+        // #notificationsContent container which is declared in index.html
         let view = document.getElementById('view-notifications');
         if (!view) {
           view = document.createElement('section');
           view.id = 'view-notifications';
           document.body.insertBefore(view, document.body.firstChild);
         }
-        if (!document.getElementById('notificationsList')) {
-          const list = document.createElement('div'); list.id = 'notificationsList'; list.style = 'display:flex;flex-direction:column;gap:8px;padding:12px;'; view.appendChild(list);
+        if (!document.getElementById('notificationsContent')) {
+          const content = document.createElement('div');
+          content.id = 'notificationsContent';
+          content.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;';
+          view.appendChild(content);
         }
       } catch(e) { /* ignore */ }
       // cleanup notifications older than 7 days

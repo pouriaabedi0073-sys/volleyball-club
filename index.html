@@ -145,69 +145,30 @@
   #view-match-edit #matchFormPage { display:block; }
   #view-match-edit .team-column { min-width:0; }
 }
+  /* Main theme tokens (replaced legacy per-user request) */
   :root {
-  --bg: #F9FAFB; /* همگام با modern */
-  --header-bg: linear-gradient(180deg, rgba(230,247,255,0.5), rgba(179,229,252,0.5));
-  --card: #ffffff;
-  --muted: #6b7785;
-  --accent: #3B82F6; /* آبی پررنگ modern */
-  --accent-2: #34d399;
-  --text: #111827;
-  --text-inverse: #ffffff;
-  --icon-stroke: #374151;
-  --glass: rgba(255,255,255,0.85);
-  --shadow: rgba(20,30,40,0.15);
-  --danger: #dc2626;
-  --warning: #f59e0b;
-  --success: #22c55e;
-  --border-radius: 16px;
-  --base-font-size: 16px;
-  --spacing-small: 8px;
-  --spacing-medium: 12px;
-  --spacing-large: 16px;
-  --thumb-size: 56px;
-  --btn-min-height: 44px;
-  --btn-min-width: 80px;
-  }
-  [data-style="luxury"] {
-    --bg: #111827; /* تیره مشکی/سرمه‌ای */
-    --header-bg: linear-gradient(180deg, rgba(31,42,68,0.5), rgba(20,30,40,0.5));
-    --card: #1E293B;
-    --muted: #a0aec0;
-    --accent: #FACC15; /* طلایی */
-    --accent-2: #0EA5E9; /* فیروزه‌ای تیره */
-    --text: #e2e8f0;
-    --text-inverse: #1f2a44;
-    --text-inverse: #1f2a44;
-    --icon-stroke: #e2e8f0;
-    --glass: rgba(44,62,80,0.85);
-    --shadow: rgba(0,0,0,0.3);
-  }
-  [data-style="fun"] {
-    --bg: #F3F4F6; /* طوسی خیلی روشن */
-    --header-bg: linear-gradient(180deg, rgba(230,247,255,0.5), rgba(179,229,252,0.5));
+    --bg: #f8faff;
+    --header-bg: rgba(255,255,255,0.88); /* glassy white */
     --card: #ffffff;
     --muted: #6b7785;
-    --accent: #8B5CF6; /* بنفش */
-    --accent-2: #06B6D4; /* فیروزه‌ای */
-    --text: #1f2a44;
-    --text-inverse: #ffffff;
-    --icon-stroke: #ffffff;
-    --glass: rgba(255,255,255,0.85);
-    --shadow: rgba(20,30,40,0.15);
-  }
-  [data-style="modern"] {
-    --bg: #F9FAFB; /* خاکستری خیلی روشن */
-    --header-bg: linear-gradient(180deg, rgba(230,247,255,0.5), rgba(179,229,252,0.5));
-    --card: #ffffff;
-    --muted: #6b7785;
-    --accent: #3B82F6; /* آبی پررنگ */
-    --accent-2: #34d399;
+    --accent: #1e88e5; /* volleyball blue */
+    --accent-2: #ffb300; /* volleyball yellow */
     --text: #111827;
     --text-inverse: #ffffff;
     --icon-stroke: #374151;
-    --glass: rgba(255,255,255,0.85);
-    --shadow: rgba(20,30,40,0.15);
+    --glass: rgba(255,255,255,0.9);
+    --shadow: rgba(20,30,40,0.12);
+    --danger: #dc2626;
+    --warning: #f59e0b;
+    --success: #22c55e;
+    --border-radius: 16px;
+    --base-font-size: 16px;
+    --spacing-small: 8px;
+    --spacing-medium: 12px;
+    --spacing-large: 16px;
+    --thumb-size: 56px;
+    --btn-min-height: 44px;
+    --btn-min-width: 80px;
   }
   * {
     box-sizing: border-box;
@@ -231,11 +192,14 @@
   header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   padding: 8px 12px;
   /* prefer explicit per-theme header variables, fallback to generic --header-bg */
-  background: var(--header-bg, var(--header-bg-modern));
-  height: 120px;
+  background: var(--header-bg, rgba(255,255,255,0.9));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  height: 80px;
+  position: relative;
   /* use 100% instead of 100vw to avoid horizontal overflow when scrollbars present */
   width: 100%; /* full-bleed but respect scrollbar width */
   margin-left: 0;
@@ -243,8 +207,8 @@
   animation: fadeIn 0.5s ease-in-out; /* انیمیشن ورود */
   }
   #appLogo {
-    width: 64px;
-    height: 64px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     margin-right: 12px;
     margin-left: 8px;
@@ -262,10 +226,29 @@
     object-position: center center;
   }
   #appTitle {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700; /* بولدتر برای فونت بهتر */
     color: var(--text);
   }
+
+  /* Theme switch button styling inside header (header-specific switch) */
+  .theme-switch { display:inline-flex; align-items:center; justify-content:center; }
+  /* legacy floating switch kept in DOM but hidden; header uses its own visible control */
+  body > .theme-switch { display: none !important; }
+
+  /* Header switch (text + switch) */
+  .header-theme-switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+  .header-theme-switch .switch-track { width:48px; height:28px; background:var(--card); border-radius:999px; display:block; padding:3px; box-sizing:content-box; position:relative; transition:background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; border:2px solid rgba(0,0,0,0.12); }
+  .header-theme-switch .switch-thumb { width:22px; height:22px; border-radius:50%; background:var(--muted); display:block; position:absolute; left:3px; top:3px; transition:left 0.18s ease, background 0.18s ease; box-shadow:0 3px 8px rgba(0,0,0,0.12); }
+  /* dark mode visuals (apply when document root has theme-dark) */
+  .theme-dark .header-theme-switch .switch-track { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06); }
+  .theme-dark .header-theme-switch .switch-thumb { background: var(--accent-2); left: calc(100% - 3px - 22px); }
+  /* also react to the actual input checked state (keeps UI responsive even before theme-class toggles) */
+  .header-theme-switch input:checked + .switch-track { border-color: var(--accent-2); background: rgba(255,255,255,0.03); }
+  .header-theme-switch input:checked + .switch-track .switch-thumb { left: calc(100% - 3px - 22px); background: var(--accent-2); }
+  .header-theme-switch:focus-within, .header-theme-switch input:focus + .switch-track { outline: 3px solid rgba(30,136,229,0.12); outline-offset: 2px; }
+  /* visually-hidden helper that doesn't cause focus-to-scroll issues */
+  .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
   .mobile-menu {
     display: flex;
     position: fixed;
@@ -288,7 +271,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    background: var(--accent);
     color: var(--text-inverse);
     transition: all 0.3s ease-in-out;
     box-shadow: 0 2px 6px var(--shadow);
@@ -347,13 +330,47 @@
     box-shadow: 0 4px 8px var(--shadow);
   }
   .btn.primary {
-    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    background: var(--accent-2); /* Yellow */
     color: var(--text-inverse);
     border: none;
   }
   .btn.primary:hover {
-    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+    filter: brightness(0.94);
   }
+
+  /* secondary flat button (blue) */
+  .btn.secondary {
+    background: var(--accent); /* Blue */
+    color: var(--text-inverse);
+    border: none;
+  }
+  .btn.secondary:hover { filter: brightness(0.96); }
+
+  /* Button icon helper: use inline SVG <use> or sprite via injector */
+  .btn .icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-inline-start: 8px; /* spacing that respects RTL/LTR */
+    vertical-align: middle;
+    color: inherit;
+  }
+  .btn .btn-icon { width:18px; height:18px; display:inline-block; vertical-align:middle; }
+
+  /* Home page specific styling */
+  #view-home .section-title h3 { font-size: 16px; }
+  .section-title { padding-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); margin-bottom: 12px; }
+  /* Make main page buttons yellow with white text by default */
+  #view-home .btn.primary { background: var(--accent-2); color: var(--text-inverse); }
+  /* ensure show-list button can be blue via .secondary */
+  #view-home .btn.secondary { background: var(--accent); color: var(--text-inverse); }
+
+  /* Header text color (title/logo area) should be blue */
+  header, header #appTitle { color: var(--accent); }
+  /* Also make per-view fixed headers match the blue accent */
+  .view-header h3 { color: var(--accent); }
   /* Competitions / Matches styles */
   .competitions-top { display:flex;justify-content:space-between;align-items:center;gap:12px; }
   .matches-tabs { display:flex;gap:8px;flex-wrap:nowrap;overflow:auto; }
@@ -460,7 +477,7 @@
     text-align: center;
     white-space: nowrap;
   }
-  .action-tile-grid .action-tile.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: var(--text-inverse); border: none; }
+  .action-tile-grid .action-tile.primary { background: var(--accent); color: var(--text-inverse); border: none; }
   .action-tile-grid .action-tile.warn { background: linear-gradient(90deg, var(--warning), #f59e0b); color: var(--text-inverse); border: none; }
   /* membership card responsive tweaks */
   #membershipCard { transition: all 0.25s ease; }
@@ -728,6 +745,13 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+  /* Ensure player images are clickable on touch devices and allow manipulation gestures */
+  .player-image, .player-thumb img {
+    touch-action: manipulation;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.06);
+    pointer-events: auto !important;
   }
   /* placeholder avatar when photo is missing: an inner gray circle sized to match thumb */
   .avatar-placeholder-outer { width: 52px; height: 52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background: transparent }
@@ -1059,7 +1083,7 @@
   align-items: center; /* تراز کردن عمودی */
   white-space: nowrap; /* جلوگیری از شکستن به خط بعدی */
   -webkit-overflow-scrolling: touch; /* smooth scrolling on iOS */
-  touch-action: pan-x; /* allow horizontal pan inside this container */
+  touch-action: auto; /* allow browser to decide — enable normal page scroll and horizontal pan */
   scroll-snap-type: x mandatory; /* snap items for nicer sliding */
   }
   .players-preview .player-row {
@@ -1161,23 +1185,14 @@
   }
 
   .birthday-card {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2)); /* گرادینت رنگی‌تر بر اساس قالب */
+  /* Make birthdays card consistent with other cards; color/typography tuned for birthdays */
+  background: var(--glass);
   position: relative;
   overflow: hidden;
   box-shadow: 0 8px 24px var(--shadow);
-  color: var(--text-inverse); /* متن سفید */
+  color: var(--text);
   border-radius: var(--border-radius);
   padding: 16px;
-}
-.birthday-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, rgba(255,255,255,0.2), rgba(255,255,255,0)); /* سایه مورب */
-  transform: rotate(45deg);
 }
 .birthday-card .section-title {
   display: flex;
@@ -1186,39 +1201,33 @@
   margin-bottom: 12px;
 }
 .birthday-card .section-title h3 {
-  color: var(--text-inverse);
-  font-size: 18px;
+  color: var(--text);
+  font-size: 16px;
   margin: 0;
 }
 .birthday-icon-title {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, #FF6B6B, #FFD700); /* گرادینت جذاب برای آیکون کیک */
+  background: var(--accent-2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-  animation: pulse 1.5s infinite;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
 }
-.birthday-icon-title svg {
-  width: 20px;
-  height: 20px;
-  fill: var(--text-inverse);
-}
+.birthday-icon-title svg { width:20px;height:20px;fill:var(--text-inverse); }
 .birthday-card .player-row {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px;
-  background: rgba(255,255,255,0.1); /* کادر نیمه‌شفاف برای هر بازیکن */
-  border-radius: var(--border-radius);
+  background: var(--card);
+  border-radius: 10px;
   position: relative;
   cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.04);
 }
-.birthday-card .player-thumb {
-  position: relative;
-}
+.birthday-card .player-thumb { position: relative; }
 /* .birthday-icon-player {
   position: absolute;
   bottom: -5px;
@@ -1244,7 +1253,7 @@
   flex-direction: column;
 }
 .birthday-card .meta strong {
-  color: var(--text-inverse);
+  color: var(--text);
 }
 .birthday-card .meta small {
   color: rgba(255,255,255,0.8);
@@ -1690,7 +1699,7 @@ section:not(#view-home) {
 .match-kind {display:flex;gap:8px;align-items:center}
 .match-status {font-size:13px}
 .match-badges {display:flex;gap:8px;align-items:center}
-.fab {position:fixed;right:18px;bottom:18px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:var(--text-inverse);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px rgba(14,165,233,0.18);cursor:pointer;z-index:2000}
+.fab {position:fixed;right:18px;bottom:18px;width:56px;height:56px;border-radius:50%;background:var(--accent-2);color:var(--text-inverse);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px rgba(255,179,0,0.18);cursor:pointer;z-index:2000}
 .muted-small {color:var(--muted);font-size:13px}
 
 /* Share preview tweaks: keep controls out of the printed/captured card */
@@ -1739,6 +1748,220 @@ section:not(#view-home) {
 </style>
 
 </style>
+<style>
+/* Feather icon rule: sized and colorable by currentColor */
+.icon { width: 24px; height: 24px; fill: currentColor; stroke: currentColor; display: inline-block; vertical-align: middle; }
+.icon svg { width: 24px; height: 24px; }
+</style>
+<script>
+// Icon injector: replace <span class="icon icon-name"></span> with
+// <svg class="icon"><use href="assets/icons/feather-sprite.svg#name"></use></svg>
+(function(){
+  function nameFromEl(el){
+    if(!el || !el.classList) return null;
+    for(const c of el.classList){ if (c.indexOf('icon-')===0) return c.replace('icon-',''); }
+    return null;
+  }
+  function makeUseSVG(name, classes){
+    try{
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', (classes || '').toString());
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+      svg.setAttribute('width', '24'); svg.setAttribute('height', '24');
+      // prefer href (supported) and set xlink:href for older browsers
+      const use = document.createElementNS(ns, 'use');
+      try { use.setAttribute('href', 'assets/icons/feather-sprite.svg#' + name); } catch(e){}
+      try { use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', 'assets/icons/feather-sprite.svg#' + name); } catch(e){}
+      svg.appendChild(use);
+      return svg;
+    } catch(e){ console.warn('makeUseSVG failed', e); return null; }
+  }
+
+  function upgradeIcons(root){
+    const nodes = (root || document).querySelectorAll('span.icon');
+    nodes.forEach(span => {
+      const name = nameFromEl(span);
+      if(!name) return;
+      const classes = Array.from(span.classList).filter(c => c !== 'icon' && !c.startsWith('icon-')).join(' ');
+      const svg = makeUseSVG(name, classes);
+      if (!svg) return;
+      // preserve id and title if present
+      if (span.id) svg.id = span.id;
+      const title = span.getAttribute('title'); if (title) { const t = document.createElement('title'); t.textContent = title; svg.insertBefore(t, svg.firstChild); }
+      span.parentNode.replaceChild(svg, span);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => upgradeIcons(document));
+  } else {
+    setTimeout(() => upgradeIcons(document), 0);
+  }
+  // observe future mutations
+  try{
+    const mo = new MutationObserver(muts => muts.forEach(m => { m.addedNodes && m.addedNodes.forEach(n=>{ if (n && n.querySelectorAll) upgradeIcons(n); }); }));
+    mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  } catch(e){}
+})();
+
+</script>
+
+<!-- Theme tokens override (volleyball light/dark) -->
+<style id="vb-theme">
+  :root {
+    --bg: #f8faff;
+    --card: #ffffff;
+    --text: #111827;
+    --text-inverse: #ffffff;
+    --muted: #6b7785;
+    --accent: #1e88e5; /* blue */
+    --accent-2: #ffb300; /* yellow */
+  --glass: rgba(255,255,255,0.9);
+  --shadow: rgba(20,30,40,0.12);
+  --header-bg: rgba(255,255,255,0.88);
+    --border-radius: 16px;
+  }
+  .theme-dark, .theme-dark body, .theme-dark :root {
+    --bg: #121212;
+    --card: #1e1e1e;
+    --text: #e6eefb;
+    --text-inverse: #0b1220;
+    --muted: #9aa9c7;
+    --accent: #6ab7ff;
+    --accent-2: #ffb300;
+  --glass: rgba(20,20,20,0.6);
+  --shadow: rgba(0,0,0,0.6);
+  --header-bg: rgba(18,18,18,0.95);
+  }
+  /* small helpers for theme switch visuals */
+  #themeToggle + .icon, .theme-switch .icon { transition: transform 0.18s ease, color 0.18s ease; }
+  .theme-dark #themeToggle + .icon { transform: rotate(20deg); color: var(--accent-2); }
+  /* Dark-mode visual fixes: ensure cards, inputs and modals remain legible
+     without changing component structure (overrides keep specificity low).
+     These are conservative tweaks to fix remaining black text / invisible inputs. */
+  .theme-dark .card,
+  .theme-dark .note-card,
+  .theme-dark .action-tile,
+  .theme-dark .notif-card,
+  .theme-dark #membershipCard,
+  .theme-dark .membership-card,
+  .theme-dark .modal { 
+    background: rgba(255,255,255,0.02);
+    color: var(--text);
+    border-color: rgba(255,255,255,0.04);
+  }
+  .theme-dark input,
+  .theme-dark textarea,
+  .theme-dark select,
+  .theme-dark .input,
+  .theme-dark .modal .modal-body textarea {
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    background: rgba(255,255,255,0.02) !important;
+    color: var(--text) !important;
+  }
+</style>
+
+<script>
+// Apply persisted theme and wire the toggle. Uses localStorage 'theme' with values 'light'|'dark'.
+(function(){
+  const key = 'theme';
+  const preferredDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  function applyTheme(t){
+    try{
+      const root = document.documentElement;
+      const body = document.body || root;
+      if(!root) return;
+      console.debug('applyTheme ->', t);
+      if(t === 'dark') {
+        root.classList.add('theme-dark');
+        try{ body.classList.add('theme-dark'); }catch(e){}
+      } else {
+        root.classList.remove('theme-dark');
+        try{ body.classList.remove('theme-dark'); }catch(e){}
+      }
+      // set data-theme attribute for any CSS that may check it
+      try{ root.setAttribute('data-theme', t); }catch(e){}
+      try{ body.setAttribute('data-theme', t); }catch(e){}
+      // update toggle states if present (keep all toggles in sync)
+      try{ const cb = document.getElementById('themeToggle'); if(cb) cb.checked = (t === 'dark'); }catch(e){}
+      try{ const settingsCb = document.getElementById('settingsThemeToggle'); if(settingsCb) settingsCb.checked = (t === 'dark'); }catch(e){}
+      try{ const headerCb = document.getElementById('headerThemeToggle'); if(headerCb) headerCb.checked = (t === 'dark'); }catch(e){}
+      // update meta theme-color if exists
+      const meta = document.querySelector('meta[name="theme-color"]'); if(meta) meta.setAttribute('content', t === 'dark' ? '#121212' : '#f8faff');
+    }catch(e){console.warn('applyTheme error', e);}  }
+
+  // initial apply
+  try{
+    let t = localStorage.getItem(key);
+    if(!t) t = preferredDark ? 'dark' : 'light';
+    applyTheme(t);
+    // expose to global so Settings page can call it
+    try{ window.applyTheme = applyTheme; }catch(e){}
+  }catch(e){console.debug('theme init failed', e);}
+
+  // wire toggle change event
+  try{
+    const cb = document.getElementById('themeToggle');
+    if(cb) cb.addEventListener('change', function(){
+      try{ const next = cb.checked ? 'dark' : 'light'; localStorage.setItem(key, next); applyTheme(next); } catch(e){ console.warn('theme toggle failed', e); }
+    });
+  }catch(e){ console.debug('attach toggle listener failed', e); }
+})();
+</script>
+  <script>
+  // Wire the settings & header theme toggles after DOM is ready so elements exist
+  (function(){
+    try{
+      const key = 'theme';
+      function initThemeToggleWiring(){
+        try{
+          const settingsCb = document.getElementById('settingsThemeToggle');
+          const headerCb = document.getElementById('headerThemeToggle');
+          function syncFromStorage(){
+            try{
+              const t = localStorage.getItem(key) || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+              if(settingsCb) settingsCb.checked = (t === 'dark');
+              if(headerCb) headerCb.checked = (t === 'dark');
+            }catch(e){console.warn('syncFromStorage error', e);}          
+          }
+          // initial sync
+          syncFromStorage();
+          // when user toggles in settings, persist and apply
+          if(settingsCb) settingsCb.addEventListener('change', function(){
+            try{
+              const next = settingsCb.checked ? 'dark' : 'light';
+              localStorage.setItem(key, next);
+              if(window.applyTheme) window.applyTheme(next); else {
+                if(next === 'dark') document.documentElement.classList.add('theme-dark'); else document.documentElement.classList.remove('theme-dark');
+              }
+              // also update any other toggles (header/floating)
+              try{ const other = document.getElementById('themeToggle'); if(other) other.checked = settingsCb.checked; }catch(e){}
+              try{ if(headerCb) headerCb.checked = settingsCb.checked; }catch(e){}
+            }catch(e){console.warn('settings theme toggle failed', e);} 
+          });
+          // header toggle: when changed, persist and apply and update settings toggle
+          if(headerCb) headerCb.addEventListener('change', function(){
+            try{
+              const next = headerCb.checked ? 'dark' : 'light';
+              localStorage.setItem(key, next);
+              if(window.applyTheme) window.applyTheme(next); else {
+                if(next === 'dark') document.documentElement.classList.add('theme-dark'); else document.documentElement.classList.remove('theme-dark');
+              }
+              try{ if(settingsCb) settingsCb.checked = headerCb.checked; }catch(e){}
+              try{ const other = document.getElementById('themeToggle'); if(other) other.checked = headerCb.checked; }catch(e){}
+            }catch(e){console.warn('header theme toggle failed', e);} 
+          });
+          // label/input are left to native browser behavior for clicks/keyboard; no manual toggles to avoid double events
+          // observe storage changes from other contexts
+          window.addEventListener('storage', function(e){ if(e.key === key) syncFromStorage(); });
+        }catch(e){ console.warn('initThemeToggleWiring error', e); }
+      }
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initThemeToggleWiring); else initThemeToggleWiring();
+    }catch(e){ console.warn('settings theme wiring failed', e); }
+  })();
+  </script>
 <script>
 // Deterministic canvas renderer: draws the share card to a canvas and returns a PNG Blob
 async function renderShareCanvasFromData(m, opts = {}) {
@@ -1881,9 +2104,19 @@ function enableBackupButtons(enable = true) {
   <main>
     <div id="view-root">
       <section id="view-home">
-        <header id="appHeader">
-          <img id="appLogo" src="./icons/logo.png" alt="لوگو">
-          <span id="appTitle">مدیریت باشگاه والیبال</span>
+        <header id="appHeader" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;">
+          <!-- Left side: logo and title -->
+          <div style="display:flex;align-items:center;gap:12px;">
+            <img id="appLogo" src="./icons/logo.png" alt="لوگو" style="width:44px;height:44px;">
+            <span id="appTitle" style="font-size:18px;">مدیریت باشگاه والیبال</span>
+          </div>
+          <!-- Right side: header theme switch (visible) -->
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label class="header-theme-switch" title="تم تاریک/روشن" style="display:inline-flex;align-items:center;gap:8px;">
+              <input id="headerThemeToggle" type="checkbox" aria-label="تم تاریک/روشن" class="visually-hidden" />
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
         </header>
         <div class="grid">
   
@@ -1891,7 +2124,10 @@ function enableBackupButtons(enable = true) {
             <div class="section-title" style="display:flex;align-items:center;gap:8px;">
               <h3 style="margin:0;">جدیدترین بازیکنان ثبت نامی</h3>
               <div class="actions">
-                <button id="addPlayerBtn" class="btn primary" title="بازیکن جدید" style="padding:8px 12px;white-space:nowrap;">بازیکن جدید</button>
+                <button id="addPlayerBtn" class="btn primary" title="بازیکن جدید" style="padding:8px 12px;white-space:nowrap;">
+                  <span class="icon icon-plus" aria-hidden="true"></span>
+                  <span>بازیکن جدید</span>
+                </button>
               </div>
               </div>
               <script>
@@ -1928,9 +2164,9 @@ function enableBackupButtons(enable = true) {
               </script>
             <div id="playersPreview" class="players-preview"></div>
             <div style="margin-top: 12px; text-align: center;">
-              <button id="showAllPlayersBtn" class="btn icon-right" style="padding:10px 18px;direction:ltr;min-width:220px;">
-                <span>لیست بازیکنان</span>
-                <img src="./icons/volleyball (7).png" alt="والیبال" />
+              <button id="showAllPlayersBtn" class="btn secondary" style="padding:10px 18px;min-width:220px;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;">
+                <img src="./icons/volleyball (7).png" alt="" class="btn-icon" style="width:20px;height:20px;object-fit:contain;">
+                <span style="display:inline-block;min-width:120px;text-align:center;">لیست بازیکنان</span>
               </button>
             </div>
           </div>
@@ -1938,11 +2174,7 @@ function enableBackupButtons(enable = true) {
           <div class="card birthday-card">
   <div class="section-title">
     <h3>متولدین امروز</h3>
-    <div class="birthday-icon-title">
-      <svg viewBox="0 0 24 24">
-        <path d="M12 2v2m-4 2v2m8 0v2M4 10h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V10z" fill="none" stroke="currentColor" stroke-width="2"/>
-      </svg>
-    </div>
+    <!-- birthday icon removed per request -->
   </div>
   <div id="birthdaysToday" class="players-preview"></div>
   <div id="noBirthdaysMsg" style="display: none;">هیچ تولدی امروز نیست</div>
@@ -1952,7 +2184,13 @@ function enableBackupButtons(enable = true) {
           <div class="card">
             <div class="section-title">
                 <h3>آخرین جلسات</h3>
-                <div class="actions"><button id="addSessionFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;">جلسه جدید</button></div>
+                <div class="actions"><button id="addSessionFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
+                    <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--text-inverse);">
+                      <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+                    </svg>
+                    <span>جلسه جدید</span>
+                  </button></div>
               </div>
             <div id="sessionsPreview" class="sessions-preview"></div>
               <!-- removed show all sessions button per user request -->
@@ -1961,7 +2199,10 @@ function enableBackupButtons(enable = true) {
           <div class="card">
             <div class="section-title">
                 <h3>برنامه تمرینات</h3>
-                <div class="actions"><button id="addTrainingFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;">تمرین جدید</button></div>
+                <div class="actions"><button id="addTrainingFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
+                    <img src="./icons/volleyball (8).png" alt="والیبال" class="btn-icon" style="width:18px;height:18px;object-fit:contain;filter: none;">
+                    <span>تمرین جدید</span>
+                  </button></div>
               </div>
           <div id="trainingPreview" class="training-preview"></div>
           </div>
@@ -1990,7 +2231,7 @@ function enableBackupButtons(enable = true) {
             <div style="width:100%;background:#fff;border-radius:12px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.12);box-sizing:border-box;display:flex;flex-direction:column;gap:8px;">
               <div style="display:flex;align-items:center;justify-content:space-between;">
                 <strong>اشتراک پروفایل بازیکن</strong>
-                <button id="closePlayerShareOverlay" class="btn">بستن</button>
+                <button id="closePlayerShareOverlay" class="btn"><span class="icon icon-x" aria-hidden="true"></span><span>بستن</span></button>
               </div>
               <div id="playerSharePreview" style="width:100%;display:flex;align-items:center;justify-content:center;padding:8px;">
                 <div id="playerShareCard" style="width:320px;height:568px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background:linear-gradient(180deg,#ff6b6b,#ff9ac2);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:18px;">
@@ -2001,8 +2242,8 @@ function enableBackupButtons(enable = true) {
                 </div>
               </div>
               <div style="display:flex;gap:8px;justify-content:center;align-items:center;padding-top:8px;">
-                <button id="playerShareImageBtn" class="btn primary birthday-share-btn">اشتراک عکس</button>
-                <button id="playerShareTextBtn" class="btn">اشتراک متن پروفایل</button>
+                <button id="playerShareImageBtn" class="btn primary birthday-share-btn"><span class="icon icon-image" aria-hidden="true"></span><span>اشتراک عکس</span></button>
+                <button id="playerShareTextBtn" class="btn secondary"><span class="icon icon-share-2" aria-hidden="true"></span><span>اشتراک متن پروفایل</span></button>
               </div>
             </div>
           </div>
@@ -2555,7 +2796,20 @@ function enableBackupButtons(enable = true) {
           <button class="back-btn" id="backSettings"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
         </div>
         <div class="card">
-          <div id="settingsContent"></div>
+          <div id="settingsContent">
+            <!-- Theme control: moved here per request -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 4px;">
+              <div style="display:flex;flex-direction:column;">
+                <strong>تم برنامه</strong>
+                <small style="color:var(--muted);">انتخاب بین حالت روشن و تیره</small>
+              </div>
+              <div>
+                <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input id="settingsThemeToggle" type="checkbox" aria-label="تم تاریک/روشن" style="width:36px;height:20px;" />
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2737,9 +2991,9 @@ function enableBackupButtons(enable = true) {
               <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee;background:#f8fafc;">
               <div style="flex:1;min-width:0;">
                 <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:2px;">—</div>
-                <div id="accountEmail" style="color:#666;font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
-                <div id="accountPhone" style="color:#666;font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
-                <div id="accountBio" style="color:#4b5563;font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;">—</div>
+                <div id="accountEmail" style="color:var(--muted);font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
+                <div id="accountPhone" style="color:var(--muted);font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
+                <div id="accountBio" style="color:var(--muted);font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;">—</div>
               </div>
             </div>
             <!-- Profile card container: layout kept responsive and preserves original buttons/onclic handlers -->
@@ -3558,6 +3812,113 @@ document.addEventListener('DOMContentLoaded', async function() {
   try { await loadProfile(); } catch(e) { console.debug('fallback loadProfile failed', e); }
 });
 
+// Install small touch/tap helpers so images and jalali inputs reliably receive taps
+// especially inside horizontal scrollers or TWA containers where click may be lost.
+function installTapFixes() {
+  const TAP_MOVE_THRESHOLD = 10; // px
+  const TAP_TIME_THRESHOLD = 350; // ms
+
+  function makeTapListener(el, fn) {
+    let sx = 0, sy = 0, st = 0;
+    el.addEventListener('touchstart', function ts(e) {
+      if (!e.touches || !e.touches[0]) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+    }, { passive: true });
+    el.addEventListener('touchend', function te(e) {
+      const dt = Date.now() - st;
+      let ex = sx, ey = sy;
+      try { const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]); if (touch) { ex = touch.clientX; ey = touch.clientY; } } catch(_){}
+      const dx = Math.abs(ex - sx), dy = Math.abs(ey - sy);
+      if (dx <= TAP_MOVE_THRESHOLD && dy <= TAP_MOVE_THRESHOLD && dt <= TAP_TIME_THRESHOLD) {
+        try { fn.call(el, e); } catch(err) { console.debug('tap handler error', err); }
+      }
+    }, { passive: true });
+  }
+
+  // For jalali date inputs: focus on tap
+  qsa('.jalali-input').forEach(inp => {
+    try {
+      makeTapListener(inp, function() { try { if (typeof this.focus === 'function') this.focus(); this.dispatchEvent(new Event('click', { bubbles: true })); } catch(_){} });
+    } catch (e) { console.debug('install tap jalali-input failed', e); }
+  });
+
+  // For player thumbnails and images in previews: treat a short tap as a click
+  qsa('.players-preview .player-row, .players-preview .player-thumb, .players-preview .player-thumb img, .player-thumb img').forEach(el => {
+    try {
+      makeTapListener(el, function(ev) {
+        // prefer dispatching a synthetic click so existing handlers run
+        try { this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } catch(e) { try { this.click && this.click(); } catch(_){} }
+      });
+    } catch (e) { console.debug('install tap on thumb failed', e); }
+  });
+
+  // For membership card images or other clickable photos
+  qsa('img').forEach(img => {
+    // skip images that already have pointer-event none or are purely decorative
+    try {
+      const p = window.getComputedStyle(img).pointerEvents;
+      if (p === 'none') return;
+      makeTapListener(img, function() {
+        try { this.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch(e) { try { this.click && this.click(); } catch(_){} }
+      });
+    } catch(e){}
+  });
+  // Delegated tap handling for dynamic elements and to avoid missing future nodes
+  (function installDelegatedTap() {
+    let sx = 0, sy = 0, st = 0, startTarget = null, startScroll = null;
+    document.addEventListener('touchstart', function (e) {
+      const t = (e.touches && e.touches[0]);
+      if (!t) return;
+      sx = t.clientX; sy = t.clientY; st = Date.now();
+      startTarget = e.target;
+      // if inside a horizontal scroller, record its scrollLeft to detect scroll
+      const sc = findScrollableAncestor(startTarget);
+      startScroll = sc ? sc.scrollLeft : null;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function (e) {
+      const t = (e.changedTouches && e.changedTouches[0]);
+      if (!t) return;
+      const dx = Math.abs(t.clientX - sx), dy = Math.abs(t.clientY - sy);
+      const dt = Date.now() - st;
+      if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD || dt > TAP_TIME_THRESHOLD) return;
+      // determine if the touch was on an actionable element (player row/thumb or jalali input)
+      let el = e.target;
+      while (el && el !== document.body) {
+        try {
+          if (el.matches && (el.matches('.player-row') || el.matches('.player-thumb') || el.matches('.jalali-input') || el.matches('.player-row *') )) break;
+        } catch (_) {}
+        el = el.parentElement;
+      }
+      if (!el || el === document.body) return;
+      // if the scroller moved, it's likely a scroll, so ignore
+      const sc2 = findScrollableAncestor(startTarget);
+      if (sc2 && startScroll !== null && sc2.scrollLeft !== startScroll) return;
+      try {
+        // prefer dispatching click
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      } catch (err) {
+        try { el.click && el.click(); } catch(_){}
+      }
+    }, { passive: true });
+
+    function findScrollableAncestor(node) {
+      let cur = node;
+      while (cur && cur !== document.body) {
+        try {
+          const s = window.getComputedStyle(cur);
+          const overflowX = s.overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll') return cur;
+        } catch (_) {}
+        cur = cur.parentElement;
+      }
+      return null;
+    }
+  })();
+}
+
+try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e) { setTimeout(installTapFixes, 400); }
+
 // Debug controls for sync queue / dead-letter removed from profile view per user request.
 (function installProfileDebugControls(){
   // no-op placeholder so other code can safely call this without errors
@@ -3583,13 +3944,13 @@ document.addEventListener('DOMContentLoaded', async function() {
   </div>
   <!-- Plan view modal -->
   <div id="planModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;z-index:2000;">
-    <div style="background:#fff;max-width:720px;width:100%;border-radius:8px;padding:16px;box-shadow:0 6px 30px rgba(0,0,0,0.25);">
+    <div style="background:var(--card);max-width:720px;width:100%;border-radius:8px;padding:16px;box-shadow:0 6px 30px rgba(0,0,0,0.25);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <h3 id="planModalTitle" style="margin:0">عنوان</h3>
         <div><button class="btn" id="closePlanModal">بستن</button></div>
       </div>
-      <div style="color:#666;margin-bottom:12px"><strong>تاریخ:</strong> <span id="planModalDate"></span></div>
-      <div id="planModalBody" style="white-space:pre-wrap;color:#222"></div>
+      <div style="color:var(--muted);margin-bottom:12px"><strong>تاریخ:</strong> <span id="planModalDate"></span></div>
+      <div id="planModalBody" style="white-space:pre-wrap;color:var(--text)"></div>
     </div>
   </div>
 
@@ -4056,6 +4417,23 @@ function determineCategory(age) {
       if (m < 0) { y--; m += 12; }
       years = y;
     } catch (e) { /* fallback to provided age.years */ }
+  }
+
+  // Coerce to number and attempt a fallback if years is invalid (NaN/undefined)
+  years = Number(years);
+  if (!Number.isFinite(years)) {
+    // try to compute from birthdate using calcExactAge helper if available
+    try {
+      if (age && age.birthdate && typeof calcExactAge === 'function') {
+        const fb = calcExactAge(age.birthdate);
+        if (fb && Number.isFinite(fb.years)) years = Number(fb.years);
+      }
+    } catch (e) { /* ignore fallback errors */ }
+  }
+  // if still invalid, return an explicit unknown marker instead of defaulting to last rank
+  if (!Number.isFinite(years)) {
+    console.warn('determineCategory: invalid age years, returning unknown', age);
+    return 'نامشخص';
   }
 
   // prefer explicit startDateJ overrides: if a rank has startDateJ and refJ is before it, skip it
@@ -6612,6 +6990,7 @@ function renderRankEditor() {
           </div>
         `).join('')}
       </div>
+      <div id="rankSaveNotice" style="display:none;color:#064e3b;background:#ecfccb;padding:8px;border-radius:8px;font-weight:700;text-align:center;margin-bottom:8px;"></div>
       <div class="controls-row" style="margin-top:8px;">
         <div class="buttons">
           <button id="addRankBtn" class="btn">افزودن</button>
@@ -6667,9 +7046,26 @@ function renderRankEditor() {
     state.players.forEach(p => { if (p.birthdate) p.category = determineCategory(calcExactAge(p.birthdate)); });
     saveState();
     refreshCategorySelects();
-    // show a clear saved confirmation and navigate back shortly after
-    showToast('ذخیره شد');
-    setTimeout(()=> showView('settings'), 700);
+    // stay on the rank editor page and show a visible confirmation
+    try { showToast('رده‌ها ذخیره شد', 1800); } catch(e) { console.warn('showToast failed', e); }
+    // briefly highlight the save button so the user notices the change
+    try {
+      const sb = qs('#saveRanksBtn');
+      if (sb) {
+        const prevBox = sb.style.boxShadow;
+        sb.style.boxShadow = '0 8px 20px rgba(34,197,94,0.18)';
+        setTimeout(() => { try { sb.style.boxShadow = prevBox; } catch(_){} }, 1200);
+      }
+    } catch(e) { console.warn('highlight save button failed', e); }
+    // show an inline confirmation in the editor (visible even if toast is hidden)
+    try {
+      const notice = qs('#rankSaveNotice');
+      if (notice) {
+        notice.textContent = 'ذخیره شد';
+        notice.style.display = 'block';
+        setTimeout(() => { try { notice.style.display = 'none'; } catch(_){} }, 3000);
+      }
+    } catch(e) { console.warn('inline save notice failed', e); }
   });
 
   // header back button routing to settings (if present in header)
@@ -6869,7 +7265,7 @@ function renderHome() {
   // rely on CSS for responsive sizing/scroll-snap; keep only semantic class
   // (removed inline flex sizing so media queries can control item width)
       row.innerHTML = `
-        <div class="player-thumb">${p.photo ? `<img src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
+  <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div class="meta"><strong>${escapeHtml(p.name)}</strong><small class="muted">${p.category || ''}</small></div>
       `;
       row.addEventListener('click', () => showView('player-profile', {playerId: p.id}));
@@ -6898,7 +7294,7 @@ function renderHome() {
       let row = document.createElement('div');
       row.className = 'player-row upcoming-birthday';
       row.innerHTML = `
-        <div class="player-thumb">${p.photo ? `<img src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
+  <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div class="meta"><strong>${escapeHtml(p.name)}</strong><small>${dist} روز مانده</small></div>
       `;
       row.addEventListener('click', () => openBirthdayModal(p.id));
@@ -6924,7 +7320,7 @@ function renderHome() {
       let row = document.createElement('div');
       row.className = 'player-row';
       row.innerHTML = `
-        <div class="player-thumb">${p.photo ? `<img src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
+  <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div class="meta"><strong>${escapeHtml(p.name)}</strong><small>${ageText}</small></div>
       `;
       row.addEventListener('click', () => openBirthdayModal(p.id));
@@ -7073,7 +7469,7 @@ function renderHome() {
   const prevYearStr = String(prevYear);
   // normalize paymentMonth which may be stored as numeric string or Persian month name
   const normalizePaymentMonth = (pm) => {
-    if (!pm && pm !== 0) return '';
+    if (!pm && pm !== 0 && pm !== '0' && pm !== '') return '';
     // try numeric
     const n = Number(pm);
     if (!isNaN(n) && n > 0) return String(n).padStart(2, '0');
@@ -7086,8 +7482,52 @@ function renderHome() {
     }
   };
 
-  const currentSum = state.payments.filter(pay => normalizePaymentMonth(pay.paymentMonth) === currentMonth && String(pay.paymentYear) === currentYear).reduce((acc,p)=>acc+Number(p.amount),0);
-  const prevSum = state.payments.filter(pay => normalizePaymentMonth(pay.paymentMonth) === prevMonthStr && String(pay.paymentYear) === prevYearStr).reduce((acc,p)=>acc+Number(p.amount),0);
+  // derive year/month from payment record — prefer explicit paymentMonth/paymentYear but
+  // fallback to parsing the payment.date (ISO or Jalali) when those fields are missing.
+  const getPaymentYearMonth = (pay) => {
+    try {
+      const pm = pay.paymentMonth;
+      const py = pay.paymentYear;
+      if ((pm || pm === 0 || pm === '0') && (py || py === 0 || py === '0')) {
+        return { year: String(py), month: normalizePaymentMonth(pm) };
+      }
+      // fallback: use date field
+      if (pay.date) {
+        try {
+          // try ISO -> jalali conversion; isoToJalali returns YYYY/MM/DD for valid ISO
+          const jal = (typeof isoToJalali === 'function') ? isoToJalali(pay.date) : null;
+          if (jal && String(jal).split('/').length >= 2) {
+            const parts = String(jal).split('/').map(s => s.trim());
+            return { year: String(parts[0]), month: String(parts[1]).padStart(2, '0') };
+          }
+          // if isoToJalali not available or failed, try parsing as YYYY-MM-DD or ISO
+          const d = new Date(pay.date);
+          if (!isNaN(d.getTime())) {
+            // convert gregorian to jalali if helper exists
+            if (typeof gregorian_to_jalali === 'function') {
+              const g = [d.getFullYear(), d.getMonth()+1, d.getDate()];
+              try {
+                const j = gregorian_to_jalali(g[0], g[1], g[2]); // returns [jy,jm,jd]
+                if (Array.isArray(j) && j.length >= 2) return { year: String(j[0]), month: String(j[1]).padStart(2,'0') };
+              } catch (e) { /* ignore */ }
+            }
+            // last resort: use gregorian year/month (not ideal but better than zero)
+            return { year: String(d.getFullYear()), month: String(d.getMonth()+1).padStart(2,'0') };
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    } catch (e) { /* ignore */ }
+    return { year: '', month: '' };
+  };
+
+  const currentSum = state.payments.filter(pay => {
+    const ym = getPaymentYearMonth(pay);
+    return ym.month === currentMonth && String(ym.year) === currentYear;
+  }).reduce((acc,p)=>acc+Number(p.amount||0),0);
+  const prevSum = state.payments.filter(pay => {
+    const ym = getPaymentYearMonth(pay);
+    return ym.month === prevMonthStr && String(ym.year) === prevYearStr;
+  }).reduce((acc,p)=>acc+Number(p.amount||0),0);
   // build categories list (rows)
   // prefer a sensible order for common categories, but also include any custom categories
   const preferred = ['مینی','نونهال','نوجوان','جوانان','زیر 20 سال','امید','بزرگسال','بازیکنان'];
@@ -7132,7 +7572,7 @@ function renderBirthdayGreeting(playerId) {
   content.innerHTML = `
     <div style="padding: 16px; background: linear-gradient(135deg, #FF6B6B, #FFD700); border-radius: 16px; color: #fff; animation: pulse 1.5s infinite;">
       <div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; margin: 0 auto;">
-        ${p.photo ? `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" alt="${p.name}">` : '<div>بدون عکس</div>'}
+  ${p.photo ? `<img class="player-image" src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" alt="${p.name}">` : '<div>بدون عکس</div>'}
       </div>
       <h2 style="margin-top: 12px;">${greetingMsg}</h2>
       <div class="form-actions" style="margin-top: 16px;">
@@ -8237,6 +8677,17 @@ function renderPlayerForm(player = null) {
     let name = qs('#p_name').value.trim();
     if (!name) return alert('نام را وارد کنید');
     let birth = qs('#p_birth').value.trim();
+    // sanitize birthdate: accept ISO (YYYY-MM-DD) or ISO string and convert to Jalali YYYY/MM/DD
+    try {
+      if (birth && !birth.match(/^\d{4}\/\d{2}\/\d{2}$/)) {
+        // handle common ISO 'YYYY-MM-DD'
+        if (/^\d{4}-\d{2}-\d{2}$/.test(birth)) {
+          try { birth = isoToJalali(new Date(birth).toISOString()); } catch (e) { console.warn('Failed to convert YYYY-MM-DD to Jalali', e); }
+        } else if (/^\d{4}-\d{2}-\d{2}T/.test(birth) || /^\d{4}-\d{2}-\d{2}Z$/.test(birth)) {
+          try { birth = isoToJalali(birth); } catch (e) { console.warn('Failed to convert ISO datetime to Jalali', e); }
+        }
+      }
+    } catch(e) { console.warn('birth sanitization failed', e); }
     let join = qs('#p_join').value.trim() || todayJalali();
     let insurance = qs('#p_insurance').value.trim();
     let category = qs('#p_category').value;
@@ -8430,7 +8881,7 @@ function renderSessionAttendance(id) {
   if (s.category) filteredPlayers = filteredPlayers.filter(p => p.category === s.category);
   filteredPlayers.forEach(p => {
     let att = s.attendances?.[p.id] || { present: false, reason: '' };
-    let imgHtml = p.photo ? `<img src="${p.photo}" alt="avatar">` : `<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>`;
+  let imgHtml = p.photo ? `<img class="player-image" src="${p.photo}" alt="avatar">` : `<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>`;
     html += `
       <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px dashed rgba(0,0,0,0.06);">
         <div class="player-thumb">${imgHtml}</div>
@@ -9017,15 +9468,15 @@ function renderMembershipCard(playerId) {
         </div>
       </div>
 
-      <div class="card" style="display:flex;flex-direction:column;align-items:center;">
+  <div class="card" style="display:flex;flex-direction:column;align-items:center;">
         <div style="font-weight:700;margin-bottom:8px;">پیش‌نمایش کارت عضویت</div>
-        <div id="membershipCard" style="position:relative;--card-original-width:520;--card-original-height:380px;--card-scale: min(1, calc((100vw - 32px) / 520));max-width:98vw;max-width:520px;width:100%;min-height:220px;padding:10px;border-radius:12px;background:linear-gradient(135deg,#06B6D4 0%,#8B5CF6 100%);color:#0f172a;direction:rtl;font-family:'Vazirmatn',sans-serif;overflow:hidden;border:1px solid rgba(0,0,0,0.06);">
+  <div id="membershipCard" style="position:relative;--card-original-width:520;--card-original-height:380px;--card-scale: min(1, calc((100vw - 32px) / 520));max-width:98vw;max-width:520px;width:100%;min-height:220px;padding:10px;border-radius:12px;background:var(--accent);color:var(--mem-font-color, var(--text));direction:rtl;font-family:'Vazirmatn',sans-serif;overflow:hidden;border:1px solid rgba(0,0,0,0.06);">
           <!-- scale wrapper: actual card content is 520px wide and will scale down via transform -->
           <div class="membership-scale-wrapper" style="width:520px;margin:0 auto;transform-origin:top center;">
           <!-- explicit placement for 12 cells (rows adjusted to 30/40/30) -->
           <div id="membershipInnerGrid" style="display:grid;grid-template-rows:auto;grid-auto-rows:1fr;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;min-height:100%;align-items:stretch;">
             <!-- row1 col1 (empty) -->
-            <div style="grid-row:1;grid-column:1;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;color:rgba(15,23,42,0.9);font-weight:700;font-size:18px"></div>
+            <div style="grid-row:1;grid-column:1;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;color:var(--mem-font-color, var(--text));font-weight:700;font-size:18px"></div>
             <!-- 2-3 merged: club name spanning columns 2 and 3 -->
             <div id="cell2" style="grid-row:1;grid-column:2 / span 2;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px">${escapeHtml(state.settings.title || 'باشگاه')}</div>
             <!-- 4: club logo -->
@@ -9035,13 +9486,13 @@ function renderMembershipCard(playerId) {
 
             <!-- 5: profile photo -->
             <div id="cell5" style="grid-row:2;grid-column:1;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;">
-              ${p.photo?`<img id="pcPhotoImg" src="${p.photo}" style="width:100%;height:100%;object-fit:cover">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#94a3b8">عکس</div>`}
+              ${p.photo?`<img id="pcPhotoImg" src="${p.photo}" style="width:100%;height:100%;object-fit:cover">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)">عکس</div>`}
             </div>
             <!-- 6: stacked player info (span visually) -->
             <div id="cell6" style="grid-row:2;grid-column:2 / span 2;border-radius:6px;padding:6px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;font-weight:700;">
-              <div id="pcName" style="font-size:16px;color:var(--mem-font-color, #0f172a);">${escapeHtml(p.name)}</div>
-              <div id="pcBirth" style="font-size:13px;color:var(--mem-font-color, rgba(15,23,42,0.85));margin-top:6px">تاریخ تولد: ${escapeHtml(isoToJalali(p.birthdate) || '—')}</div>
-              <div id="pcNational" style="font-size:13px;color:var(--mem-font-color, rgba(15,23,42,0.85));margin-top:6px">کد ملی: ${escapeHtml(p.nationalCode || '—')}</div>
+              <div id="pcName" style="font-size:16px;color:var(--mem-font-color, var(--text));">${escapeHtml(p.name)}</div>
+              <div id="pcBirth" style="font-size:13px;color:var(--mem-font-color, rgba(255,255,255,0.85));margin-top:6px">تاریخ تولد: ${escapeHtml(isoToJalali(p.birthdate) || '—')}</div>
+              <div id="pcNational" style="font-size:13px;color:var(--mem-font-color, rgba(255,255,255,0.85));margin-top:6px">کد ملی: ${escapeHtml(p.nationalCode || '—')}</div>
             </div>
             <!-- 7 placeholder (right column of row 2 if needed) -->
             <div id="cell7" style="grid-row:2;grid-column:4;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;color:rgba(15,23,42,0.9);"></div>
@@ -9369,7 +9820,7 @@ function renderInsurancePage() {
   arr.forEach(p => {
     let node = document.createElement('div');
     node.className = 'player-row';
-    let imgHtml = p.photo ? `<img src="${p.photo}">` : `<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>`;
+  let imgHtml = p.photo ? `<img class="player-image" src="${p.photo}">` : `<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>`;
     let exp = isInsuranceExpired(p.insuranceDate);
     let st = p.insuranceDate ? (exp ? 'منقضی' : 'فعال') : 'بدون بیمه';
     let badgeClass = p.insuranceDate ? (exp ? 'danger' : 'success') : 'warning';
@@ -9434,7 +9885,7 @@ function renderHealthPage() {
     card.className = 'health-card';
     card.innerHTML = `
       <div style="display: flex; gap: 12px; align-items: center;">
-        <div class="player-thumb">${p.photo ? `<img src="${p.photo}">` : '<svg width="56" height="56" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
+  <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}">` : '<svg width="56" height="56" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div>
           <strong>${escapeHtml(p.name)}</strong>
           <small>${p.category || '—'}</small>
@@ -9544,17 +9995,12 @@ function renderSettings() {
         <input id="settingsLogo" type="file" accept="image/*" />
       </div>
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
-  <label style="font-size:15px;">سبک برنامه</label>
-  <select id="settingsStyle" class="input" style="font-size:16px;padding:10px;">
-        <option value="modern" ${state.settings.style === 'modern' ? 'selected' : ''}>سبک مدرن و دوستانه</option>
-        <option value="fun" ${state.settings.style === 'fun' ? 'selected' : ''}>سبک شاد و رنگی</option>
-        <option value="luxury" ${state.settings.style === 'luxury' ? 'selected' : ''}>سبک لوکس و حرفه‌ای</option>
-      </select>
+  <!-- سبک برنامه removed: theme/style chooser deprecated (theme controlled centrally) -->
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
   <div style="display:flex;align-items:center;gap:8px;">
     <div style="flex:1;">مرجع آپدیت رده‌ها: <strong style="color:${displayColor};font-weight:700;">${displayDate}</strong></div>
       <div style="flex:0;">
-      <button id="openRankEditorFromSettings" class="btn small" style="background:linear-gradient(90deg,#facc15,#f59e0b);color:#111;padding:8px 12px;font-weight:700;box-shadow:0 4px 10px rgba(0,0,0,0.09);">ویرایش رده‌ها</button>
+      <button id="openRankEditorFromSettings" class="btn small" style="background:var(--accent-2);color:var(--text-inverse);padding:8px 12px;font-weight:700;box-shadow:0 4px 10px rgba(0,0,0,0.09);">ویرایش رده‌ها</button>
     </div>
   </div>
   <hr style="border:none;border-top:1px solid rgba(0,0,0,0.04);" />
@@ -9578,8 +10024,7 @@ function renderSettings() {
   if (openRankBtn) openRankBtn.addEventListener('click', () => showView('rank-editor'));
   on('#cancelSettings', 'click', () => showView('account'));
   on('#saveSettings', 'click', () => {
-    state.settings.title = qs('#settingsTitle').value || 'مدیریت باشگاه والیبال';
-    state.settings.style = qs('#settingsStyle').value;
+  state.settings.title = qs('#settingsTitle').value || 'مدیریت باشگاه والیبال';
     let file = qs('#settingsLogo').files[0];
     if (file) {
       imageFileToDataURL(file, 100).then(data => {
@@ -10558,7 +11003,7 @@ function openBirthdayModal(playerId) {
           <div style="width:100%;display:flex;gap:12px;align-items:center;margin-top:12px;">
             <div style="flex:0 0 120px;">
               <div style="width:120px;height:120px;border-radius:12px;overflow:hidden;background:#e2e8f0;box-shadow:0 6px 18px rgba(2,6,23,0.04);">
-                ${p.photo?`<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;">`:'<svg width="120" height="120" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}
+                ${p.photo?`<img class="player-image" src="${p.photo}" style="width:100%;height:100%;object-fit:cover;">`:'<svg width="120" height="120" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}
               </div>
             </div>
             <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
@@ -10909,10 +11354,10 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
   <!-- Load new backup module and expose singleton to non-module scripts -->
   <script type="module">
     try {
-      import('./src/backup/index.js').then(mod => {
-        try { window.backupSync = mod.default || mod.backupSync || mod.backupSync || null; }
+      import('./sync-backup.js').then(mod => {
+        try { window.backupSync = mod.default || mod.backupSync || null; }
         catch(e) { console.debug('assigning backupSync failed', e); }
-      }).catch(e => console.debug('loading src/backup/index.js failed', e));
+      }).catch(e => console.debug('loading sync-backup.js failed', e));
     } catch(e) { console.debug('module import failed', e); }
   </script>
 
@@ -10980,8 +11425,134 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
       }
     });
   </script>
+  <!-- Touch-fix for player images: robust delegated handlers (tap vs scroll) -->
+  <script>
+    (function(){
+      // Set to true to enable console debug logs for touch events (temporary while debugging)
+      const TOUCH_DEBUG = false;
+      const MOVE_THRESHOLD = 10; // px
+      const TIME_THRESHOLD = 400; // ms
+
+      let startX = 0, startY = 0, startT = 0, moved = false, startTarget = null, startScrollLeft = null;
+
+      function findScrollableAncestor(node) {
+        let cur = node;
+        while (cur && cur !== document.body) {
+          try {
+            const s = window.getComputedStyle(cur);
+            if (s && (s.overflowX === 'auto' || s.overflowX === 'scroll')) return cur;
+          } catch (e) { break; }
+          cur = cur.parentElement;
+        }
+        return null;
+      }
+
+      document.addEventListener('touchstart', function(e){
+        try {
+          const t = e.touches && e.touches[0]; if (!t) return;
+          startX = t.clientX; startY = t.clientY; startT = Date.now(); moved = false;
+          startTarget = e.target;
+          const sc = findScrollableAncestor(startTarget);
+          startScrollLeft = sc ? sc.scrollLeft : null;
+          if (TOUCH_DEBUG) console.debug('touchstart', startX, startY, 'target=', startTarget && startTarget.className);
+        } catch (err) { if (TOUCH_DEBUG) console.debug('touchstart err', err); }
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function(e){
+        try {
+          const t = e.touches && e.touches[0]; if (!t) return;
+          if (Math.abs(t.clientX - startX) > MOVE_THRESHOLD || Math.abs(t.clientY - startY) > MOVE_THRESHOLD) moved = true;
+          if (TOUCH_DEBUG) console.debug('touchmove moved=', moved);
+        } catch (err) { if (TOUCH_DEBUG) console.debug('touchmove err', err); }
+      }, { passive: true });
+
+      document.addEventListener('touchend', function(e){
+        try {
+          const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+          const dt = Date.now() - startT;
+          if (TOUCH_DEBUG) console.debug('touchend dt=', dt, 'moved=', moved);
+          if (moved || dt > TIME_THRESHOLD) return; // likely a scroll or long press
+
+          // find actionable element: prefer explicit .player-image or player-row
+          let el = e.target;
+          while (el && el !== document.body) {
+            try {
+              if (el.matches && (el.matches('.player-image') || el.matches('.player-row') || el.matches('.player-thumb') || el.matches('.player-thumb img'))) break;
+            } catch(_){}
+            el = el.parentElement;
+          }
+          if (!el || el === document.body) return;
+
+          // if scroll container moved, ignore (user scrolled)
+          const sc2 = findScrollableAncestor(startTarget);
+          if (sc2 && startScrollLeft !== null && sc2.scrollLeft !== startScrollLeft) return;
+
+          if (TOUCH_DEBUG) console.debug('dispatching synthetic click to', el);
+          try { el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); }
+          catch (err) { try { el.click && el.click(); } catch(_){} }
+
+        } catch (err) { if (TOUCH_DEBUG) console.debug('touchend err', err); }
+      }, { passive: true });
+    })();
+  </script>
+  <style>
+    /* Feather sprite injected SVG sizing: inline <svg> inside .icon should use currentColor */
+    .icon svg{ width:100%; height:100%; display:block; stroke:currentColor; fill:none; stroke-width:2; }
+    /* Ensure span.icon has sensible size when inline-SVG is injected */
+    span.icon{ display:inline-block; width:24px; height:24px; vertical-align:middle; }
+  </style>
+
+  <script>
+  (function(){
+    const SPRITE_PATH = 'assets/icons/feather-sprite.svg';
+
+    // Inline the external SVG sprite (if present) so <use href="#id"> can reference symbols
+    async function inlineSprite(){
+      try{
+        const res = await fetch(SPRITE_PATH);
+        if (!res.ok) return;
+        const text = await res.text();
+        const container = document.createElement('div');
+        container.style.display = 'none';
+        container.innerHTML = text;
+        document.body.insertBefore(container, document.body.firstChild);
+        return true;
+      } catch(e){ console.warn('feather sprite inline failed', e); return false; }
+    }
+
+    // Inject inline <svg><use href="#icon-name"></use></svg> into each <span class="icon icon-...">
+    function injectIcons(){
+      const nodes = document.querySelectorAll('span.icon');
+      nodes.forEach(span => {
+        if (span.querySelector('svg')) return; // already injected
+        // find the icon-xxx class
+        const cls = Array.from(span.classList).find(c => c.startsWith('icon-') && c !== 'icon');
+        if (!cls) return;
+        const iconName = cls.replace('icon-','').replace('_','-');
+        try{
+          const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+          svg.setAttribute('width','24'); svg.setAttribute('height','24'); svg.setAttribute('viewBox','0 0 24 24');
+          const use = document.createElementNS('http://www.w3.org/2000/svg','use');
+          // set both href and xlink:href for broader compatibility
+          use.setAttribute('href', '#' + iconName);
+          use.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href', '#' + iconName);
+          svg.appendChild(use);
+          // clear any background-image fallback
+          span.style.backgroundImage = '';
+          span.appendChild(svg);
+        } catch(e){ /* ignore per-icon errors */ }
+      });
+    }
+
+    // Run on DOMContentLoaded: inline sprite if available and inject icons. Also observe DOM for later injections.
+    document.addEventListener('DOMContentLoaded', async () => {
+      await inlineSprite();
+      injectIcons();
+      // keep injecting when new elements appear (useful for templates)
+      const mo = new MutationObserver(() => injectIcons());
+      mo.observe(document.body, { childList:true, subtree:true });
+    });
+  })();
+  </script>
 </body>
-<!-- Modular bootstrap (ES Module) - loads compatibility shims and src modules -->
-<link rel="stylesheet" href="src/styles/main.css">
-<script type="module" src="src/main.js"></script>
 </html>

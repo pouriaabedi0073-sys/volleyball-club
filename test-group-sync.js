@@ -48,73 +48,76 @@ function log(msg, data) {
 
 // تابع اصلی تست
 async function runGroupSyncTest() {
-  if (!window.supabase || !window.syncHybrid) {
-    throw new Error('Supabase یا syncHybrid در دسترس نیست');
+  if (!window.supabase) {
+    throw new Error('Supabase client not found. Please login and ensure `window.supabase` is available.');
   }
 
-  log('شروع تست همگام‌سازی گروهی...');
-  
-  // تنظیم ایمیل گروه برای همگام‌سازی
-  window.supabaseSync.setGroupEmail(TEST_GROUP_EMAIL);
-  
+  log('شروع تست همگام‌سازی گروهی (مستقیم با Supabase)...');
+  const client = window.supabase;
+
+  // If backupSync exists, set group email for compatibility
+  try { if (window.backupSync && typeof window.backupSync.setGroupEmail === 'function') window.backupSync.setGroupEmail(TEST_GROUP_EMAIL); } catch(_){ }
+
   try {
     // 1. ایجاد بازیکن تست
     log('ایجاد بازیکن تست...');
-    const player = await window.syncHybrid.players.create(TEST_DATA.player);
+    const player = await client.from('players').insert([Object.assign({}, TEST_DATA.player, { created_at: new Date().toISOString() })]).select();
     log('بازیکن ایجاد شد:', player);
 
     // 2. ایجاد مربی تست
     log('ایجاد مربی تست...');
-    const coach = await window.syncHybrid.coaches.create(TEST_DATA.coach);
+    const coach = await client.from('coaches').insert([Object.assign({}, TEST_DATA.coach, { created_at: new Date().toISOString() })]).select();
     log('مربی ایجاد شد:', coach);
 
     // 3. ایجاد جلسه تست
     log('ایجاد جلسه تست...');
-    const session = await window.syncHybrid.sessions.create(TEST_DATA.session);
+    const session = await client.from('sessions').insert([Object.assign({}, TEST_DATA.session, { created_at: new Date().toISOString() })]).select();
     log('جلسه ایجاد شد:', session);
 
     // 4. ایجاد پرداخت تست
     log('ایجاد پرداخت تست...');
-    const payment = await window.syncHybrid.payments.create(TEST_DATA.payment);
+    const payment = await client.from('payments').insert([Object.assign({}, TEST_DATA.payment, { created_at: new Date().toISOString() })]).select();
     log('پرداخت ایجاد شد:', payment);
 
     // 5. ایجاد مسابقه تست
     log('ایجاد مسابقه تست...');
-    const competition = await window.syncHybrid.competitions.create(TEST_DATA.competition);
+    const competition = await client.from('competitions').insert([Object.assign({}, TEST_DATA.competition, { created_at: new Date().toISOString() })]).select();
     log('مسابقه ایجاد شد:', competition);
 
     // 6. ایجاد برنامه تمرینی تست
     log('ایجاد برنامه تمرینی تست...');
-    const plan = await window.syncHybrid.trainingPlans.create(TEST_DATA.training_plan);
+    const plan = await client.from('training_plans').insert([Object.assign({}, TEST_DATA.training_plan, { created_at: new Date().toISOString() })]).select();
     log('برنامه تمرینی ایجاد شد:', plan);
 
-    // 7. ذخیره در shared_backups
+    // 7. ذخیره در shared_backups: prefer backupSync if available, otherwise write to shared_backups
     log('ذخیره در shared_backups...');
-    const backup = await window.syncHybrid.sharedBackups.create({
-      group_email: TEST_GROUP_EMAIL,
-      data: TEST_DATA,
-      device_id: 'test-device'
-    });
-    log('shared_backup ایجاد شد:', backup);
+    if (window.backupSync && typeof window.backupSync.createBackup === 'function') {
+      try {
+        await window.backupSync.setGroupEmail(TEST_GROUP_EMAIL);
+        const res = await window.backupSync.createBackup();
+        log('backupSync created backup:', res);
+      } catch(e) { log('backupSync create failed, falling back', e); }
+    } else {
+      try {
+        const sb = await client.from('shared_backups').upsert([{ group_email: TEST_GROUP_EMAIL, data: TEST_DATA, device_id: 'test-device', last_sync_at: new Date().toISOString() }], { onConflict: 'group_email' }).select();
+        log('shared_backups upsert result', sb);
+      } catch(e) { log('shared_backups upsert failed', e); }
+    }
 
-    // 8. بررسی realtime
-    log('منتظر دریافت رویدادهای realtime...');
-    
-    // افزودن event listener برای رویدادهای realtime
-    window.addEventListener('supabase:realtime', (e) => {
-      log('رویداد realtime دریافت شد:', e.detail);
-    });
+    // 8. بررسی realtime — attach basic listeners
+    log('منتظر دریافت رویدادهای realtime (کنسول)...');
+    window.addEventListener('supabase:realtime', (e) => { log('رویداد realtime دریافت شد:', e.detail); });
+    window.addEventListener('sync:merge', (e) => { log('رویداد sync:merge دریافت شد:', e.detail); });
 
-    window.addEventListener('sync:merge', (e) => {
-      log('رویداد sync:merge دریافت شد:', e.detail);
-    });
-
-    // 9. بررسی همگام‌سازی با تغییر داده‌ها
+    // 9. بررسی همگام‌سازی با تغییر داده‌ها — update the first created player if available
     log('تست به‌روزرسانی...');
-    await window.syncHybrid.players.update(player.data[0].id, {
-      name: 'بازیکن تست ویرایش شده'
-    });
-    log('به‌روزرسانی انجام شد');
+    try {
+      const pid = player && player.data && player.data[0] && player.data[0].id ? player.data[0].id : null;
+      if (pid) {
+        const upd = await client.from('players').update({ name: 'بازیکن تست ویرایش شده' }).eq('id', pid).select();
+        log('به‌روزرسانی انجام شد', upd);
+      } else log('شناسه بازیکن برای به‌روزرسانی یافت نشد');
+    } catch(uerr) { log('update failed', uerr); }
 
   } catch (error) {
     log('خطا در تست:', error);

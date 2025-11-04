@@ -300,13 +300,25 @@
       const device = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : 'browser';
       const payload = {};
       payload[ctx.table] = [rowPayload];
-      // upsert into profiles (requires RLS/permissions configured appropriately)
-      try {
-        await ctx.supabase.from('profiles').upsert({ id: uid, last_sync_at: now, last_sync_device: device, last_sync_payload: payload }, { onConflict: 'id' });
-      } catch (e) {
-        // fallback: try update
-        try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
-      }
+        // upsert into profiles (requires RLS/permissions configured appropriately)
+        try {
+          try {
+            const { data: { user: authUser } = {} } = await ctx.supabase.auth.getUser();
+            if (!authUser) {
+              console.warn('writeLastSyncMetadata: no authenticated user');
+            } else {
+              const upsertPayload = { user_id: authUser.id, last_sync_at: now, last_sync_device: device, last_sync_payload: payload };
+              const res = await ctx.supabase.from('profiles').upsert(upsertPayload, { onConflict: 'user_id', ignoreDuplicates: false }).select().single();
+              if (res && res.error) throw res.error;
+            }
+          } catch (e) {
+            // fallback: try update by user_id
+            try { await ctx.supabase.from('profiles').update({ last_sync_at: now, last_sync_device: device, last_sync_payload: payload }).eq('user_id', uid); } catch(_){ console.warn('profiles update last_sync_payload failed', _); }
+          }
+        } catch (e) {
+          // top-level guard
+          console.warn('writeLastSyncMetadata upsert failed', e);
+        }
     } catch (e) {
       console.warn('writeLastSyncMetadata failed', e);
     }
