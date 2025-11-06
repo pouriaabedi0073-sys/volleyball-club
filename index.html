@@ -2567,7 +2567,7 @@ function enableBackupButtons(enable = true) {
         <div class="card">
           <div class="topbar">
             <button id="addCoachBtn" class="btn primary" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;">
-              <img src="icons/icons8-coach-100.png" alt="افزودن" style="width:18px;height:18px;display:inline-block;" />
+              <img src="icons/icons8-coach-100.svg" alt="افزودن" style="width:18px;height:18px;display:inline-block;" />
               <span>مربی جدید</span>
             </button>
           </div>
@@ -2954,9 +2954,11 @@ function enableBackupButtons(enable = true) {
           <h3>اعلان‌ها</h3>
           <button class="back-btn" id="backNotifications"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
         </div>
-        <div class="card">
+        <div class="card" style="position:relative;">
           <div id="notificationsContent"></div>
         </div>
+  <!-- Floating Close-All button (bottom-right) -->
+  <button id="closeAllNotificationsFloat" aria-label="بستن همه اعلان‌ها" style="position:fixed;right:16px;bottom:20px;z-index:10010;padding:10px 14px;background:var(--accent, #0ea5a4);color:#fff;border:none;border-radius:28px;box-shadow:0 6px 18px rgba(0,0,0,0.18);font-weight:700;display:none;cursor:pointer;width:110px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">بستن همه</button>
       </section>
 
       <section id="view-account" class="hide">
@@ -3101,11 +3103,11 @@ function enableBackupButtons(enable = true) {
           <div id="accountProfileContainer" style="margin-top:12px;display:none;">
             <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
               <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee;background:#f8fafc;">
-              <div style="flex:1;min-width:0;">
-                <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:2px;">—</div>
-                <div id="accountEmail" style="color:var(--muted);font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
-                <div id="accountPhone" style="color:var(--muted);font-size:0.98em;margin-bottom:1px;direction:ltr;">—</div>
-                <div id="accountBio" style="color:var(--muted);font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;">—</div>
+              <div style="flex:1;min-width:0;text-align:right;border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:10px;">
+                <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:6px;text-align:right;">—</div>
+                <div id="accountEmail" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:right;">—</div>
+                <div id="accountPhone" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:right;">—</div>
+                <div id="accountBio" style="color:var(--muted);font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;text-align:right;">—</div>
               </div>
             </div>
             <!-- Profile card container: layout kept responsive and preserves original buttons/onclic handlers -->
@@ -3116,7 +3118,7 @@ function enableBackupButtons(enable = true) {
               <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#16a34a;">✅ سیستم بکاپ آماده است</div>
 
               <!-- Connection status shown above buttons -->
-              <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;margin-bottom:8px;width:100%;">ارتباط با سرور برقرار است</div>
+              <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;width:100%;border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:8px;margin-bottom:12px;">ارتباط با سرور برقرار است</div>
 
               <!-- Row 1: Backup Now | Restore -->
               <div class="profile-card-rows" style="width:100%;">
@@ -3149,7 +3151,6 @@ function enableBackupButtons(enable = true) {
             <div id="profileDebugControls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
             <form id="editProfileForm" style="display:none;margin-top:12px;">
               <div class="form-group"><label for="editDisplayName">نام نمایشی</label><input type="text" id="editDisplayName" class="form-control"></div>
-              <div class="form-group"><label for="editEmail">ایمیل</label><input type="email" id="editEmail" class="form-control" dir="ltr"></div>
               <div class="form-group"><label for="editPhoneNumber">تلفن همراه</label><input type="text" id="editPhoneNumber" class="form-control" dir="ltr"></div>
               <div class="form-group"><label for="editBio">درباره من</label><textarea id="editBio" class="form-control" rows="3"></textarea></div>
               <div class="form-group"><label for="editAvatarUrl">لینک تصویر پروفایل</label><input type="url" id="editAvatarUrl" class="form-control" dir="ltr"></div>
@@ -3163,13 +3164,15 @@ function enableBackupButtons(enable = true) {
 // فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
 
 function fillProfileUI(profile) {
+  // remember the loaded profile so edit/save handlers can reuse it
+  try { window._loadedProfile = profile || window._loadedProfile || {}; } catch(_){}
   document.getElementById('accountName').textContent = profile.display_name || '—';
   document.getElementById('accountEmail').textContent = profile.email || '—';
   // normalize phone field: support phone_number or phone
   document.getElementById('accountPhone').textContent = (profile.phone_number || profile.phone || '') || '—';
   if (profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
   document.getElementById('editDisplayName').value = profile.display_name || '';
-  document.getElementById('editEmail').value = profile.email || '';
+  try { const _ee = document.getElementById('editEmail'); if (_ee) _ee.value = profile.email || ''; } catch(_){ }
   document.getElementById('editPhoneNumber').value = profile.phone_number || '';
   document.getElementById('editBio').value = profile.bio || '';
   document.getElementById('editAvatarUrl').value = profile.avatar_url || '';
@@ -3208,12 +3211,55 @@ window.openEditProfile = async function openEditProfile() {
       } catch(e) { /* ignore */ }
     }
 
-    // Prefill form fields
-    try { document.getElementById('editDisplayName').value = profile?.display_name || (user.user_metadata && (user.user_metadata.name || '')) || ''; } catch(_){}
-    try { document.getElementById('editEmail').value = profile?.email || user.email || ''; } catch(_){}
-  try { document.getElementById('editPhoneNumber').value = profile?.phone_number || profile?.phone || (user.user_metadata && user.user_metadata.phone) || ''; } catch(_){}
-    try { document.getElementById('editBio').value = profile?.bio || ''; } catch(_){}
-    try { document.getElementById('editAvatarUrl').value = profile?.avatar_url || (user.user_metadata && user.user_metadata.avatar_url) || ''; } catch(_){}
+    // If we already loaded a profile earlier on the page, prefer that
+    const loaded = (typeof window !== 'undefined' && window._loadedProfile) ? window._loadedProfile : null;
+    // If we didn't have a loaded profile but fetched one now, persist it for next time
+    if (!loaded && profile) {
+      try { window._loadedProfile = profile; } catch(_){}
+    }
+
+    // Prefer the already-loaded profile (window._loadedProfile) or the freshly fetched profile
+    const src = loaded || profile || {};
+    const meta = (user && user.user_metadata) ? user.user_metadata : {};
+
+    // Only prefill fields that exist in the edit form and are shown on the profile screen.
+    // Do not clear inputs if the source value is missing — only write when we have a non-empty value.
+    const setIfPresent = (id, value) => {
+      try {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (value === null || value === undefined) return;
+        if (typeof value === 'string' && value.trim() === '') return;
+        el.value = Array.isArray(value) ? value.join(', ') : value;
+      } catch(_){}
+    };
+
+    // Prefill using Supabase column names (use window._loadedProfile if present)
+    try {
+      const d = src.display_name || '';
+      const dn = document.getElementById('editDisplayName'); if (dn) dn.value = d;
+    } catch(_){}
+    try {
+      const p = src.phone_number || '';
+      const elp = document.getElementById('editPhoneNumber'); if (elp) elp.value = p;
+    } catch(_){}
+    try {
+      const b = src.bio || '';
+      const eb = document.getElementById('editBio'); if (eb) eb.value = b;
+    } catch(_){}
+    try {
+      const a = src.avatar_url || '';
+      const ea = document.getElementById('editAvatarUrl'); if (ea) ea.value = a;
+    } catch(_){}
+    // If the optional email input exists, set it too
+    try {
+      const eVal = src.email || '';
+      const ee = document.getElementById('editEmail'); if (ee) ee.value = eVal;
+    } catch(_){}
+    try {
+      const elAvatar = document.getElementById('editAvatarUrl');
+      if (elAvatar) elAvatar.value = src.avatar_url || (user && user.user_metadata && user.user_metadata.avatar_url) || '';
+    } catch(_){ }
 
     // Show the form
     try { document.getElementById('editProfileForm').style.display = 'block'; } catch(_){ }
@@ -3655,7 +3701,9 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
   // Merge form inputs with any already-loaded profile to avoid saving empty values
   const existing = window._loadedProfile || {};
   const inputDisplay = (document.getElementById('editDisplayName') && document.getElementById('editDisplayName').value) || '';
-  const inputEmail = (document.getElementById('editEmail') && document.getElementById('editEmail').value) || '';
+  // editEmail was removed from the form; read it defensively (null if missing)
+  const emailEl = document.getElementById('editEmail');
+  const inputEmail = emailEl ? (emailEl.value || '') : null;
   const inputPhone = (document.getElementById('editPhoneNumber') && document.getElementById('editPhoneNumber').value) || '';
   const inputBio = (document.getElementById('editBio') && document.getElementById('editBio').value) || '';
   const inputAvatar = (document.getElementById('editAvatarUrl') && document.getElementById('editAvatarUrl').value) || '';
@@ -3663,7 +3711,8 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
   const payload = {
     user_id: user.id,
     display_name: inputDisplay || existing.display_name || '',
-    email: inputEmail || existing.email || user.email || '',
+    // Only set email if we have a value (form removed email field so inputEmail may be null)
+    email: (inputEmail === null ? (existing.email || user.email || '') : (inputEmail || existing.email || user.email || '')),
     phone_number: inputPhone || existing.phone_number || existing.phone || '',
     bio: inputBio || existing.bio || '',
     avatar_url: inputAvatar || existing.avatar_url || '',
@@ -3672,16 +3721,23 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
 
   // Try to update auth email if it was changed in the form (best-effort)
   try {
-    const newEmail = (payload.email || '').trim();
-    if (newEmail && newEmail !== (user.email || '')) {
-      if (client.auth && typeof client.auth.updateUser === 'function') {
-        document.getElementById('profileStatus').textContent = 'در حال به‌روزرسانی ایمیل...';
-        const upd = await client.auth.updateUser({ email: newEmail });
-        if (upd && upd.error) {
-          console.warn('auth.updateUser failed', upd.error);
-          document.getElementById('profileStatus').textContent = 'خطا در به‌روزرسانی ایمیل (سرور)';
+    // Only try to update auth email if the edit form actually provided an email field (best-effort)
+    try {
+      if (emailEl) {
+        const newEmail = (payload.email || '').trim();
+        if (newEmail && newEmail !== (user.email || '')) {
+          if (client.auth && typeof client.auth.updateUser === 'function') {
+            document.getElementById('profileStatus').textContent = 'در حال به‌روزرسانی ایمیل...';
+            const upd = await client.auth.updateUser({ email: newEmail });
+            if (upd && upd.error) {
+              console.warn('auth.updateUser failed', upd.error);
+              document.getElementById('profileStatus').textContent = 'خطا در به‌روزرسانی ایمیل (سرور)';
+            }
+          }
         }
       }
+    } catch (err) {
+      console.debug('update auth email error', err);
     }
   } catch (err) {
     console.debug('update auth email error', err);
@@ -3741,11 +3797,17 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
       saved = updated;
     } else {
       // 2) No profile for this user_id — check if a profile exists with the same email
-      const { data: byEmail } = await client.from('profiles').select('*').eq('email', payload.email).maybeSingle();
+      let byEmail = null;
+      // Only perform the email-based lookup if we actually have an email value
+      const emailToQuery = payload.email && payload.email.trim() ? payload.email.trim() : null;
+      if (emailToQuery) {
+        const res = await client.from('profiles').select('*').eq('email', emailToQuery).maybeSingle();
+        byEmail = res ? res.data || res : null;
+      }
       if (byEmail) {
         // Update the existing row that matches the email and attach it to this user_id
         const upObj = Object.assign({}, payload, { user_id: authUser.id });
-        const { data: updated, error: updateErr } = await client.from('profiles').update(upObj).eq('email', payload.email).select().maybeSingle();
+        const { data: updated, error: updateErr } = await client.from('profiles').update(upObj).eq('email', emailToQuery).select().maybeSingle();
         if (updateErr) {
           console.error('profiles update by email failed', updateErr);
           document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
@@ -4158,23 +4220,64 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
 
 <nav class="bottom-tabs" id="mobileMenu">
   <button class="tab-btn" id="tabAccount" title="حساب">
-  <img src="icons/icons8-account-64.png" alt="حساب" style="width:24px;height:24px;display:block;margin:0 auto;filter:var(--icon-filter,none)" />
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+    <title>Account Settings</title>
+    <path d="M9.6,3.32a3.86,3.86,0,1,0,3.86,3.85A3.85,3.85,0,0,0,9.6,3.32M16.35,11a.26.26,0,0,0-.25.21l-.18,1.27a4.63,4.63,0,0,0-.82.45l-1.2-.48a.3.3,0,0,0-.3.13l-1,1.66a.24.24,0,0,0,.06.31l1,.79a3.94,3.94,0,0,0,0,1l-1,.79a.23.23,0,0,0-.06.3l1,1.67c.06.13.19.13.3.13l1.2-.49a3.85,3.85,0,0,0,.82.46l.18,1.27a.24.24,0,0,0,.25.2h1.93a.24.24,0,0,0,.23-.2l.18-1.27a5,5,0,0,0,.81-.46l1.19.49c.12,0,.25,0,.32-.13l1-1.67a.23.23,0,0,0-.06-.3l-1-.79a4,4,0,0,0,0-.49,2.67,2.67,0,0,0,0-.48l1-.79a.25.25,0,0,0,.06-.31l-1-1.66c-.06-.13-.19-.13-.31-.13L19.5,13a4.07,4.07,0,0,0-.82-.45l-.18-1.27a.23.23,0,0,0-.22-.21H16.46M9.71,13C5.45,13,2,14.7,2,16.83v1.92h9.33a6.65,6.65,0,0,1,0-5.69A13.56,13.56,0,0,0,9.71,13m7.6,1.43a1.45,1.45,0,1,1,0,2.89,1.45,1.45,0,0,1,0-2.89Z"/>
+  </svg>
     <div class="tab-label">حساب</div>
   </button>
   <button class="tab-btn" id="tabPayments" title="شهریه">
-  <img src="icons/icons8-money-100.png" alt="شهریه" style="width:24px;height:24px;display:block;margin:0 auto;filter:var(--icon-filter,none)" />
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M12.052 1.25H11.948C11.0495 1.24997 10.3003 1.24995 9.70552 1.32991C9.07773 1.41432 8.51093 1.59999 8.05546 2.05546C7.59999 2.51093 7.41432 3.07773 7.32991 3.70552C7.27259 4.13189 7.25637 5.15147 7.25179 6.02566C5.22954 6.09171 4.01536 6.32778 3.17157 7.17157C2 8.34315 2 10.2288 2 14C2 17.7712 2 19.6569 3.17157 20.8284C4.34314 22 6.22876 22 9.99998 22H14C17.7712 22 19.6569 22 20.8284 20.8284C22 19.6569 22 17.7712 22 14C22 10.2288 22 8.34315 20.8284 7.17157C19.9846 6.32778 18.7705 6.09171 16.7482 6.02566C16.7436 5.15147 16.7274 4.13189 16.6701 3.70552C16.5857 3.07773 16.4 2.51093 15.9445 2.05546C15.4891 1.59999 14.9223 1.41432 14.2945 1.32991C13.6997 1.24995 12.9505 1.24997 12.052 1.25ZM15.2479 6.00188C15.2434 5.15523 15.229 4.24407 15.1835 3.9054C15.1214 3.44393 15.0142 3.24644 14.8839 3.11612C14.7536 2.9858 14.5561 2.87858 14.0946 2.81654C13.6116 2.7516 12.964 2.75 12 2.75C11.036 2.75 10.3884 2.7516 9.90539 2.81654C9.44393 2.87858 9.24644 2.9858 9.11612 3.11612C8.9858 3.24644 8.87858 3.44393 8.81654 3.9054C8.771 4.24407 8.75661 5.15523 8.75208 6.00188C9.1435 6 9.55885 6 10 6H14C14.4412 6 14.8565 6 15.2479 6.00188ZM12 9.25C12.4142 9.25 12.75 9.58579 12.75 10V10.0102C13.8388 10.2845 14.75 11.143 14.75 12.3333C14.75 12.7475 14.4142 13.0833 14 13.0833C13.5858 13.0833 13.25 12.7475 13.25 12.3333C13.25 11.9493 12.8242 11.4167 12 11.4167C11.1758 11.4167 10.75 11.9493 10.75 12.3333C10.75 12.7174 11.1758 13.25 12 13.25C13.3849 13.25 14.75 14.2098 14.75 15.6667C14.75 16.857 13.8388 17.7155 12.75 17.9898V18C12.75 18.4142 12.4142 18.75 12 18.75C11.5858 18.75 11.25 18.4142 11.25 18V17.9898C10.1612 17.7155 9.25 16.857 9.25 15.6667C9.25 15.2525 9.58579 14.9167 10 14.9167C10.4142 14.9167 10.75 15.2525 10.75 15.6667C10.75 16.0507 11.1758 16.5833 12 16.5833C12.8242 16.5833 13.25 16.0507 13.25 15.6667C13.25 15.2826 12.8242 14.75 12 14.75C10.6151 14.75 9.25 13.7903 9.25 12.3333C9.25 11.143 10.1612 10.2845 11.25 10.0102V10C11.25 9.58579 11.5858 9.25 12 9.25Z" fill="currentColor"/>
+  </svg>
     <div class="tab-label">شهریه</div>
   </button>
   <button class="tab-btn" id="tabCoaches" title="مربیان">
-  <img src="icons/icons8-coach-100.png" alt="مربیان" style="width:24px;height:24px;display:block;margin:0 auto;filter:var(--icon-filter,none)" />
+  <svg width="24" height="24" viewBox="0 0 297 297" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+  <g>
+    <path d="m89.729,101.161c25.394,0 46.053-20.659 46.053-46.053 0-25.394-20.659-46.053-46.053-46.053-25.394,0-46.053,20.659-46.053,46.053 1.42109e-14,25.394 20.659,46.053 46.053,46.053z"/>
+    <path d="m296.788,213.636c-0.241-0.742-1.053-2.498-3.377-2.781l-27.882-3.406c-6.908-0.845-12.785-5.115-15.722-11.422l-11.855-25.466v0.001c-0.989-2.124-2.909-2.353-3.691-2.353-0.78,0.001-2.7,0.23-3.688,2.352l-11.856,25.465c-2.935,6.307-8.812,10.578-15.719,11.423l-27.885,3.406c-2.324,0.284-3.135,2.039-3.377,2.781-0.24,0.742-0.616,2.639 1.097,4.235l20.555,19.146c5.094,4.742 7.338,11.652 6.005,18.483l-5.377,27.569c-0.447,2.299 0.971,3.613 1.602,4.071 0.632,0.458 2.322,1.401 4.368,0.266l24.56-13.634c3.042-1.689 6.379-2.533 9.715-2.533 3.338,0 6.675,0.844 9.718,2.533l24.56,13.634c2.049,1.137 3.735,0.193 4.367-0.266 0.631-0.458 2.051-1.772 1.602-4.071l-5.377-27.571c-1.332-6.831 0.913-13.741 6.005-18.482l20.557-19.144c1.712-1.596 1.337-3.494 1.095-4.236z"/>
+    <path d="m156.567,208.708c2.433-7.488 8.798-12.732 16.612-13.685l6.262-.765v-32.258c0-17.525-11.262-33.065-27.916-38.521l-.077-.025-24.359-4.033c-2.073-0.638-4.288,0.46-5.034,2.505l-27.638,75.834c-1.595,4.375-7.782,4.375-9.376,0l-27.639-75.834c-0.602-1.652-2.161-2.687-3.831-2.687-0.396,0-25.561,4.21-25.561,4.21-16.791,5.594-28.01,21.159-28.01,38.761v63.1c0,9.456 7.666,17.122 17.122,17.122h145.198c3.739,0 7.193-1.201 10.006-3.237l-10.362-9.651c-5.762-5.366-7.83-13.35-5.397-20.836z"/>
+    <path d="m99.719,117.565c-1.057-1.151-2.601-1.73-4.163-1.73h-11.654c-1.563,0-3.107,0.579-4.163,1.73-1.636,1.782-1.873,4.356-0.712,6.368l6.229,9.391-2.916,24.601 5.743,15.277c0.56,1.536 2.733,1.536 3.293,0l5.743-15.277-2.916-24.601 6.229-9.391c1.16-2.011 0.923-4.585-0.713-6.368z"/>
+  </g>
+  </svg>
     <div class="tab-label">مربیان</div>
   </button>
   <button class="tab-btn" id="tabSessions" title="تمرینات">
-  <img src="icons/icons8-volleyball-100.png" alt="تمرینات" style="width:24px;height:24px;display:block;margin:0 auto;filter:var(--icon-filter,none)" />
+  <svg width="24" height="24" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+    <!-- paths adapted from icons8-volleyball-100.svg; colors replaced with currentColor -->
+    <g>
+      <path d="M383.301,168.546c-6.107,8.825-12.711,17.27-19.676,25.413c-25.851,30.156-57.049,55.51-92.144,74.679c-0.058,2.22-0.058,4.442-0.058,6.604c0,34.227,5.98,68.202,17.455,100.219c5.98-2.591,11.834-5.367,17.698-8.27c76.344-38.046,139.189-97.131,181.939-171.012c3.75-6.535,7.335-13.139,10.724-19.86c-5.367-16.461-12.584-32.688-21.585-48.292c-13.081-22.626-29.046-42.487-47.172-59.328c-8.64,31.082-21.722,60.322-38.552,86.961C389.155,160.043,386.32,164.358,383.301,168.546z"/>
+      <path d="M358.19,148.385h0.068c2.289-3.273,4.442-6.536,6.536-9.867c17.63-27.877,30.78-58.9,38.231-92.076c-6.78-4.752-13.744-9.194-20.893-13.198C343.638,11.532,299.983,0,255.762,0.059c-43.422,0-87.332,10.986-127.725,34.286c-11.532,6.662-22.266,14.064-32.318,22.15c86.221,2.834,169.413,29.356,241.443,77.085C344.32,138.332,351.353,143.261,358.19,148.385z"/>
+      <path d="M110.952,193.404c10.676,0.926,21.283,2.465,31.822,4.5c39.283,7.587,77.095,22.325,111.323,43.666c32.191-17.269,60.867-40.334,84.488-67.714c-6.224-4.686-12.643-9.185-19.179-13.51c-71.056-47.124-153.692-72.04-239.037-72.04c-6.048,0-12.155,0.137-18.195,0.439c-11.045,12.828-20.718,26.581-28.929,41.133c-12.458,22.14-21.585,45.955-27.069,70.618c24.546-5.796,49.452-8.572,74.192-8.572C90.605,191.924,100.773,192.42,110.952,193.404z"/>
+      <path d="M104.601,246.625c0.429-7.149,1.052-14.309,1.782-21.458c-8.63-0.809-17.328-1.179-26.016-1.179c-26.523,0-53.29,3.585-79.433,10.92C0.311,242.009,0,249.089,0,256.249c0.059,43.422,11.045,87.332,34.354,127.725c23.748,41.074,57.05,73.013,95.534,94.783c8.873,5.065,18.068,9.506,27.496,13.383c-35.328-66.974-53.708-141.04-53.708-216.528C103.676,265.931,103.988,256.249,104.601,246.625z"/>
+      <path d="M271.482,416.964c-4.685-9.682-8.814-19.549-12.399-29.601c-13.003-35.835-19.724-73.764-19.724-112.121c0-1.666,0-3.331,0.059-4.997c-31.024-19.801-65.435-33.487-101.202-40.51c-0.681,6.224-1.237,12.506-1.607,18.867c-0.556,9-0.867,18.01-0.867,27.01c0,75.799,19.861,149.924,57.975,216.041c2.834,4.928,5.795,9.799,8.873,14.61h0.069c17.58,3.769,35.523,5.678,53.601,5.678c24.477,0,49.022-3.516,73.071-10.733c-18.555-19.549-34.412-41.075-47.416-64.082C278.203,430.532,274.686,423.811,271.482,416.964z"/>
+      <path d="M509.848,222.878c-45.576,74.387-110.7,134.086-188.962,172.989c-6.477,3.214-12.956,6.292-19.549,9.136c2.649,5.542,5.484,10.978,8.503,16.335c13.939,24.672,31.452,47.425,52.423,67.53c7.344-3.39,14.62-7.082,21.712-11.212c41.133-23.756,73.013-57.049,94.793-95.533C500.477,343.639,512,299.973,512,255.752C511.941,244.774,511.27,233.807,509.848,222.878z"/>
+    </g>
+  </svg>
     <div class="tab-label">تمرینات</div>
   </button>
   <button class="tab-btn" id="tabCompetitions" title="مسابقات">
-  <img src="icons/icons8-trophy-99.png" alt="مسابقات" style="width:24px;height:24px;display:block;margin:0 auto;filter:var(--icon-filter,none)" />
+  <svg width="24" height="24" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+  <!-- trophy icon adapted; colors normalized to currentColor for theming -->
+  <g>
+    <path d="M150.085,294.683h-31.549c-33.241,0-60.285-27.044-60.285-60.285s27.044-60.285,60.285-60.285h31.549c4.328,0,7.837,3.509,7.837,7.837c0,4.328-3.509,7.837-7.837,7.837h-31.549c-24.599,0-44.612,20.013-44.612,44.612s20.013,44.612,44.612,44.612h31.549c4.328,0,7.837,3.509,7.837,7.837S154.413,294.683,150.085,294.683z"/>
+    <path d="M385.806,294.683h-31.549c-4.328,0-7.837-3.509-7.837-7.837s3.509-7.837,7.837-7.837h31.549c24.599,0,44.612-20.013,44.612-44.612s-20.013-44.612-44.612-44.612h-31.549c-4.328,0-7.837-3.509-7.837-7.837c0-4.328,3.509-7.837,7.837-7.837h31.549c33.241,0,60.285,27.044,60.285,60.285S419.047,294.683,385.806,294.683z"/>
+  </g>
+  <path d="M273.922,435.635v-78.734h-43.505v78.734c0,13.374-10.842,24.215-24.216,24.215l0,0v22.675h92.744v-22.675h-0.808C284.763,459.851,273.922,449.009,273.922,435.635z"/>
+  <rect x="230.41" y="351.397" width="43.133" height="48.857"/>
+  <path d="M354.257,161.958v113.072c0,56.148-45.939,102.085-102.085,102.085l0,0c-56.148,0-102.085-45.939-102.085-102.085V161.958H354.257z"/>
+  <g>
+    <path d="M323.114,161.958v81.928c0,56.148-45.939,102.085-102.085,102.085l0,0c-20.148,0-38.98-5.916-54.848-16.096c18.189,28.352,49.991,47.239,85.991,47.239l0,0c56.148,0,102.085-45.939,102.085-102.085V161.958H323.114z"/>
+    <polygon points="28.643,85.924 40.895,57.281 61.398,80.736 92.425,83.537 76.454,110.285 83.378,140.659 53.005,133.735 26.256,149.706 23.455,118.679 0,98.176"/>
+    <polygon points="233.163,37.611 255.835,1.761 278.317,37.731 319.418,48.216 292.156,80.713 294.885,123.041 255.554,107.156 216.14,122.831 219.094,80.517 192.006,47.877"/>
+    <polygon points="465.212,76.285 494.128,64.695 492.041,95.778 512,119.699 481.793,127.319 465.212,153.692 448.629,127.319 418.422,119.699 438.381,95.778 436.294,64.695"/>
+  </g>
+  <rect x="186.295" y="482.531" width="131.647" height="27.708"/>
+  <rect x="150.089" y="161.957" width="204.173" height="33.924"/>
+  <rect x="186.295" y="496.376" width="131.647" height="13.854"/>
+  <path d="M174.372,340.382c9.583,11.446,21.614,20.777,35.268,27.17V161.958h-35.268V340.382z"/>
+  </svg>
     <div class="tab-label">مسابقات</div>
   </button>
 </nav>
@@ -11095,7 +11198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.innerHTML = '<div class="muted" style="padding:12px;">هیچ اعلانی وجود ندارد</div>';
         return;
       }
-      // render newest first (arr already sorted desc)
+  // render newest first (arr already sorted desc)
       arr.forEach(n => {
         try {
           const r = document.createElement('div');
@@ -11189,6 +11292,13 @@ document.addEventListener('DOMContentLoaded', () => {
           el.appendChild(r);
         } catch (e) { console.warn('renderNotifications: item render failed', e); }
       });
+      // toggle visibility of the floating close-all button
+      try {
+        const floatBtn = document.getElementById('closeAllNotificationsFloat');
+        if (floatBtn) {
+          floatBtn.style.display = (state.notifications && state.notifications.length) ? 'block' : 'none';
+        }
+      } catch(e){}
     } catch(e) { console.warn('renderNotifications failed', e); }
   }
 
@@ -11202,6 +11312,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (nbSettings) nbSettings.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
   // back button in notifications view
   const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { if (!goBack()) showView('home'); });
+    // floating close-all button in notifications view (bottom-right)
+    try {
+      const closeFloat = document.getElementById('closeAllNotificationsFloat');
+      if (closeFloat) {
+        closeFloat.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          try { const cnt = (state.notifications||[]).length; state.notifications = []; } catch(_){ state.notifications = []; }
+          try{ if (typeof saveState === 'function') saveState(); } catch(e){}
+          try{ updateNotificationsBadge(); } catch(e){}
+          try{ renderNotifications(); } catch(e){}
+          try { if (typeof showToast === 'function') showToast('همهٔ اعلان‌ها بسته شد'); } catch(e){}
+        });
+      }
+    } catch(e){}
     // keep any class-based badges in sync
     function syncClassBadges() {
       const cnt = (state.notifications||[]).filter(n=>!n.read).length;
@@ -11226,6 +11350,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch(e){}
   } catch(e) { console.warn('wire notifications handlers failed', e); }
+
+  // -- dev helper: create a test notification (exposed to console)
+  try {
+    window.createTestNotification = function(opts={}){
+      try {
+        const n = {
+          id: 'test-' + String(Date.now()) + '-' + Math.floor(Math.random()*9000+1000),
+          title: opts.title || 'اعلان آزمایشی',
+          body: opts.body || 'این یک اعلان آزمایشی است. برای تست دکمهٔ "بستن همه" ایجاد شد.',
+          ts: Date.now(),
+          read: false,
+          type: opts.type || 'test'
+        };
+        state.notifications = state.notifications || [];
+        state.notifications.push(n);
+        try{ if (typeof saveState === 'function') saveState(); } catch(e){}
+        try{ updateNotificationsBadge(); } catch(e){}
+        try{ renderNotifications(); } catch(e){}
+        return n;
+      } catch(e){ console.warn('createTestNotification failed', e); return null; }
+    };
+    // create one now so you can test immediately
+    try { window.createTestNotification(); } catch(e){}
+    // helper to remove test notifications (id starts with 'test-' or type === 'test')
+    try {
+      window.clearTestNotifications = function(){
+        try {
+          state.notifications = (state.notifications || []).filter(n => { try { return !(String(n.id||'').startsWith('test-') || (n && n.type === 'test')); } catch(e){ return true; } });
+          try{ if (typeof saveState === 'function') saveState(); } catch(e){}
+          try{ updateNotificationsBadge(); } catch(e){}
+          try{ renderNotifications(); } catch(e){}
+          try{ if (typeof showToast === 'function') showToast('اعلان‌های آزمایشی پاک شدند'); } catch(e){}
+          return true;
+        } catch(er){ console.warn('clearTestNotifications failed', er); return false; }
+      };
+      // remove the test notification now (one-time)
+      try { window.clearTestNotifications(); } catch(e){}
+    } catch(e){}
+  } catch(e){}
 
   // safe HTML escape helper for small UI snippets
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
