@@ -9859,11 +9859,38 @@ function renderCoachForm(coach) {
   on('#c_photo', 'change', e => {
     let f = e.target.files[0];
     if (!f) return;
-    imageFileToDataURL(f, 500).then(data => {
-      qs('#coachPreview').innerHTML = `<img src="${data}" style="width: 100%; height: 100%; object-fit: cover;">`;
-      qs('#c_photo').dataset.dataurl = data;
-      qs('#removeCoachPhoto').disabled = false;
-    }).catch(err => alert('خطا در خواندن عکس'));
+    const prev = qs('#coachPreview');
+    try { prev.innerHTML = '<div class="muted">در حال پردازش تصویر...</div>'; } catch(_){}
+
+    // Prefer face-aware compressor if available (same behavior as player photo flow)
+    if (window.imageCompress && typeof window.imageCompress.compressWithFaceCrop === 'function') {
+      window.imageCompress.compressWithFaceCrop(f, { outputSize: 256, expand: 1.4, quality: 0.7, mimeType: 'image/webp' })
+        .then(res => {
+          if (prev.querySelector('img')) prev.querySelector('img').src = res.dataUrl;
+          else { prev.innerHTML = ''; const img = document.createElement('img'); img.src = res.dataUrl; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img); }
+          qs('#removeCoachPhoto').disabled = false;
+          qs('#c_photo').dataset.dataurl = res.dataUrl;
+          // mark that we have a processed blob available (actual blob handling is upstream)
+          qs('#c_photo').dataset.blob = true;
+        })
+        .catch(err => {
+          console.warn('compressWithFaceCrop failed for coach photo, falling back', err);
+          imageFileToDataURL(f, 500).then(data => {
+            prev.innerHTML = '';
+            let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img);
+            qs('#removeCoachPhoto').disabled = false;
+            qs('#c_photo').dataset.dataurl = data;
+          }).catch(err2 => { console.error(err2); alert('خطا در خواندن عکس'); prev.innerHTML = '<div style="color:#666">خطا در پردازش تصویر</div>'; });
+        });
+    } else {
+      // fallback: basic resize + quality loop
+      imageFileToDataURL(f, 500).then(data => {
+        if (prev.querySelector('img')) prev.querySelector('img').src = data;
+        else { prev.innerHTML = ''; let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img); }
+        qs('#removeCoachPhoto').disabled = false;
+        qs('#c_photo').dataset.dataurl = data;
+      }).catch(err => { console.error(err); alert('خطا در خواندن عکس'); });
+    }
   });
   on('#removeCoachPhoto', 'click', () => {
     qs('#coachPreview').innerHTML = '<div style="color:#666">عکس</div>';
