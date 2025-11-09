@@ -1,0 +1,60 @@
+{
+  "packageId": "io.github.pouriaabedi0073_sys.twa",
+  "host": "pouriaabedi0073-sys.github.io",
+  "name": "باشگاه والیبال — مدیریت",
+  "launcherName": "والیبال",
+  "display": "standalone",
+  "themeColor": "#F59E0B",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#FFFFFF",
+  "enableNotifications": true,
+  "startUrl": "/volleyball-club/index.html",
+  "iconUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/assets/icons/icon-512.png",
+  "maskableIconUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/assets/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\20-pc\\volleyballclub.keystore",
+    "alias": "volleyballclub"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "بازیکنان",
+      "shortName": "بازیکنان",
+      "url": "https://pouriaabedi0073-sys.github.io/volleyball-club/index.html#players",
+      "chosenIconUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/assets/icons/icon-192.png"
+    },
+    {
+      "name": "صدور کارت",
+      "shortName": "کارت",
+      "url": "https://pouriaabedi0073-sys.github.io/volleyball-club/index.html#membership",
+      "chosenIconUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/assets/icons/icon-256.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://pouriaabedi0073-sys.github.io/volleyball-club/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}
