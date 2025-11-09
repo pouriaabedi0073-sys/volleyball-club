@@ -165,9 +165,9 @@
   "related_applications": [
     {
       "platform": "play",
-      "id": "com.example.yourapp",
+      "id": "ir.pouriaabedi.volleyballclub",
       "fingerprints": [
-        { "type": "sha256_cert", "value": "<BASE64_SHA256_CERT_FINGERPRINT>" }
+        { "type": "sha256_cert", "value": "15aUTTRMAGrG6eofj7zSOeae2GrOSwJNHhiQeaXDxzg=" }
       ]
     }
   ],
