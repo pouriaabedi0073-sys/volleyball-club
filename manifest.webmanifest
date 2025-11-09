@@ -161,5 +161,15 @@
         }
       ]
     }
-  ]
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "com.example.yourapp",
+      "fingerprints": [
+        { "type": "sha256_cert", "value": "<BASE64_SHA256_CERT_FINGERPRINT>" }
+      ]
+    }
+  ],
+  "prefer_related_applications": true
 }

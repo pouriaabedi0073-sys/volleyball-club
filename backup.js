@@ -21,17 +21,143 @@
 
   function uid(prefix='b_') { try { return (crypto && crypto.randomUUID) ? crypto.randomUUID() : prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,8); } catch(e){ return prefix + Date.now(); } }
 
+  // localStorage fallback helpers (synchronous)
   function getPending() { try { const raw = localStorage.getItem(PENDING_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ return []; } }
   function savePending(arr){ try { localStorage.setItem(PENDING_KEY, JSON.stringify(arr || [])); } catch(e){} }
 
+  // IndexedDB-aware async helpers. If window.indexedDBQueue is available, use it; otherwise fall back to localStorage.
+  async function addPendingItem(item) {
+    try {
+      if (window.indexedDBQueue && typeof window.indexedDBQueue.addPending === 'function') {
+        await window.indexedDBQueue.addPending(item);
+        return;
+      }
+      // fallback: localStorage cannot store Blobs. Convert blob/bytes -> base64 string before saving
+      const toSave = Object.assign({}, item);
+      if (!toSave.base64 && toSave.blob) {
+        try {
+          toSave.base64 = await new Promise((resolve, reject) => {
+            try {
+              const fr = new FileReader();
+              fr.onload = () => resolve(String(fr.result || ''));
+              fr.onerror = (e) => reject(e);
+              fr.readAsDataURL(toSave.blob);
+            } catch (e) { reject(e); }
+          });
+        } catch(e) { LOG('addPendingItem: blob->base64 failed', e); }
+      }
+      const pend = getPending(); pend.push(toSave); savePending(pend);
+    } catch(e) { LOG('addPendingItem failed', e); }
+  }
+
+  async function getAllPendingAsync() {
+    try {
+      if (window.indexedDBQueue && typeof window.indexedDBQueue.getAllPending === 'function') {
+        return await window.indexedDBQueue.getAllPending();
+      }
+      return getPending();
+    } catch(e) { LOG('getAllPendingAsync failed', e); return getPending(); }
+  }
+
+  async function removePendingById(id) {
+    try {
+      if (window.indexedDBQueue && typeof window.indexedDBQueue.deletePending === 'function') {
+        await window.indexedDBQueue.deletePending(id);
+        return;
+      }
+      const pend = getPending(); const idx = pend.findIndex(p => p && p.id === id); if (idx !== -1) { pend.splice(idx,1); savePending(pend); }
+    } catch(e) { LOG('removePendingById failed', e); }
+  }
+
   // Snapshot selected tables from window.state (or localStorage fallback)
-  function buildSnapshot() {
+  // This async version will optionally process embedded images: resize + convert to WebP
+  async function buildSnapshot(opts = {}) {
+    const { image = { enabled: true, maxWidth: 256, quality: 0.7 } } = opts || {};
     const snapshot = { meta: { created_at: new Date().toISOString() }, tables: {} };
     try {
       window.state = window.state || {};
+      // helper: attempts to fetch/convert an image (data: URL or remote URL) to a WebP data URL
+      async function convertImageToWebP(input, maxWidth, quality) {
+        try {
+          if (!input) return input;
+          if (typeof input !== 'string') return input;
+          // quick reject if already a small inline webp data url
+          if (input.startsWith('data:image/webp')) return input;
+
+          let blob = null;
+          if (input.startsWith('data:')) {
+            // data URL -> fetch to get blob
+            try { const r = await fetch(input); if (!r.ok) throw new Error('dataURL fetch failed'); blob = await r.blob(); } catch(e) { LOG('convertImageToWebP: dataURL->blob failed', e); return input; }
+          } else if (/^https?:\/\//i.test(input)) {
+            // remote URL: try to fetch (CORS required)
+            try { const r = await fetch(input, { mode: 'cors' }); if (!r.ok) throw new Error('fetch failed ' + r.status); blob = await r.blob(); } catch(e) { LOG('convertImageToWebP: fetch remote image failed', e); return input; }
+          } else {
+            return input; // not a data or http URL
+          }
+
+          // createImageBitmap for efficient decode
+          let imgBitmap = null;
+          try { imgBitmap = await createImageBitmap(blob); } catch(e) { LOG('createImageBitmap failed', e); return input; }
+
+          let width = imgBitmap.width; let height = imgBitmap.height;
+          if (maxWidth && width > maxWidth) { const ratio = maxWidth / width; width = maxWidth; height = Math.round(height * ratio); }
+
+          const c = document.createElement('canvas'); c.width = width; c.height = height;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(imgBitmap, 0, 0, width, height);
+
+          const webpBlob = await new Promise((res, rej) => {
+            try {
+              c.toBlob(b => { if (b) res(b); else rej(new Error('toBlob failed')); }, 'image/webp', typeof quality === 'number' ? quality : 0.7);
+            } catch(e) { rej(e); }
+          });
+
+          // convert blob -> dataURL so it fits naturally inside JSON
+          const dataUrl = await new Promise((res, rej) => {
+            try {
+              const fr = new FileReader();
+              fr.onload = () => res(String(fr.result || ''));
+              fr.onerror = (e) => rej(e);
+              fr.readAsDataURL(webpBlob);
+            } catch(e) { rej(e); }
+          });
+          return dataUrl;
+        } catch(e) {
+          LOG('convertImageToWebP failed', e); return input;
+        }
+      }
+
+      // determine candidate image keys to process
+      const imageKeys = ['photo','photo_url','photoUrl','avatar','avatar_url','avatarUrl','image','image_url','imageUrl','picture','picture_url','pictureUrl'];
+
       for (const t of SNAPSHOT_TABLES) {
         const arr = window.state[t] || window.state[t.replace('_','')] || [];
-        snapshot.tables[t] = Array.isArray(arr) ? arr.map(r=>({ ...r })) : [];
+        if (!Array.isArray(arr)) { snapshot.tables[t] = []; continue; }
+        const out = [];
+        for (const rec of arr) {
+          try {
+            const copy = Object.assign({}, rec);
+            if (image && image.enabled) {
+              for (const k of Object.keys(copy)) {
+                try {
+                  const val = copy[k];
+                  if (!val || typeof val !== 'string') continue;
+                  const lowk = k.toLowerCase();
+                  const looksLikeImageKey = imageKeys.includes(lowk) || imageKeys.includes(k) || /photo|avatar|image|picture/i.test(k);
+                  const looksLikeImageValue = /^data:image\//i.test(val) || /^https?:\/\//i.test(val) || /\.(png|jpe?g|gif|bmp|webp)(\?|$)/i.test(val);
+                  if (looksLikeImageKey && looksLikeImageValue) {
+                    try {
+                      const converted = await convertImageToWebP(val, image.maxWidth || 1024, image.quality || 0.7);
+                      if (converted && typeof converted === 'string') copy[k] = converted;
+                    } catch(e) { LOG('image conversion per-field failed', e); }
+                  }
+                } catch(e) { /* per-field tolerant */ }
+              }
+            }
+            out.push(copy);
+          } catch(e) { LOG('buildSnapshot: copy record failed', e); }
+        }
+        snapshot.tables[t] = out;
       }
     } catch(e) { LOG('buildSnapshot failed', e); }
     return snapshot;
@@ -117,14 +243,17 @@
     const groupEmail = (options.groupEmail || (window.user && window.user.email) || (window.state && window.state.profile && window.state.profile.email));
     if (!groupEmail) throw new Error('groupEmail required to create a backup');
 
-    const snapshot = buildSnapshot();
+  const snapshot = await buildSnapshot({ image: { enabled: true, maxWidth: 256, quality: 0.7 } });
     // small summary: table counts and top-level timestamps
     const summary = Object.keys(snapshot.tables).reduce((acc, k) => { acc[k] = (snapshot.tables[k] || []).length; return acc; }, {});
     const id = uid();
-    const fileName = `${encodeURIComponent(groupEmail)}/${id}.json.gz`;
+    const fileName = `${encodeURIComponent(groupEmail)}/${id}.json`;
     let bytes = null;
+    let json = null;
     try {
-      bytes = compressJson(snapshot); // Uint8Array
+      json = JSON.stringify(snapshot);
+      bytes = (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(json) : null;
+      // if TextEncoder unavailable, fall back to string storage later
     } catch (e) { throw e; }
 
     // Try to insert directly into backups table when online
@@ -156,12 +285,18 @@
       }
     }
 
-    // Save pending (base64 for portability)
+    // Save pending: prefer storing a Blob with JSON in IndexedDB to avoid extra base64 conversions
     try {
-      const base64 = bytesToB64(bytes);
-      const pend = getPending();
-      pend.push({ id, groupEmail, fileName, base64, created_at: new Date().toISOString(), revision: options.revision || 1, size_bytes: bytes.length });
-      savePending(pend);
+      // bytes may be Uint8Array; convert to JSON blob
+      let blob = null;
+      try {
+        if (bytes) blob = new Blob([bytes], { type: 'application/json' });
+        else blob = new Blob([json], { type: 'application/json' });
+      } catch (be) {
+        try { blob = new Blob([json], { type: 'application/json' }); } catch(_) { blob = null; }
+      }
+      const item = { id, groupEmail, fileName, blob, created_at: new Date().toISOString(), revision: options.revision || 1, size_bytes: (bytes && bytes.length) || (json ? json.length : 0) };
+      await addPendingItem(item);
       LOG('createBackup: saved pending upload', id);
       return { ok: 'pending', id };
     } catch (e) { LOG('createBackup: save pending failed', e); throw e; }
@@ -170,12 +305,32 @@
   // flushPendingUploads: attempt to upload any pending items
   async function flushPendingUploads() {
     if (!navigator.onLine || !window.supabase) return false;
-    const pend = getPending();
+    const pend = await getAllPendingAsync();
     if (!pend || pend.length === 0) return true;
     for (let i = 0; i < pend.length; ++i) {
       const item = pend[i];
       try {
-        const bytes = b64ToBytes(item.base64);
+        // determine bytes: support old base64 shape or new blob shape
+        let bytes = null;
+        if (item && item.base64) {
+          bytes = b64ToBytes(item.base64);
+        } else if (item && item.blob) {
+          try {
+            // blob may be a real Blob (browser) or stored ArrayBuffer-like
+            if (item.blob instanceof Blob && typeof item.blob.arrayBuffer === 'function') {
+              const arr = await item.blob.arrayBuffer();
+              bytes = new Uint8Array(arr);
+            } else if (item.blob && item.blob.buffer) {
+              bytes = new Uint8Array(item.blob.buffer);
+            }
+          } catch (be) {
+            LOG('flushPendingUploads: could not read blob for', item.id, be);
+          }
+        }
+        if (!bytes) {
+          LOG('flushPendingUploads: no bytes available for pending item', item.id);
+          continue;
+        }
         // attempt to insert into backups table
         const json = new TextDecoder().decode(bytes);
         let obj = null;
@@ -189,15 +344,12 @@
           if (up && up.error) throw up.error;
           LOG('flushPendingUploads: inserted pending backup', item.id);
         } catch (e) { throw e; }
-        if (up && up.error) throw up.error;
-        // remove from pending
-        pend.splice(i,1); i--;
-        LOG('flushPendingUploads: inserted pending backup', item.id);
+        // remove from pending store
+        try { await removePendingById(item.id); } catch(e){ LOG('flushPendingUploads: removePending failed', item.id, e); }
       } catch (e) {
         LOG('flushPendingUploads: item upload failed, will retry later', item.id, e);
       }
     }
-    savePending(pend);
     return true;
   }
 

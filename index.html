@@ -10,6 +10,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap" rel="stylesheet">
 <!-- Use Google Material Icons (more reliably available) -->
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    /* inline small spinner used next to buttons */
+    .inline-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.12);
+      border-top-color: rgba(0,0,0,0.5);
+      animation: spin 0.9s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .profile-status-box { background: linear-gradient(180deg,#ecfdf5,#ffffff); padding:8px;border-radius:8px;margin-bottom:8px; }
+    .profile-status-box .status-item{ display:flex; gap:8px; align-items:center; color:#065f46; font-size:0.95em; margin:4px 0 }
+    .profile-status-box .status-item .status-text{ color: #064e3b }
+  </style>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -73,7 +90,7 @@
               sup.from = function(table) {
                 if (String(table).toLowerCase() === 'users') {
                   try {
-                    console.group('%cDEBUG: runtime supabase.from("users") detected','color:#b91c1c;font-weight:bold');
+        // editEmail removed from form; skip setting email
                     console.trace();
                     console.groupEnd();
                   } catch (e) { console.warn('users detect trace failed', e); }
@@ -198,7 +215,7 @@
   background: var(--header-bg, rgba(255,255,255,0.9));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  height: 80px;
+  height: 94px;
   position: relative;
   /* use 100% instead of 100vw to avoid horizontal overflow when scrollbars present */
   width: 100%; /* full-bleed but respect scrollbar width */
@@ -207,8 +224,8 @@
   animation: fadeIn 0.5s ease-in-out; /* انیمیشن ورود */
   }
   #appLogo {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     margin-right: 12px;
     margin-left: 8px;
@@ -226,7 +243,7 @@
     object-position: center center;
   }
   #appTitle {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700; /* بولدتر برای فونت بهتر */
     color: var(--text);
   }
@@ -290,25 +307,30 @@
     #accountProfileContainer .card .action-row { display:flex; flex-direction:column !important; width:100%; gap:8px; }
     #accountProfileContainer .card .action-row .btn, #accountProfileContainer .card .profile-actions .btn { width:100%; }
     #accountProfileContainer .card #profileSyncControls { width:100%; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  /* Modern app-like button style (2025) */
   .btn {
-  background: var(--card);
-  border: 1px solid rgba(0,0,0,0.06);
-  padding: var(--spacing-small) var(--spacing-small); /* کاهش پدینگ افقی از medium به small */
-  border-radius: var(--border-radius);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: calc(var(--base-font-size) * 0.875);
-  min-height: var(--btn-min-height);
-  min-width: 60px; /* کاهش عرض حداقل از 80px به 60px */
-  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--spacing-small);
-  color: var(--text);
-}
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
+    border: 1px solid rgba(0,0,0,0.06);
+    padding: 12px 16px; /* larger touch target */
+    border-radius: 14px; /* pill-like */
+    cursor: pointer;
+    font-weight: 700;
+    font-size: calc(var(--base-font-size) * 1);
+    min-height: 48px;
+    min-width: 72px;
+    transition: transform 0.18s cubic-bezier(.2,.9,.2,1), box-shadow 0.18s, background 0.18s;
+    position: relative;
+    overflow: visible;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    color: var(--text);
+    box-shadow: 0 6px 18px rgba(12,18,28,0.06);
+    -webkit-tap-highlight-color: transparent;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
   .btn::before {
     content: '';
     position: absolute;
@@ -321,30 +343,144 @@
     transform: translate(-50%, -50%);
     transition: width 0.6s ease, height 0.6s ease;
   }
-  .btn:hover::before {
-    width: 300px;
-    height: 300px;
+  .btn::before {
+    /* subtle ripple for clicks on desktop */
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.45s ease, height 0.45s ease, opacity 0.45s;
+    opacity: 0;
   }
-  .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px var(--shadow);
-  }
+  .btn:active::before { width: 260px; height: 260px; opacity: 1; }
+  .btn:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(12,18,28,0.12); }
+  .btn:active { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(12,18,28,0.10); }
   .btn.primary {
-    background: var(--accent-2); /* Yellow */
+    background: var(--accent-2);
     color: var(--text-inverse);
     border: none;
   }
   .btn.primary:hover {
-    filter: brightness(0.94);
+    filter: brightness(0.96);
   }
 
   /* secondary flat button (blue) */
   .btn.secondary {
-    background: var(--accent); /* Blue */
+    background: var(--accent); /* restored solid blue */
     color: var(--text-inverse);
     border: none;
   }
-  .btn.secondary:hover { filter: brightness(0.96); }
+  .btn.secondary:hover { filter: brightness(0.98); }
+
+  /* 3D tactile hero button: beveled / pop-out look for tactile depth */
+  .btn.mobile-hero {
+    --mh-h: 52px;
+    --mh-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    height: var(--mh-h);
+    border-radius: var(--mh-radius);
+    color: var(--text-inverse);
+    border: none;
+    /* Base gradient for material depth */
+    background: linear-gradient(180deg, #ff6b4a 0%, #e63f5a 100%);
+    /* outer drop shadow + subtle inner bevel */
+    box-shadow: 0 20px 40px rgba(10,16,30,0.32), inset 0 -3px 8px rgba(0,0,0,0.12);
+    transform-style: preserve-3d;
+    perspective: 900px;
+    transition: transform 240ms cubic-bezier(.2,.9,.25,1), box-shadow 240ms, filter 180ms;
+    position: relative;
+    overflow: visible;
+  }
+
+  /* Top glossy bevel */
+  .btn.mobile-hero::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 42%;
+    border-top-left-radius: var(--mh-radius);
+    border-top-right-radius: var(--mh-radius);
+    background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.02));
+    pointer-events: none;
+    transform: translateZ(20px);
+  }
+
+  /* Floating shadow plate to enhance 3D effect */
+  .btn.mobile-hero::after {
+    content: '';
+    position: absolute;
+    left: 8%; right: 8%;
+    bottom: -12px;
+    height: 14px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.38), rgba(0,0,0,0.06));
+    border-radius: 50%;
+    filter: blur(6px);
+    transition: bottom 240ms, opacity 240ms;
+    opacity: 1;
+    pointer-events: none;
+  }
+
+  /* Icon and content pop forward */
+  .btn.mobile-hero .btn-icon { transform: translateZ(28px); width:28px !important; height:28px !important; }
+
+  /* Hover: lift and rotate slightly to emphasize depth */
+  .btn.mobile-hero:hover { transform: translateY(-10px) rotateX(6deg) translateZ(18px); box-shadow: 0 32px 64px rgba(8,12,20,0.36); }
+  .btn.mobile-hero:active { transform: translateY(2px) rotateX(0deg) translateZ(0); box-shadow: 0 10px 22px rgba(8,12,20,0.22); }
+
+  @media (min-width: 720px) {
+    .btn.mobile-hero { width: auto; min-width: 220px; max-width: none; border-radius: 12px; }
+  }
+
+  /* Reduce shadow and animation specifically for the players list button to make it subtler */
+  #showAllPlayersBtn {
+    /* softer base shadow */
+    box-shadow: 0 8px 16px rgba(8,12,20,0.14) !important;
+    transition: transform 140ms cubic-bezier(.2,.9,.2,1), box-shadow 140ms !important;
+  }
+  #showAllPlayersBtn:hover {
+    /* smaller lift than the global mobile-hero hover */
+    transform: translateY(-4px) rotateX(3deg) translateZ(8px) !important;
+    box-shadow: 0 12px 24px rgba(8,12,20,0.18) !important;
+  }
+  #showAllPlayersBtn:active {
+    transform: translateY(0) rotateX(0) translateZ(0) !important;
+    box-shadow: 0 6px 12px rgba(8,12,20,0.12) !important;
+  }
+  /* disable any floating animation if present */
+  #showAllPlayersBtn.mh-animate { animation: none !important; }
+
+  /* Mobile-friendly flat hero (no 3D) for compact actions */
+  .btn.mobile-friendly {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 420px;
+    padding: 12px 16px;
+    height: 52px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000 40%));
+    color: var(--text-inverse);
+    border: none;
+    box-shadow: 0 8px 20px rgba(10,18,30,0.12);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn.mobile-friendly:active { transform: translateY(2px) scale(0.997); box-shadow: 0 6px 14px rgba(10,18,30,0.10); }
+  @media (min-width:720px) { .btn.mobile-friendly { width: auto; min-width: 180px; } }
 
   /* Button icon helper: use inline SVG <use> or sprite via injector */
   .btn .icon {
@@ -358,6 +494,10 @@
     color: inherit;
   }
   .btn .btn-icon { width:18px; height:18px; display:inline-block; vertical-align:middle; }
+  /* make the player-list button icon slightly larger for visibility */
+  #showAllPlayersBtn .btn-icon { width:26px !important; height:26px !important; }
+  /* helper to make monochrome/SVG icons appear white on colored buttons */
+  .btn .btn-icon.white-icon { filter: brightness(0) invert(1); }
 
   /* Home page specific styling */
   #view-home .section-title h3 { font-size: 16px; }
@@ -518,19 +658,23 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding: 10px 12px;
-    min-height: 56px;
-    border-radius: 8px;
+    padding: 14px 16px;
+    min-height: 64px;
+    border-radius: 14px;
     border: 1px solid rgba(0,0,0,0.06);
-    background: var(--card);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
     color: var(--text);
-    font-weight: 700;
+    font-weight: 800;
     cursor: pointer;
     text-align: center;
     white-space: nowrap;
+    box-shadow: 0 10px 26px rgba(6,12,24,0.06);
+    transition: transform .18s ease, box-shadow .18s ease;
   }
-  .action-tile-grid .action-tile.primary { background: var(--accent); color: var(--text-inverse); border: none; }
+  .action-tile-grid .action-tile.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: var(--text-inverse); border: none; box-shadow: 0 14px 36px rgba(99,102,241,0.12); }
   .action-tile-grid .action-tile.warn { background: linear-gradient(90deg, var(--warning), #f59e0b); color: var(--text-inverse); border: none; }
+  .action-tile-grid .action-tile:active { transform: translateY(2px) scale(0.995); }
+  .action-tile-grid .action-tile .tile-icon { width:22px; height:22px; margin-inline-start:10px; }
   /* membership card responsive tweaks */
   #membershipCard { transition: all 0.25s ease; }
   #membershipCard img { display:block; }
@@ -779,6 +923,19 @@
   }
   .small-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
   .small-stats-grid .stat-card { padding: 12px; border-radius: var(--border-radius); background: var(--glass); }
+  /* Icon in stats title */
+  .section-title { position: relative; }
+  .stats-icon { width:36px; height:36px; position:absolute; top:-4px; left:12px; opacity:0.95; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.12)); }
+  @keyframes spin360 { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  .stats-icon.spin { animation: spin360 6s linear infinite; }
+
+  /* Stat card color variants for a more professional palette */
+  .stat-card.sessions-card { background: linear-gradient(135deg, rgba(30, 88, 229, 0.06), rgba(30,88,229,0.02)); border-left:4px solid var(--accent); color:var(--text); }
+  .stat-card.percent-paid-card { background: linear-gradient(135deg, rgba(34,197,94,0.07), rgba(34,197,94,0.02)); border-left:4px solid var(--success); color:var(--text); }
+  .stat-card.current-income-card { background: linear-gradient(135deg, rgba(255,179,0,0.06), rgba(255,179,0,0.02)); border-left:4px solid var(--accent-2); color:var(--text); }
+  .stat-card.prev-income-card { background: linear-gradient(135deg, rgba(99,102,241,0.04), rgba(99,102,241,0.01)); border-left:4px solid #6b7280; color:var(--text); }
+  /* Improve contrast for numeric values */
+  .stat-card strong { font-size:20px; color:var(--text); }
   /* ensure stat-card adapts and percent box doesn't overflow */
   .stat-card { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; min-width: 140px; }
   .stat-card strong { font-size: 20px; }
@@ -1402,10 +1559,10 @@
     grid-template-columns: 1fr; /* بقیه gridها تک ستون */
   }
   .btn {
-    font-size: calc(var(--base-font-size) * 0.85); /* 11px حدوداً */
-    min-height: var(--btn-min-height);
-    min-width: var(--btn-min-width);
-    padding: calc(var(--spacing-small) * 0.75) var(--spacing-small);
+    font-size: calc(var(--base-font-size) * 0.9);
+    min-height: 44px;
+    min-width: 56px;
+    padding: 10px 12px;
   }
   .btn.small {
     font-size: calc(var(--base-font-size) * 0.77); /* 10px حدوداً */
@@ -2037,7 +2194,48 @@ section:not(#view-home) {
     }catch(e){ console.warn('settings theme wiring failed', e); }
   })();
   </script>
+  <!-- Image compress / face-crop (libraries + helper) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
+  <script src="./libs/image-compress.js"></script>
+  <script src="./libs/indexeddb-queue.js"></script>
+  <style>
+    /* Inline spinner used inside buttons */
+    .inline-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,0.12);border-top-color:var(--accent,#0a7);border-radius:50%;animation:__spin 1s linear infinite;vertical-align:middle}
+    @keyframes __spin{to{transform:rotate(360deg)}}
+  </style>
   <script>
+  // Provide a simple global spinner toggle for the backup button (no storage-status UI)
+  (function(){
+    try {
+      window.setBackupButtonLoading = function(on) {
+        try {
+          const btn = document.getElementById('backupNowBtn');
+          const spinner = document.getElementById('backupNowSpinner');
+          const progressContainer = document.getElementById('backupProgressContainer');
+          const progressText = document.getElementById('backupProgressText');
+          const textEl = document.getElementById('backupNowText');
+          if (btn) btn.disabled = !!on;
+          if (btn) btn.style.opacity = on ? '0.7' : '';
+          if (spinner) spinner.style.display = on ? 'inline-block' : 'none';
+          if (on) {
+            if (textEl) textEl.textContent = 'در حال بک‌آپ گیری...';
+            if (progressText) progressText.textContent = 'سیستم در حال بک‌آپ گیری است';
+            if (progressContainer) progressContainer.style.display = 'block';
+          } else {
+            if (textEl) textEl.textContent = 'ایجاد بک‌آپ جدید';
+            if (progressText) progressText.textContent = 'بک‌آپ انجام شد';
+            if (progressContainer) {
+              // show success message briefly then hide
+              setTimeout(() => {
+                try { progressContainer.style.display = 'none'; if (progressText) progressText.textContent = 'سیستم در حال بک‌آپ گیری است'; } catch(e){}
+              }, 2000);
+            }
+          }
+        } catch(e) {}
+      };
+    } catch(e) {}
+  })();
   /* Share poster builder and exporter */
   (function(){
     const SHARE_DEFAULT_AVATAR = 'assets/icons/avatar.png';
@@ -2300,7 +2498,7 @@ function enableBackupButtons(enable = true) {
             <div class="section-title" style="display:flex;align-items:center;gap:8px;">
               <h3 style="margin:0;">جدیدترین بازیکنان ثبت نامی</h3>
               <div class="actions">
-                <button id="addPlayerBtn" class="btn primary" title="بازیکن جدید" style="padding:8px 12px;white-space:nowrap;">
+                <button id="addPlayerBtn" class="btn primary mobile-friendly" title="بازیکن جدید" style="padding:8px 12px;white-space:nowrap;">
                   <span class="icon icon-plus" aria-hidden="true"></span>
                   <span>بازیکن جدید</span>
                 </button>
@@ -2340,7 +2538,7 @@ function enableBackupButtons(enable = true) {
               </script>
             <div id="playersPreview" class="players-preview"></div>
             <div style="margin-top: 12px; text-align: center;">
-              <button id="showAllPlayersBtn" class="btn secondary" style="padding:10px 18px;min-width:220px;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;">
+              <button id="showAllPlayersBtn" class="btn secondary mobile-hero" style="padding:10px 18px;min-width:220px;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;">
                 <img src="./icons/volleyball (7).png" alt="" class="btn-icon" style="width:20px;height:20px;object-fit:contain;">
                 <span style="display:inline-block;min-width:120px;text-align:center;">لیست بازیکنان</span>
               </button>
@@ -2360,7 +2558,7 @@ function enableBackupButtons(enable = true) {
           <div class="card">
             <div class="section-title">
                 <h3>آخرین جلسات</h3>
-                <div class="actions"><button id="addSessionFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
+                <div class="actions"><button id="addSessionFromHomeBtn" class="btn primary mobile-friendly" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
                     <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--text-inverse);">
                       <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                       <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
@@ -2375,8 +2573,8 @@ function enableBackupButtons(enable = true) {
           <div class="card">
             <div class="section-title">
                 <h3>برنامه تمرینات</h3>
-                <div class="actions"><button id="addTrainingFromHomeBtn" class="btn primary" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
-                    <img src="./icons/volleyball (8).png" alt="والیبال" class="btn-icon" style="width:18px;height:18px;object-fit:contain;filter: none;">
+                <div class="actions"><button id="addTrainingFromHomeBtn" class="btn primary mobile-friendly" style="padding:8px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;">
+                    <img src="./icons/volleyball-player-motion-svgrepo-com.svg" alt="والیبال" class="btn-icon white-icon" style="width:18px;height:18px;object-fit:contain;">
                     <span>تمرین جدید</span>
                   </button></div>
               </div>
@@ -2403,8 +2601,10 @@ function enableBackupButtons(enable = true) {
         <!-- Player share modal removed per user request; sharing now happens directly from the profile share button -->
         
         <div class="card" style="margin-top: 16px;">
-          <div class="section-title">
+          <div class="section-title" style="position:relative;">
             <h3>آمار کلی باشگاه</h3>
+            <!-- volleyball icon placed at the top-right of this title card; file located in icons/ -->
+            <img id="statsIcon" src="./icons/volleyball-svgrepo-com (1).svg" alt="volley" class="stats-icon spin" aria-hidden="true">
           </div>
           <div id="statsContainer" class="stats"></div>
         </div>
@@ -2957,9 +3157,8 @@ function enableBackupButtons(enable = true) {
         <div class="card" style="position:relative;">
           <div id="notificationsContent"></div>
         </div>
-  <!-- Floating Close-All button (bottom-right) -->
-  <button id="closeAllNotificationsFloat" aria-label="بستن همه اعلان‌ها" style="position:fixed;right:16px;bottom:20px;z-index:10010;padding:10px 14px;background:var(--accent, #0ea5a4);color:#fff;border:none;border-radius:28px;box-shadow:0 6px 18px rgba(0,0,0,0.18);font-weight:700;display:none;cursor:pointer;width:110px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">بستن همه</button>
       </section>
+    </section>
 
       <section id="view-account" class="hide">
     <div class="view-header fixed">
@@ -2977,7 +3176,17 @@ function enableBackupButtons(enable = true) {
          <!-- Notifications controls moved to dedicated Notifications page; quick-action removed -->
          <!-- Login / Signup card (separate) -->
          <div id="embeddedAuthBox" class="card" style="padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:var(--card);border-radius:10px;margin:12px 12px 0 12px;">
-           <div id="authDebug" style="font-size:13px;color:var(--muted);margin-bottom:8px;">وضعیت احراز هویت: بررسی...</div>
+           <div id="authDebug" class="auth-debug" style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+             <span class="auth-event">وضعیت احراز هویت:</span>
+             <span class="auth-msg">در حال بررسی...</span>
+           </div>
+           <style>
+             .auth-debug { display:block; text-align:center; }
+             .auth-debug .auth-event { color:var(--muted); margin-inline-end:6px; }
+             .auth-debug.signed-in .auth-event { color:var(--accent); font-weight:700; }
+             .auth-debug.signed-in .auth-msg { color:var(--muted); }
+             .auth-debug.auth-error .auth-event { color:var(--danger); font-weight:700; }
+           </style>
            <style>
              /* Scoped small adjustments to blend with host app */
              #embeddedAuthBox .auth-container { box-shadow:none; border-radius:12px; background:var(--card); }
@@ -3090,24 +3299,44 @@ function enableBackupButtons(enable = true) {
               transform-origin: 50% 50%;
             }
             @keyframes __auth_spin { to { transform: rotate(360deg); } }
-            /* Profile card responsive adjustments: 2 columns on desktop, stacked on mobile */
+            /* Profile card responsive adjustments: two-column layout by default. On small screens (<600px) buttons stack, but for very small devices (<=320px) keep two-column compact layout so narrow screens show pairs side-by-side. */
             .profile-card-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; align-items:stretch; }
             .profile-card-rows + .profile-card-rows { margin-top:8px; }
+            /* Default mobile stacking for narrow tablets/phones */
             @media (max-width:600px) {
               .profile-card-rows { grid-template-columns: 1fr; }
               .profile-card-rows .btn { width:100% !important; }
             }
+            /* On very small screens (<=320px) use two columns again so tiny narrow devices show paired buttons side-by-side */
+            @media (max-width:320px) {
+              /* Force two columns on very narrow screens; use !important to override other layout rules if present */
+              .profile-card-rows { grid-template-columns: repeat(2, 1fr) !important; }
+              .profile-card-rows .btn { width:100% !important; }
+            }
             #backupHistoryBox { overflow:auto; max-height:320px; }
             #accountProfileContainer { overflow:hidden; padding:8px; box-sizing:border-box; }
+
+            /* Profile status and backup-ready visuals (move inline styles into classes) */
+            .profile-status-box { background: rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.18); border-radius:12px; padding:8px; margin-bottom:12px; }
+            .profile-status-box .status-item { display:flex; align-items:center; gap:8px; padding:6px 4px; color:var(--text); }
+            .profile-status-box .status-item .material-icons { color:var(--success); font-size:20px; }
+            .profile-status-box .status-text { font-weight:600; color:var(--success); }
+            /* Small card around edit profile form */
+            #editProfileForm { border:1px solid rgba(0,0,0,0.06); padding:10px; border-radius:10px; background:var(--card); box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-top:12px; }
+            #editProfileForm .form-group { margin-bottom:8px; }
+            #editProfileForm label { display:block; font-weight:600; margin-bottom:6px; }
+            /* Logout row styling: ensure logout button sits below and is full-width (max width for large screens) */
+            .logout-row { margin-top:8px; width:100%; display:flex; justify-content:center; }
+            .logout-row .btn { width:100%; max-width:420px; background:#ef4444; color:#fff; }
           </style>
           <div id="accountProfileContainer" style="margin-top:12px;display:none;">
-            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
-              <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee;background:#f8fafc;">
-              <div style="flex:1;min-width:0;text-align:right;border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:10px;">
-                <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:6px;text-align:right;">—</div>
-                <div id="accountEmail" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:right;">—</div>
-                <div id="accountPhone" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:right;">—</div>
-                <div id="accountBio" style="color:var(--muted);font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;text-align:right;">—</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:12px;text-align:center;">
+              <img id="accountAvatar" src="./icons/logo.png" alt="آواتار" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid #eee;background:#f8fafc;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+              <div style="width:100%;min-width:0;">
+                <div id="accountName" style="font-size:1.2em;font-weight:600;margin-bottom:6px;text-align:center;">—</div>
+                <div id="accountEmail" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:center;">—</div>
+                <div id="accountPhone" style="color:var(--muted);font-size:0.98em;margin-bottom:4px;direction:ltr;text-align:center;">—</div>
+                <div id="accountBio" style="color:var(--muted);font-size:0.92em;margin-top:6px;line-height:1.4;white-space:pre-wrap;text-align:center;">—</div>
               </div>
             </div>
             <!-- Profile card container: layout kept responsive and preserves original buttons/onclic handlers -->
@@ -3115,21 +3344,35 @@ function enableBackupButtons(enable = true) {
               <!-- top title area removed to keep layout compact; edit button moved next to history below -->
 
               <!-- Backup status (moved above buttons) -->
-              <div id="profileSyncHybridStatus" style="font-size:0.97em;display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#16a34a;">✅ سیستم بکاپ آماده است</div>
-
-              <!-- Connection status shown above buttons -->
-              <div id="profileStatus" style="font-size:0.98em;color:#0a7;display:flex;align-items:center;gap:8px;width:100%;border-bottom:1px solid rgba(0,0,0,0.06);padding-bottom:8px;margin-bottom:12px;">ارتباط با سرور برقرار است</div>
+              <!-- Green status box with individual checked items -->
+              <div class="profile-status-box" style="width:100%;">
+                <div class="status-item"><span class="material-icons">check_circle</span><span class="status-text">سیستم بکاپ آماده است</span></div>
+                <div class="status-item"><span class="material-icons">check_circle</span><span class="status-text">ارتباط با سرور برقرار است</span></div>
+              </div>
 
               <!-- Row 1: Backup Now | Restore -->
               <div class="profile-card-rows" style="width:100%;">
-                <button id="backupNowBtn" class="btn primary" onclick="handleManualBackup()" style="display:inline-flex;align-items:center;gap:8px;">💾 ایجاد بک‌آپ جدید</button>
-                <button id="restoreBackupBtn" class="btn" onclick="handleRestoreBackup()" style="display:inline-flex;align-items:center;gap:8px;">♻️ بازگردانی آخرین بک‌آپ</button>
+                <button id="backupNowBtn" class="btn primary" onclick="handleManualBackup()" style="display:inline-flex;align-items:center;gap:8px;">
+                  <span class="material-icons icon">backup</span>
+                  <span id="backupNowSpinner" class="inline-spinner" style="display:none;margin-inline-start:6px;" aria-hidden="true"></span>
+                  <span id="backupNowText">ایجاد بک‌آپ جدید</span>
+                </button>
+                <button id="restoreBackupBtn" class="btn" onclick="handleRestoreBackup()" style="display:inline-flex;align-items:center;gap:8px;">
+                  <span class="material-icons icon">restore</span><span>بازگردانی بک‌آپ</span>
+                  <span id="restoreBackupSpinner" class="inline-spinner" style="display:none;margin-inline-start:6px;" aria-hidden="true"></span>
+                </button>
               </div>
 
               <!-- Row 2: Edit | History -->
               <div class="profile-card-rows" style="width:100%;">
-                <button id="editProfileBtn" class="btn" onclick="openEditProfile()">✏️ ویرایش پروفایل</button>
-                <button id="backupHistoryBtn" class="btn" onclick="showBackupHistory()" style="display:inline-flex;align-items:center;gap:8px;">🕒 تاریخچه بک‌آپ‌ها</button>
+                <button id="editProfileBtn" class="btn" onclick="openEditProfile()" style="display:inline-flex;align-items:center;gap:8px;">
+                  <span class="material-icons icon">edit</span><span>ویرایش پروفایل</span>
+                  <span id="editProfileSpinner" class="inline-spinner" style="display:none;margin-inline-start:6px;" aria-hidden="true"></span>
+                </button>
+                <button id="backupHistoryBtn" class="btn" onclick="showBackupHistory()" style="display:inline-flex;align-items:center;gap:8px;">
+                  <span class="material-icons icon">history</span><span>تاریخچه بک‌آپ‌ها</span>
+                  <span id="backupHistorySpinner" class="inline-spinner" style="display:none;margin-inline-start:6px;" aria-hidden="true"></span>
+                </button>
               </div>
 
               <!-- Backup history box (hidden by default) placed below the status and rows -->
@@ -3139,9 +3382,22 @@ function enableBackupButtons(enable = true) {
                 <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button onclick="toggleBackupHistory()" class="text-red-500 text-xs">بستن</button></div>
               </div>
 
+              <!-- Edit profile form (moved before logout for easier access on mobile) -->
+              <form id="editProfileForm" style="display:none;margin-top:12px;width:100%;">
+                <div class="form-group"><label for="editDisplayName">نام نمایشی</label><input type="text" id="editDisplayName" class="form-control"></div>
+                <!-- email removed from edit form as requested -->
+                <div class="form-group"><label for="editPhoneNumber">تلفن همراه</label><input type="text" id="editPhoneNumber" class="form-control" dir="ltr"></div>
+                <div class="form-group"><label for="editBio">درباره من</label><textarea id="editBio" class="form-control" rows="3"></textarea></div>
+                <div class="form-group"><label for="editAvatarUrl">لینک تصویر پروفایل</label><input type="url" id="editAvatarUrl" class="form-control" dir="ltr"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+                  <button type="submit" id="saveProfileBtn" class="btn primary">ذخیره<span id="saveProfileSpinner" class="inline-spinner" style="display:none;margin-inline-start:6px;" aria-hidden="true"></span></button>
+                  <button type="button" id="cancelEditProfile" class="btn">لغو</button>
+                </div>
+              </form>
+
               <!-- Row 3: Logout below history box -->
-              <div class="flex justify-center w-full" style="margin-top:8px;">
-                <button id="logoutBtn" class="btn" style="background:#ef4444;color:#fff;">🚪 خروج</button>
+              <div class="logout-row">
+                <button id="logoutBtn" class="btn"><span class="material-icons icon">logout</span><span>خروج</span></button>
               </div>
 
               <!-- keep legacy profile status element for other messages (moved above buttons) -->
@@ -3149,16 +3405,7 @@ function enableBackupButtons(enable = true) {
             <!-- profileDeviceCount removed per request: debug device count hidden in production UI -->
             <div id="profileLastDevice" style="font-size:0.95em;color:#666;margin-bottom:8px;"></div>
             <div id="profileDebugControls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
-            <form id="editProfileForm" style="display:none;margin-top:12px;">
-              <div class="form-group"><label for="editDisplayName">نام نمایشی</label><input type="text" id="editDisplayName" class="form-control"></div>
-              <div class="form-group"><label for="editPhoneNumber">تلفن همراه</label><input type="text" id="editPhoneNumber" class="form-control" dir="ltr"></div>
-              <div class="form-group"><label for="editBio">درباره من</label><textarea id="editBio" class="form-control" rows="3"></textarea></div>
-              <div class="form-group"><label for="editAvatarUrl">لینک تصویر پروفایل</label><input type="url" id="editAvatarUrl" class="form-control" dir="ltr"></div>
-              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-                <button type="submit" class="btn primary">ذخیره</button>
-                <button type="button" id="cancelEditProfile" class="btn">لغو</button>
-              </div>
-            </form>
+            <!-- editProfileForm moved earlier before logout for better UX on mobile -->
           </div>
 <script>
 // فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
@@ -3166,16 +3413,24 @@ function enableBackupButtons(enable = true) {
 function fillProfileUI(profile) {
   // remember the loaded profile so edit/save handlers can reuse it
   try { window._loadedProfile = profile || window._loadedProfile || {}; } catch(_){}
-  document.getElementById('accountName').textContent = profile.display_name || '—';
-  document.getElementById('accountEmail').textContent = profile.email || '—';
+  // Normalize profile object: allow multiple possible column names used in different schemas
+  const getName = (p) => p && (p.display_name || p.name || p.full_name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim() || '—');
+  const getEmail = (p) => p && (p.email || p.user_email || '—');
+  const getPhone = (p) => p && (p.phone_number || p.phone || '');
+  const getAvatar = (p) => p && (p.avatar_url || p.avatar || p.photo || p.image_url || '');
+  const getBio = (p) => p && (p.bio || p.about || p.description || '');
+
+  document.getElementById('accountName').textContent = getName(profile) || '—';
+  document.getElementById('accountEmail').textContent = getEmail(profile) || '—';
   // normalize phone field: support phone_number or phone
-  document.getElementById('accountPhone').textContent = (profile.phone_number || profile.phone || '') || '—';
-  if (profile.avatar_url) document.getElementById('accountAvatar').src = profile.avatar_url;
-  document.getElementById('editDisplayName').value = profile.display_name || '';
-  try { const _ee = document.getElementById('editEmail'); if (_ee) _ee.value = profile.email || ''; } catch(_){ }
-  document.getElementById('editPhoneNumber').value = profile.phone_number || '';
-  document.getElementById('editBio').value = profile.bio || '';
-  document.getElementById('editAvatarUrl').value = profile.avatar_url || '';
+  document.getElementById('accountPhone').textContent = getPhone(profile) || '—';
+  const avatarUrl = getAvatar(profile);
+  if (avatarUrl) document.getElementById('accountAvatar').src = avatarUrl;
+  document.getElementById('editDisplayName').value = profile.display_name || profile.name || profile.full_name || '';
+  /* editEmail field removed from form; no prefill needed */
+  document.getElementById('editPhoneNumber').value = profile.phone_number || profile.phone || '';
+  document.getElementById('editBio').value = profile.bio || profile.about || profile.description || '';
+  document.getElementById('editAvatarUrl').value = profile.avatar_url || profile.avatar || profile.photo || profile.image_url || '';
   document.getElementById('profileLastDevice').textContent = profile.last_sync_device ? 'آخرین دستگاه: ' + profile.last_sync_device : '';
   // populate visible bio block in account view if present
   try { const ab = document.getElementById('accountBio'); if (ab) ab.textContent = profile.bio || '—'; } catch(_){}
@@ -3187,6 +3442,8 @@ function fillProfileUI(profile) {
 // Open edit profile form and prefill fields from DB or auth metadata
 window.openEditProfile = async function openEditProfile() {
   try {
+    const editSpinner = document.getElementById('editProfileSpinner');
+    try { if (editSpinner) { editSpinner.style.display = 'inline-block'; document.getElementById('editProfileBtn').disabled = true; } } catch(_){ }
     const client = getSupabaseClient();
     if (!client) return;
     const { userId, user } = await getCurrentUserId();
@@ -3234,37 +3491,26 @@ window.openEditProfile = async function openEditProfile() {
       } catch(_){}
     };
 
-    // Prefill using Supabase column names (use window._loadedProfile if present)
-    try {
-      const d = src.display_name || '';
-      const dn = document.getElementById('editDisplayName'); if (dn) dn.value = d;
-    } catch(_){}
-    try {
-      const p = src.phone_number || '';
-      const elp = document.getElementById('editPhoneNumber'); if (elp) elp.value = p;
-    } catch(_){}
-    try {
-      const b = src.bio || '';
-      const eb = document.getElementById('editBio'); if (eb) eb.value = b;
-    } catch(_){}
-    try {
-      const a = src.avatar_url || '';
-      const ea = document.getElementById('editAvatarUrl'); if (ea) ea.value = a;
-    } catch(_){}
-    // If the optional email input exists, set it too
-    try {
-      const eVal = src.email || '';
-      const ee = document.getElementById('editEmail'); if (ee) ee.value = eVal;
-    } catch(_){}
-    try {
-      const elAvatar = document.getElementById('editAvatarUrl');
-      if (elAvatar) elAvatar.value = src.avatar_url || (user && user.user_metadata && user.user_metadata.avatar_url) || '';
-    } catch(_){ }
+    // Prefill using multiple possible column names to be robust across schemas
+    const getName = (p) => p && (p.display_name || p.name || p.full_name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim() || '');
+    const getEmail = (p) => p && (p.email || p.user_email || '');
+    const getPhone = (p) => p && (p.phone_number || p.phone || '');
+    const getAvatar = (p) => p && (p.avatar_url || p.avatar || p.photo || p.image_url || '');
+    const getBio = (p) => p && (p.bio || p.about || p.description || '');
+
+    try { const dn = document.getElementById('editDisplayName'); if (dn) dn.value = getName(src) || getName(meta) || ''; } catch(_){ }
+    try { const elp = document.getElementById('editPhoneNumber'); if (elp) elp.value = getPhone(src) || (meta && meta.phone) || ''; } catch(_){ }
+    try { const eb = document.getElementById('editBio'); if (eb) eb.value = getBio(src) || (meta && meta.bio) || ''; } catch(_){ }
+    try { const ea = document.getElementById('editAvatarUrl'); if (ea) ea.value = getAvatar(src) || (meta && meta.avatar_url) || ''; } catch(_){ }
+    // If the optional email input exists, set it too (from profile or auth)
+  /* editEmail removed from form; skip setting it */
 
     // Show the form
     try { document.getElementById('editProfileForm').style.display = 'block'; } catch(_){ }
+    try { if (editSpinner) { editSpinner.style.display = 'none'; document.getElementById('editProfileBtn').disabled = false; } } catch(_){ }
   } catch (err) {
     console.warn('openEditProfile failed', err);
+    try { const editSpinner = document.getElementById('editProfileSpinner'); if (editSpinner) { editSpinner.style.display = 'none'; document.getElementById('editProfileBtn').disabled = false; } } catch(_){ }
   }
 }
 
@@ -3314,16 +3560,18 @@ window.handleBackupNow = async function handleBackupNow() {
 // Restore handler
 window.handleRestoreBackup = async function handleRestoreBackup() {
   const btn = document.getElementById('restoreBackupBtn');
+  const spinner = document.getElementById('restoreBackupSpinner');
   if (!window.backupSync) {
     updateBackupStatus('سیستم بکاپ در دسترس نیست', true);
     return;
   }
-  
+
   if (!confirm('آیا مطمئن هستید؟ این عمل داده‌های فعلی را با آخرین بکاپ جایگزین می‌کند.')) {
     return;
   }
-  
+
   try {
+    if (spinner) spinner.style.display = 'inline-block';
     btn.disabled = true;
 
     // Use backupSync helper to get the current user email (handles auth check)
@@ -3373,6 +3621,7 @@ window.handleRestoreBackup = async function handleRestoreBackup() {
     console.error('Restore failed:', error);
     updateBackupStatus('خطا در بازگردانی بکاپ: ' + (error && error.message ? error.message : String(error)), true);
   } finally {
+    if (spinner) spinner.style.display = 'none';
     btn.disabled = false;
   }
 }
@@ -3383,7 +3632,10 @@ window.handleManualBackup = async function handleManualBackup() {
     alert('سیستم بکاپ در دسترس نیست');
     return;
   }
+  
   try {
+    if (window.setBackupButtonLoading) window.setBackupButtonLoading(true);
+    
     // Make sure user is authenticated and group email is set to avoid RLS errors
     if (typeof window.backupSync.getCurrentUserEmail !== 'function') {
       alert('سیستم بکاپ در دسترس نیست');
@@ -3395,8 +3647,34 @@ window.handleManualBackup = async function handleManualBackup() {
 
     const res = await window.backupSync.createBackup({ force: true });
     if (res && res.ok) {
+      // successful immediate save on server
       alert('✅ بک‌آپ با موفقیت ذخیره شد');
       updateBackupStatus('بکاپ ذخیره شد');
+    } else if (res && res.ok === 'pending' && res.id) {
+      // saved locally for later upload — optionally wait for server confirmation for a short period
+      updateBackupStatus('بکاپ در صف آپلود قرار گرفت — تلاش برای آپلود...');
+      const client = window.supabase;
+      let uploaded = false;
+      if (client) {
+        const pollInterval = 2000; // ms
+        const maxAttempts = 15; // ~30s
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            // check backups table for presence of this backup id
+            const { data, error } = await client.from('backups').select('backup_id').eq('backup_id', res.id).maybeSingle();
+            if (!error && data && data.backup_id) { uploaded = true; break; }
+          } catch (e) { /* ignore and retry */ }
+          // keep spinner active
+          await new Promise(r => setTimeout(r, pollInterval));
+        }
+      }
+      if (uploaded) {
+        alert('✅ بک‌آپ با موفقیت روی سرور ذخیره شد');
+        updateBackupStatus('بکاپ ذخیره شد');
+      } else {
+        alert('⚠️ بک‌آپ در حالت انتظار ذخیره شد و پس از اتصال آپلود خواهد شد');
+        updateBackupStatus('بکاپ در صف آپلود قرار گرفت', true);
+      }
     } else {
       alert('⚠️ خطا در بک‌آپ: ' + (res && res.reason ? res.reason : 'نامشخص'));
       updateBackupStatus('خطا در ایجاد بکاپ', true);
@@ -3404,12 +3682,17 @@ window.handleManualBackup = async function handleManualBackup() {
   } catch (err) {
     console.error('handleManualBackup failed', err);
     alert('⚠️ خطا در بک‌آپ: ' + (err && err.message ? err.message : String(err)));
+  } finally {
+    if (window.setBackupButtonLoading) window.setBackupButtonLoading(false);
   }
 }
 
 // showBackupHistory: fetch recent backups from DB and render box
 window.showBackupHistory = async function showBackupHistory() {
   try {
+    const btn = document.getElementById('backupHistoryBtn');
+    const spinner = document.getElementById('backupHistorySpinner');
+    if (spinner) { spinner.style.display = 'inline-block'; if (btn) btn.disabled = true; }
     const client = window.supabase;
     if (!client) return alert('کلاینت Supabase آماده نیست');
     if (!window.backupSync || typeof window.backupSync.getCurrentUserEmail !== 'function') {
@@ -3443,6 +3726,8 @@ window.showBackupHistory = async function showBackupHistory() {
   } catch (err) {
     console.error('showBackupHistory error', err);
     alert('⚠️ خطا در دریافت تاریخچه');
+  } finally {
+    try { const spinner = document.getElementById('backupHistorySpinner'); const btn = document.getElementById('backupHistoryBtn'); if (spinner) spinner.style.display = 'none'; if (btn) btn.disabled = false; } catch(_){}
   }
 }
 
@@ -3539,7 +3824,7 @@ async function loadProfile(passedUser) {
       try {
         // ensure the account container is visible so the user sees the edit area
         try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(_){ }
-        document.getElementById('editEmail').value = currentUser.email || '';
+  // editEmail removed; no email field in edit form now
         document.getElementById('accountEmail').textContent = currentUser.email || '—';
         // ensure main display reflects current signed-in user when no stored profile exists
         document.getElementById('accountName').textContent = ((currentUser.user_metadata && (currentUser.user_metadata.name || currentUser.user_metadata.full_name)) || '—');
@@ -3605,17 +3890,19 @@ async function loadProfile(passedUser) {
 document.getElementById('editProfileBtn').onclick = function() {
   // Fetch latest profile from DB just before showing the edit form
   (async function(){
+    const editSpinner = document.getElementById('editProfileSpinner');
+    const editBtn = document.getElementById('editProfileBtn');
+    try { if (editSpinner) { editSpinner.style.display = 'inline-block'; if (editBtn) editBtn.disabled = true; } } catch(_){ }
     try {
       const client = getSupabaseClient();
       if (!client) return;
       const { userId, user } = await getCurrentUserId();
       if (userId && user) {
-        try {
+            try {
           const { data: profile, error } = await client.from('profiles').select('*').eq('user_id', userId).maybeSingle();
           if (profile) fillProfileUI(profile);
             else {
-            // no profile row yet — prefill email and display name from auth
-            document.getElementById('editEmail').value = user.email || '';
+            // no profile row yet — prefill display name/phone/avatar from auth metadata
             document.getElementById('editDisplayName').value = (user.user_metadata && user.user_metadata.name) || '';
             document.getElementById('editPhoneNumber').value = (user.user_metadata && user.user_metadata.phone) || '';
             document.getElementById('editAvatarUrl').value = (user.user_metadata && user.user_metadata.avatar_url) || '';
@@ -3626,7 +3913,8 @@ document.getElementById('editProfileBtn').onclick = function() {
         await ensureProfileFormPopulated();
       }
     } catch(e) { console.debug('open edit profile failed', e); }
-    document.getElementById('editProfileForm').style.display = 'block';
+    try { document.getElementById('editProfileForm').style.display = 'block'; } catch(_){ }
+    try { if (editSpinner) { editSpinner.style.display = 'none'; if (editBtn) editBtn.disabled = false; } } catch(_){ }
   })();
 };
 document.getElementById('cancelEditProfile').onclick = function() {
@@ -3689,6 +3977,9 @@ async function ensureProfileFormPopulated() {
 }
 document.getElementById('editProfileForm').onsubmit = async function(e) {
   e.preventDefault();
+  const saveSpinner = document.getElementById('saveProfileSpinner');
+  const saveBtn = document.getElementById('saveProfileBtn');
+  try { if (saveSpinner) { saveSpinner.style.display = 'inline-block'; if (saveBtn) saveBtn.disabled = true; } } catch(_){ }
   const client = window.supabase;
   if (!client) return;
   let user = null;
@@ -3854,6 +4145,8 @@ document.getElementById('editProfileForm').onsubmit = async function(e) {
   } catch (e) {
     console.error('profile save error', e);
     document.getElementById('profileStatus').textContent = 'خطا در ذخیره پروفایل';
+  } finally {
+    try { if (saveSpinner) { saveSpinner.style.display = 'none'; if (saveBtn) saveBtn.disabled = false; } } catch(_){ }
   }
 };
 document.getElementById('logoutBtn').onclick = async function() {
@@ -3882,14 +4175,20 @@ document.getElementById('backupNowBtn')?.addEventListener('click', async functio
     if (spinner) spinner.style.display = 'inline-block';
     if (status) status.textContent = 'در حال همگام‌سازی...';
 
+  // Show backup progress indicator
+  const backupProgressContainer = document.getElementById('backupProgressContainer');
+  if (backupProgressContainer) backupProgressContainer.style.display = 'block';
+
   // call the backup client (create snapshot, upload or persist pending)
   const result = await window.backupSync.createBackup({ groupEmail: (window.user && window.user.email) || (window.state && window.state.profile && window.state.profile.email) });
     // backupNow returns an object with details; if it contains an error, surface it
     if (result && result.error) {
       console.warn('backupNow returned error', result.error, result);
       if (status) status.textContent = 'خطا در همگام‌سازی: ' + String(result.error).slice(0,140);
+      if (backupProgressContainer) backupProgressContainer.style.display = 'none';
     } else {
-  if (status) status.textContent = 'بک‌آپ با موفقیت انجام شد';
+      if (status) status.textContent = 'بک‌آپ با موفقیت انجام شد';
+      if (backupProgressContainer) backupProgressContainer.style.display = 'none';
       try { await loadProfile(); } catch(_) {}
     }
   } catch (err) {
@@ -3950,10 +4249,14 @@ document.getElementById('fetchSharedBackupBtn')?.addEventListener('click', async
 setInterval(async ()=>{
   const client = window.supabase;
   if (!client) return;
-  try {
-    const { error } = await client.from('profiles').select('id').limit(1);
-    document.getElementById('profileStatus').textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
-  } catch { document.getElementById('profileStatus').textContent = 'ارتباط قطع است'; }
+    try {
+      const { error } = await client.from('profiles').select('id').limit(1);
+      const profileStatusEl = document.getElementById('profileStatus');
+      if (profileStatusEl) profileStatusEl.textContent = error ? 'ارتباط قطع است' : 'ارتباط با سرور برقرار است';
+    } catch {
+      const profileStatusEl = document.getElementById('profileStatus');
+      if (profileStatusEl) profileStatusEl.textContent = 'ارتباط قطع است';
+    }
 }, 10000);
 // فعال‌سازی اکشن دکمه‌های ورود، ثبت‌نام و بازیابی
 document.getElementById('loginBtn')?.addEventListener('click', async function(e) {
@@ -4358,6 +4661,33 @@ function mapKindToPersian(kind) {
   return kind;
 }
 function normPersian(s) { return String(s || '').replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[\u200c\s]+/g, ' ').trim().toLowerCase(); }
+// convert Persian/Arabic-Indic digits to ASCII digits for reliable numeric search
+function digitsToAscii(s) {
+  s = String(s || '');
+  const persian = '۰۱۲۳۴۵۶۷۸۹';
+  const arabic = '٠١٢٣٤٥٦٧٨٩';
+  for (let i = 0; i < 10; i++) {
+    const p = new RegExp(persian[i], 'g');
+    const a = new RegExp(arabic[i], 'g');
+    s = s.replace(p, String(i)).replace(a, String(i));
+  }
+  return s;
+}
+// debounce helper to avoid re-rendering on every keystroke
+function debounce(fn, wait) {
+  let t;
+  return function(...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
+// build a normalized searchable string for a player record
+function playerSearchable(p) {
+  const parts = [p.name, p.phone, p.id, p.email, p.nick, p.memberId, p.skills, p.category].filter(Boolean);
+  const joined = parts.join(' ');
+  return digitsToAscii(normPersian(joined));
+}
 function formatNumber(input) {
   try {
     // normalize Persian/Arabic-Indic digits to ASCII
@@ -4699,6 +5029,32 @@ function calcExactAge(birthJalali) {
 }
 
 // تابع تعیین رده بر اساس سن (جایگزین determineCategory)
+// helper: parse a Jalali reference date which can be either 'YYYY/MM/DD' or 'DD <PersianMonth> YYYY' (e.g., '11 دی 1404')
+function parseJalaliRefDate(rawRef) {
+  const persianMonths = { 'فروردین':1,'اردیبهشت':2,'خرداد':3,'تیر':4,'مرداد':5,'شهریور':6,'مهر':7,'آبان':8,'آذر':9,'دی':10,'بهمن':11,'اسفند':12 };
+  if (!rawRef) return null;
+  let s = String(rawRef).trim();
+  // YYYY/MM/DD
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(s)) {
+    return s.split('/').map(n => Number(n));
+  }
+  // DD <MonthName> YYYY
+  const m = s.match(/^(\d{1,2})\s+(\S+)\s+(\d{4})$/);
+  if (m) {
+    const d = Number(m[1]);
+    const monthName = m[2];
+    const y = Number(m[3]);
+    const mon = persianMonths[monthName] || NaN;
+    if (Number.isFinite(d) && Number.isFinite(mon) && Number.isFinite(y)) return [y, mon, d];
+  }
+  // fallback: try to split by '/' anyway
+  if (s.indexOf('/') !== -1) {
+    const parts = s.split('/').map(n => Number(n));
+    if (parts.length === 3 && parts.every(p => Number.isFinite(p))) return parts;
+  }
+  return null;
+}
+
 function determineCategory(age) {
   // age: { years, months, days, birthdate }
   const ranks = (state.settings && state.settings.ranks) ? state.settings.ranks : [
@@ -4712,7 +5068,8 @@ function determineCategory(age) {
   ];
 
   // Reference date to compute age against (Jalali). Prefer explicit ranksReferenceDate, otherwise use lastCategoryUpdate or today
-  const refJ = (state.settings && state.settings.ranksReferenceDate) ? state.settings.ranksReferenceDate : ((state.settings && state.settings.lastCategoryUpdate) ? state.settings.lastCategoryUpdate : todayJalali());
+  const rawRef = (state.settings && state.settings.ranksReferenceDate) ? state.settings.ranksReferenceDate : ((state.settings && state.settings.lastCategoryUpdate) ? state.settings.lastCategoryUpdate : todayJalali());
+  const refParts = parseJalaliRefDate(rawRef) || parseJalaliRefDate(todayJalali()) || [ (new Date()).getFullYear(), 1, 1 ];
   // compute exact age on ref date if birthdate present
   if (!age || typeof age !== 'object') return ranks[ranks.length-1].name;
   let years = age.years;
@@ -4720,10 +5077,10 @@ function determineCategory(age) {
   if (age.birthdate) {
     try {
       const birthParts = String(age.birthdate).split('/').map(Number);
-      const refParts = String(refJ).split('/').map(Number);
-      let y = refParts[0] - birthParts[0];
-      let m = refParts[1] - birthParts[1];
-      let d = refParts[2] - birthParts[2];
+      let y = Number(refParts[0]) - Number(birthParts[0]);
+      let m = Number(refParts[1]) - Number(birthParts[1]);
+      let d = Number(refParts[2]) - Number(birthParts[2]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) throw new Error('invalid parts');
       if (d < 0) { m--; d += 30; }
       if (m < 0) { y--; m += 12; }
       years = y;
@@ -4752,7 +5109,9 @@ function determineCategory(age) {
     if (r.startDateJ) {
       try {
         const startISO = jalaliToISO(r.startDateJ);
-        const refISO = jalaliToISO(refJ);
+        // normalize refParts to YYYY/MM/DD
+        const normRef = `${String(refParts[0])}/${String(refParts[1]).padStart(2,'0')}/${String(refParts[2]).padStart(2,'0')}`;
+        const refISO = jalaliToISO(normRef);
         if (new Date(refISO) < new Date(startISO)) continue; // rank not yet active at ref
       } catch(e) { /* ignore parse */ }
     }
@@ -5940,16 +6299,16 @@ function imageFileToDataURL(file, maxKB) {
     const client = getClient();
     const dbg = document.getElementById('authDebug');
     if (!client) {
-      if (dbg) dbg.textContent = 'وضعیت: کلاینت Supabase پیدا نشد (library ممکن است بارگذاری نشده باشد)';
+      if (dbg) { dbg.innerHTML = '<span class="auth-event">خطا:</span><span class="auth-msg">کلاینت Supabase پیدا نشد (library ممکن است بارگذاری نشده باشد)</span>'; dbg.classList.add('auth-error'); }
       return;
     }
     try {
       const { data } = await client.auth.getSession();
       const session = data && data.session;
       if (session && session.user) {
-        if (dbg) dbg.textContent = 'وضعیت: سشن معتبر یافت شد؛ در حال بارگذاری پروفایل...';
+        if (dbg) { /* hide the auth debug UI once signed in - show only on errors or signed-out */ dbg.style.display = 'none'; dbg.classList.remove('auth-error'); dbg.classList.add('signed-in'); }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
-        try { await window.loadProfile(session.user); if (dbg) dbg.textContent = 'پروفایل بارگذاری شد'; } catch(e){ console.warn('restore loadProfile failed', e); if (dbg) dbg.textContent = 'پروفایل یافت نشد (خطا در loadProfile)'; }
+  try { await window.loadProfile(session.user); /* no persistent debug message needed here */ } catch(e){ console.warn('restore loadProfile failed', e); if (dbg) dbg.textContent = 'پروفایل یافت نشد (خطا در loadProfile)'; }
 
         // After successful login/profile load: if local app state is empty, offer to restore the latest shared backup
         try {
@@ -5982,7 +6341,7 @@ function imageFileToDataURL(file, maxKB) {
           }
         } catch(e) { console.debug('post-login restore prompt failed', e); }
       } else {
-        if (dbg) dbg.textContent = 'وضعیت: سشن معتبر وجود ندارد — نمایش فرم لاگین';
+        if (dbg) { dbg.innerHTML = `<span class="auth-event">سشن معتبر نیست</span><span class="auth-msg">نمایش فرم لاگین</span>`; dbg.classList.remove('signed-in','auth-error'); }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
       }
     } catch(e){ console.debug('auth restore failed', e); if (dbg) dbg.textContent = 'خطا هنگام بررسی سشن'; }
@@ -5993,11 +6352,11 @@ function imageFileToDataURL(file, maxKB) {
     client.auth.onAuthStateChange((event, session) => {
       const dbg = document.getElementById('authDebug');
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (dbg) dbg.textContent = `رویداد: ${event} — بارگذاری پروفایل...`;
+        if (dbg) { /* hide debug line when signed in */ dbg.style.display = 'none'; dbg.classList.remove('auth-error'); dbg.classList.add('signed-in'); }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
-        try { if (session && session.user) window.loadProfile(session.user); else window.loadProfile(); if (dbg) dbg.textContent = 'پروفایل بارگذاری شد'; } catch(e){ console.warn('onAuth loadProfile failed', e); if (dbg) dbg.textContent = 'خطا در بارگذاری پروفایل پس از رویداد'; }
+  try { if (session && session.user) window.loadProfile(session.user); else window.loadProfile(); /* removed non-essential profile-loaded message */ } catch(e){ console.warn('onAuth loadProfile_failed', e); if (dbg) dbg.textContent = 'خطا در بارگذاری پروفایل پس از رویداد'; }
       } else if (event === 'SIGNED_OUT') {
-        if (dbg) dbg.textContent = 'رویداد: SIGNED_OUT — نمایش فرم لاگین';
+        if (dbg) { dbg.innerHTML = `<span class="auth-event">رویداد: SIGNED_OUT</span><span class="auth-msg">نمایش فرم لاگین</span>`; dbg.classList.remove('signed-in'); dbg.style.display = 'block'; }
         try { document.getElementById('accountProfileContainer').style.display = 'none'; } catch(_){ }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
       }
@@ -6083,6 +6442,19 @@ function imageFileToDataURL(file, maxKB) {
     }
 
     async function backupNow() {
+      // helper to toggle spinner on backup button
+      function setBackupButtonLoading(on) {
+        try {
+          const btn = document.getElementById('backupNowBtn');
+          const spinner = document.getElementById('backupNowSpinner');
+          const textEl = document.getElementById('backupNowText');
+          if (btn) btn.disabled = !!on;
+          if (btn) btn.style.opacity = on ? '0.7' : '';
+          if (spinner) spinner.style.display = on ? 'inline-block' : 'none';
+          if (textEl) textEl.textContent = on ? 'در حال بک‌آپ گیری...' : 'ایجاد بک‌آپ جدید';
+        } catch(e) {}
+      }
+      setBackupButtonLoading(true);
       try {
         const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
         const { data: userData } = await client.auth.getUser(); const user = userData?.user;
@@ -6144,10 +6516,16 @@ function imageFileToDataURL(file, maxKB) {
         // Nothing further to do here; backupSync.createBackup will call mark_shared_backup when appropriate.
         try { updateSyncStatusUI('ok', new Date(nowIso).toLocaleString() + ' • ' + deviceName); } catch(_){ }
         return resData;
-      } catch (e) {
+        } catch (e) {
         console.error('backupNow error', e);
         try { updateSyncStatusUI('default', 'اتصال برقرار نیست یا خطا — مجدداً تلاش کنید'); } catch(_){ }
         throw e;
+      } finally {
+        try { 
+          setBackupButtonLoading(false);
+          const backupProgressContainer = document.getElementById('backupProgressContainer');
+          if (backupProgressContainer) backupProgressContainer.style.display = 'none';
+        } catch(_){}
       }
     }
 
@@ -7895,10 +8273,10 @@ function renderHome() {
       <div style="font-size:28px;font-weight:700;margin:8px 0;">${totalPlayers}</div>
       ${categoriesHtml}
     </div>
-    <div class="stat-card card"><div class="section-title"><h3>تعداد جلسات</h3></div><div><strong>${totalSessions}</strong></div></div>
-    <div class="stat-card card"><div class="section-title"><h3>درصد پرداخت‌شده</h3></div><div><strong>${percentPaid}%</strong></div></div>
-    <div class="stat-card card"><div class="section-title"><h3>درآمد دوره جاری</h3></div><div><strong>${(currentSum).toLocaleString()}</strong></div></div>
-    <div class="stat-card card"><div class="section-title"><h3>درآمد دوره قبل</h3></div><div><strong>${(prevSum).toLocaleString()}</strong></div></div>
+  <div class="stat-card card sessions-card"><div class="section-title"><h3>تعداد جلسات</h3></div><div><strong>${totalSessions}</strong></div></div>
+  <div class="stat-card card percent-paid-card"><div class="section-title"><h3>درصد پرداخت‌شده</h3></div><div><strong>${percentPaid}%</strong></div></div>
+  <div class="stat-card card current-income-card"><div class="section-title"><h3>درآمد دوره جاری</h3></div><div><strong>${(currentSum).toLocaleString()}</strong></div></div>
+  <div class="stat-card card prev-income-card"><div class="section-title"><h3>درآمد دوره قبل</h3></div><div><strong>${(prevSum).toLocaleString()}</strong></div></div>
     `;
   } catch (err) {
     try { console.error('renderHome: stats render failed', err); } catch(e){}
@@ -7955,14 +8333,25 @@ function renderBirthdayGreeting(playerId) {
 }
 
 function populateCategoryFilter(select) {
+  if (!select) return;
+  // preserve current selection if any
+  const current = select.value || '';
   let categories = [...new Set(state.players.map(p => p.category))].filter(Boolean);
-  select.innerHTML = '<option value="">همه رده‌ها</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  select.innerHTML = '<option value="">همه رده‌ها</option>' + categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  // try to restore previous selection; if missing, keep it blank
+  try { if (current) select.value = current; } catch(e) { /* ignore */ }
 }
 
 function populateCategoriesFromRanks(select, firstOptionText = 'انتخاب رده', selected = ''){
   if (!select) return;
   const ranks = (state.settings && state.settings.ranks && state.settings.ranks.length) ? state.settings.ranks : defaultRanks;
-  let opts = ranks.map(r => `<option value="${escapeHtml(r.name)}" ${selected === r.name ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  // If this is the player form category select, append the age range (e.g., از X تا Y) to each option label
+  let opts = ranks.map(r => {
+    const labelBase = escapeHtml(r.name);
+    const rangeText = (typeof r.minAgeYears === 'number' || typeof r.maxAgeYears === 'number') ? ` از ${r.minAgeYears ?? '-'} تا ${r.maxAgeYears ?? '-'} ` : '';
+    const label = (select && select.id === 'p_category') ? `${labelBase} ${rangeText}` : labelBase;
+    return `<option value="${escapeHtml(r.name)}" ${selected === r.name ? 'selected' : ''}>${label}</option>`;
+  }).join('');
   opts += `<option value="نامشخص" ${selected === 'نامشخص' ? 'selected' : ''}>نامشخص</option>`;
   select.innerHTML = `<option value="">${firstOptionText}</option>` + opts;
 }
@@ -8021,15 +8410,34 @@ function populatePaymentPlayerSelect(search = '') {
 function renderPlayersPage() {
   let list = qs('#playersList');
   list.innerHTML = '';
-  let q = normPersian(qs('#playersSearch').value || '');
+  let qRaw = qs('#playersSearch').value || '';
+  let q = normPersian(qRaw);
+  let qDigits = digitsToAscii(q);
   let cat = qs('#filterCategory').value;
   let ins = qs('#filterInsurance').value;
   // BMI filter (single select)
   let bmiSelected = qs('#filterBmi') ? qs('#filterBmi').value : '';
   let sort = qs('#sortPlayers').value;
   let arr = state.players.slice();
-  if (q) arr = arr.filter(p => normPersian(p.name).includes(q));
-  if (cat) arr = arr.filter(p => p.category === cat);
+  if (q) {
+    arr = arr.filter(p => {
+      const hay = playerSearchable(p);
+      // match either normalized text or normalized digits (phone/id)
+      return hay.includes(q) || hay.includes(qDigits);
+    });
+  }
+  if (cat) {
+    arr = arr.filter(p => {
+      let cats = [];
+      if (Array.isArray(p.category)) cats = p.category.slice();
+      else if (typeof p.category === 'string' && p.category.indexOf(',') !== -1) cats = p.category.split(',').map(s=>s.trim());
+      else if (p.category) cats = [p.category];
+      else if (p.categories) cats = Array.isArray(p.categories) ? p.categories : String(p.categories).split(',').map(s=>s.trim());
+      cats = cats.map(c => normPersian(String(c||'')));
+      const catNorm = normPersian(cat);
+      return cats.some(c => c === catNorm || c.includes(catNorm));
+    });
+  }
   if (bmiSelected) {
     arr = arr.filter(p => {
       let bmiData = calculateBMI(p.height, p.weight);
@@ -8987,6 +9395,7 @@ function renderPlayerForm(player = null) {
             <div>
               <label for="p_category">رده</label>
               <select id="p_category" class="input"></select>
+              <div id="p_category_note" class="muted" style="margin-top:6px;font-size:0.95em;">&nbsp;</div>
             </div>
           </div>
           <div class="form-row">
@@ -9062,16 +9471,32 @@ function renderPlayerForm(player = null) {
     categoryInput.value = category || 'نامشخص';
 
     // مدیریت پست و امتیازات
-    if (category === 'مینی والیبال' || category === 'نونهالان') {
-      positionInput.value = '';
-      positionInput.disabled = true;
-      positionInput.options[0].text = 'همه پست‌ها';
-      renderScoreFields(category, null);
-    } else {
-      positionInput.disabled = false;
-      positionInput.options[0].text = 'انتخاب پست';
-      renderScoreFields(category, positionInput.value || null);
-    }
+      // For مینی والیبال keep position selection disabled (all positions)
+      if (category === 'مینی والیبال') {
+        positionInput.value = '';
+        positionInput.disabled = true;
+        positionInput.options[0].text = 'همه پست‌ها';
+        renderScoreFields(category, null);
+      }
+      // For نونهالان allow selecting a specific position but show "همه پست‌ها" as the default option label
+      else if (category === 'نونهالان') {
+        positionInput.disabled = false;
+        positionInput.options[0].text = 'همه پست‌ها';
+        renderScoreFields(category, positionInput.value || null);
+        // If editing an existing player in this category, open the position dropdown so coach can choose
+        try {
+          if (player) {
+            // focus + click to hint the browser to open the native dropdown (may vary by platform)
+            positionInput.focus();
+            try { positionInput.click(); } catch(_){ }
+          }
+        } catch(e) { console.debug('open position dropdown failed', e); }
+      }
+      else {
+        positionInput.disabled = false;
+        positionInput.options[0].text = 'انتخاب پست';
+        renderScoreFields(category, positionInput.value || null);
+      }
   } catch (e) {
     console.error('Error in updateCategoryAndPosition:', e);
     categoryInput.value = 'خطا';
@@ -9086,6 +9511,71 @@ function renderPlayerForm(player = null) {
   on('#p_position', 'change', () => renderScoreFields(qs('#p_category').value, qs('#p_position').value));
 
   updateCategoryAndPosition();
+  // After initial update, update the explanatory note that shows why this category was chosen
+  function refreshCategoryNote() {
+    const noteEl = qs('#p_category_note');
+    if (!noteEl) return;
+    const birthVal = qs('#p_birth') ? qs('#p_birth').value : '';
+    if (!birthVal) { noteEl.innerHTML = 'برای تعیین رده لطفاً تاریخ تولد را وارد کنید.'; return; }
+    try {
+      // compute age relative to ranks reference date (use settings ref if present)
+      const rawRef = (state.settings && state.settings.ranksReferenceDate) ? state.settings.ranksReferenceDate : ((state.settings && state.settings.lastCategoryUpdate) ? state.settings.lastCategoryUpdate : todayJalali());
+      let refJ = String(rawRef || todayJalali()).trim();
+      // helper: map Persian month names to month numbers
+      const persianMonths = { 'فروردین':1,'اردیبهشت':2,'خرداد':3,'تیر':4,'مرداد':5,'شهریور':6,'مهر':7,'آبان':8,'آذر':9,'دی':10,'بهمن':11,'اسفند':12 };
+      let refParts = null;
+
+      // Format 1: YYYY/MM/DD
+      if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(refJ)) {
+        refParts = String(refJ).split('/').map(n => Number(n));
+      }
+      // Format 2: DD <PersianMonth> YYYY  (e.g., "11 دی 1404")
+      else if (/^\d{1,2}\s+\S+\s+\d{4}$/.test(refJ)) {
+        const parts = refJ.split(/\s+/);
+        const d = Number(parts[0]);
+        const monthName = parts[1];
+        const y = Number(parts[2]);
+        const mnum = persianMonths[monthName] || NaN;
+        if (!Number.isFinite(d) || !Number.isFinite(mnum) || !Number.isFinite(y)) {
+          refParts = null;
+        } else {
+          refParts = [y, mnum, d];
+        }
+      }
+      // fallback: try parsing todayJalali()
+      if (!refParts) {
+        try { refParts = String(todayJalali()).split('/').map(n => Number(n)); refJ = todayJalali(); } catch(_) { refParts = null; }
+      }
+
+      const birthParts = String(birthVal).split('/').map(n => Number(n));
+      if (!refParts || refParts.length < 3 || birthParts.length < 3) {
+        noteEl.innerHTML = `اطلاعات تاریخ تولد یا تاریخ مرجع نامعتبر است (${rawRef})`;
+        return;
+      }
+
+      let y = Number(refParts[0]) - Number(birthParts[0]);
+      let m = Number(refParts[1]) - Number(birthParts[1]);
+      let d = Number(refParts[2]) - Number(birthParts[2]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+        noteEl.innerHTML = `اطلاعات تاریخ تولد یا تاریخ مرجع نامعتبر است (${rawRef})`;
+        return;
+      }
+      if (d < 0) { m--; d += 30; }
+      if (m < 0) { y--; m += 12; }
+      if (!Number.isFinite(y)) y = 0;
+      if (!Number.isFinite(m)) m = 0;
+      // shorter age string (years and months)
+      const ageStr = (m > 0) ? `${y} سال و ${m} ماه` : `${y} سال`;
+      const cat = qs('#p_category') ? qs('#p_category').value : '';
+      // show the rawRef (settings text) as the reference date in the message
+      noteEl.innerHTML = `این بازیکن در تاریخ مرجع ${rawRef} سنی برابر ${ageStr} دارد، بنابراین در رده «${cat || 'نامشخص'}» قرار گرفته. <span style="color:var(--accent);">برای تغییر محدودهٔ سن رده‌ها به صفحهٔ تنظیمات مراجعه کنید.</span>`;
+    } catch(e) { noteEl.innerHTML = 'اطلاعات رده قابل محاسبه نیست'; }
+  }
+  // keep the note updated when birth or category changes
+  on('#p_birth', 'change', refreshCategoryNote);
+  on('#p_category', 'change', refreshCategoryNote);
+  // initial refresh
+  refreshCategoryNote();
   if (player) {
     qs('#p_position').value = player.favoritePosition || '';
     for (let key in scores) {
@@ -9101,22 +9591,42 @@ function renderPlayerForm(player = null) {
   on('#p_photo', 'change', e => {
     let f = e.target.files[0];
     if (!f) return;
-    imageFileToDataURL(f, 500).then(data => {
-      let prev = qs('#previewPhoto');
-      if (prev.querySelector('img')) {
-        prev.querySelector('img').src = data;
-      } else {
-        prev.innerHTML = '';
-        let img = document.createElement('img');
-        img.src = data;
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-        prev.appendChild(img);
-      }
-      qs('#removePhotoBtn').disabled = false;
-      qs('#p_photo').dataset.dataurl = data;
-    }).catch(err => alert('خطا در خواندن تصویر'));
+    const prev = qs('#previewPhoto');
+    // show temporary loading state
+    try { prev.innerHTML = '<div class="muted">در حال پردازش تصویر...</div>'; } catch(_) {}
+    // Prefer using the new face-crop compressor when available
+    if (window.imageCompress && typeof window.imageCompress.compressWithFaceCrop === 'function') {
+      window.imageCompress.compressWithFaceCrop(f, { outputSize: 256, expand: 1.4, quality: 0.7, mimeType: 'image/webp' })
+        .then(res => {
+          // render preview
+          if (prev.querySelector('img')) prev.querySelector('img').src = res.dataUrl;
+          else {
+            prev.innerHTML = '';
+            const img = document.createElement('img'); img.src = res.dataUrl; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img);
+          }
+          qs('#removePhotoBtn').disabled = false;
+          qs('#p_photo').dataset.dataurl = res.dataUrl;
+          // also keep blob for potential upload
+          qs('#p_photo').dataset.blob = true; // marker; real blob kept in window.state by demo UI if needed
+        })
+        .catch(err => {
+          console.warn('compressWithFaceCrop failed, falling back to basic read', err);
+          imageFileToDataURL(f, 500).then(data => {
+            prev.innerHTML = '';
+            let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img);
+            qs('#removePhotoBtn').disabled = false;
+            qs('#p_photo').dataset.dataurl = data;
+          }).catch(err2 => { console.error(err2); alert('خطا در خواندن تصویر'); prev.innerHTML = '<div class="muted">خطا در پردازش تصویر</div>'; });
+        });
+    } else {
+      // fallback to existing helper if model not loaded
+      imageFileToDataURL(f, 500).then(data => {
+        if (prev.querySelector('img')) prev.querySelector('img').src = data;
+        else { prev.innerHTML = ''; let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img); }
+        qs('#removePhotoBtn').disabled = false;
+        qs('#p_photo').dataset.dataurl = data;
+      }).catch(err => alert('خطا در خواندن تصویر'));
+    }
   });
 
   on('#removePhotoBtn', 'click', () => {
@@ -10551,6 +11061,14 @@ function renderSettings() {
   <hr style="margin-top:16px;border:none;border-top:1px solid rgba(0,0,0,0.06);" />
   <div style="margin-top:8px;color:var(--muted);font-size:13px;text-align:center;"> 
     <div>برنامه طراحی شده توسط پوریا عابدی</div>
+    <div style="margin-top:6px;display:flex;gap:8px;justify-content:center;align-items:center;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-2);flex:0 0 16px;">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+        <line x1="17.5" y1="6.5" x2="17.5" y2="6.5"></line>
+      </svg>
+      <a href="https://instagram.com/club.management2025" target="_blank" rel="noopener" style="color:var(--accent-2);font-weight:700;text-decoration:none;">@club.management2025</a>
+    </div>
     <div style="margin-top:6px;">حجم داده‌های ذخیره شده: ${dataSize} KB</div>
   </div>
     </div>
@@ -11351,43 +11869,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e){}
   } catch(e) { console.warn('wire notifications handlers failed', e); }
 
-  // -- dev helper: create a test notification (exposed to console)
+  // Test notification helpers removed to prevent test messages from appearing
+  // to end users. We keep a silent cleanup below to remove any persisted
+  // test notifications (id starts with 'test-' or type === 'test') on load.
   try {
-    window.createTestNotification = function(opts={}){
-      try {
-        const n = {
-          id: 'test-' + String(Date.now()) + '-' + Math.floor(Math.random()*9000+1000),
-          title: opts.title || 'اعلان آزمایشی',
-          body: opts.body || 'این یک اعلان آزمایشی است. برای تست دکمهٔ "بستن همه" ایجاد شد.',
-          ts: Date.now(),
-          read: false,
-          type: opts.type || 'test'
-        };
-        state.notifications = state.notifications || [];
-        state.notifications.push(n);
+    // silently remove any leftover test notifications on load so end users
+    // don't see test items. This runs without showing any toast.
+    try {
+      if (state && Array.isArray(state.notifications) && state.notifications.length) {
+        state.notifications = state.notifications.filter(n => { try { return !(String(n.id||'').startsWith('test-') || (n && n.type === 'test')); } catch(e){ return true; } });
         try{ if (typeof saveState === 'function') saveState(); } catch(e){}
         try{ updateNotificationsBadge(); } catch(e){}
         try{ renderNotifications(); } catch(e){}
-        return n;
-      } catch(e){ console.warn('createTestNotification failed', e); return null; }
-    };
-    // create one now so you can test immediately
-    try { window.createTestNotification(); } catch(e){}
-    // helper to remove test notifications (id starts with 'test-' or type === 'test')
-    try {
-      window.clearTestNotifications = function(){
-        try {
-          state.notifications = (state.notifications || []).filter(n => { try { return !(String(n.id||'').startsWith('test-') || (n && n.type === 'test')); } catch(e){ return true; } });
-          try{ if (typeof saveState === 'function') saveState(); } catch(e){}
-          try{ updateNotificationsBadge(); } catch(e){}
-          try{ renderNotifications(); } catch(e){}
-          try{ if (typeof showToast === 'function') showToast('اعلان‌های آزمایشی پاک شدند'); } catch(e){}
-          return true;
-        } catch(er){ console.warn('clearTestNotifications failed', er); return false; }
-      };
-      // remove the test notification now (one-time)
-      try { window.clearTestNotifications(); } catch(e){}
-    } catch(e){}
+      }
+    } catch(e) { /* silent */ }
   } catch(e){}
 
   // safe HTML escape helper for small UI snippets
@@ -11530,7 +12025,9 @@ function showSettingsAndRankInfo() {
     try { if (typeof openSessionModal === 'function') return openSessionModal(); } catch(e){}
     try { showView('sessions'); qs('#sessionDate').value = todayJalali(); } catch(e){}
   });
-  on('#playersSearch', 'input', renderPlayersPage);
+  // debounce search input to improve responsiveness on large lists
+  const debouncedRenderPlayersPage = debounce(renderPlayersPage, 180);
+  on('#playersSearch', 'input', debouncedRenderPlayersPage);
   on('#filterCategory', 'change', renderPlayersPage);
   on('#filterInsurance', 'change', renderPlayersPage);
   on('#sortPlayers', 'change', renderPlayersPage);
@@ -12449,6 +12946,58 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
     window.buildPoster600 = buildPoster600;
     window.exportPoster600 = exportPoster600;
   })();
+  <!-- Floating Close-All button (bottom-right) - placed globally so it's not affected by container transforms/overflow -->
+  <button id="closeAllNotificationsFloat" aria-label="بستن همه اعلان‌ها" style="position:fixed;right:16px;bottom:20px;z-index:10010;padding:10px 14px;background:var(--accent, #0ea5a4);color:#fff;border:none;border-radius:28px;box-shadow:0 6px 18px rgba(0,0,0,0.18);font-weight:700;display:none;cursor:pointer;width:110px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">بستن همه</button>
+
   </script>
+  <script>
+    window.setBackupButtonLoading = function(on){
+      const btn = document.getElementById('backupNowBtn');
+      const spinner = document.getElementById('backupNowSpinner');
+      const text = document.querySelector('#backupNowBtn span:last-child');
+      if(btn) btn.disabled = !!on;
+      if(btn) btn.style.opacity = on ? '0.7' : '';
+      if(spinner) spinner.style.display = on ? 'inline-block' : 'none';
+      if(text) text.textContent = on ? 'در حال بک‌آپ گیری...' : 'ایجاد بک‌آپ جدید';
+    };
+  </script>
+    <script type="module">
+      // Test harness for backup-storage.js — call `await window.testBackupStorage()` in the browser console
+      import { openAppDB, saveAppState, loadAppState, createFullBackup } from './backup-storage.js';
+
+      window.testBackupStorage = async function() {
+        console.log('🔧 testBackupStorage: starting prioritized storage test');
+        try {
+          const sample = { testAt: new Date().toISOString(), random: Math.random(), sampleData: { msg: 'hello from test' } };
+
+          console.log('1) ensure/open IndexedDB (if supported)');
+          await openAppDB().catch(e => console.warn('openAppDB warning', e));
+
+          console.log('2) saving sample state (saveAppState)');
+          const saveResult = await saveAppState(sample);
+          console.log('   saveAppState ->', saveResult);
+
+          console.log('3) loading back (loadAppState)');
+          const loaded = await loadAppState();
+          console.log('   loadAppState ->', loaded);
+
+          console.log('4) creating full backup (createFullBackup) — this may include IndexedDB and Cache contents');
+          const full = await createFullBackup();
+          // store last result for convenience
+          window._lastFullBackup = full;
+          console.log('   createFullBackup -> string length:', full ? full.length : null);
+          // show a truncated preview
+          if (typeof full === 'string') console.log('\n---- full backup (first 2k chars) ----\n', full.slice(0, 2000), '\n--- end preview ---');
+
+          console.log('✅ testBackupStorage: finished. Last full backup JSON is available as window._lastFullBackup');
+          return { saveResult, loaded, fullLength: full ? full.length : null };
+        } catch (err) {
+          console.error('❌ testBackupStorage failed', err);
+          throw err;
+        }
+      };
+
+      console.log('backup-storage test helper installed: run `await window.testBackupStorage()` in the console');
+    </script>
 </body>
 </html>
