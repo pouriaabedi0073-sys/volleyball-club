@@ -51,9 +51,14 @@
   
   // Hide install button when app is installed
   window.addEventListener('appinstalled', () => {
-    const installButton = document.getElementById('installPWA');
-    if (installButton) {
-      installButton.style.display = 'none';
-    }
+    // remove either legacy #installPWA or the centralized #pwaInstallPrompt / .pwa-install-prompt
+    try {
+      const legacy = document.getElementById('installPWA');
+      if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
+    } catch(_) {}
+    try {
+      const centralized = document.getElementById('pwaInstallPrompt') || document.querySelector('.pwa-install-prompt');
+      if (centralized && centralized.parentNode) centralized.parentNode.removeChild(centralized);
+    } catch(_) {}
   });
 })();

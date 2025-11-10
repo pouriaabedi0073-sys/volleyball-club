@@ -35,6 +35,34 @@ self.addEventListener('activate', event => {
   })());
 });
 
+// Listen for background sync event and notify clients to flush pending uploads
+self.addEventListener('sync', event => {
+  if (!event.tag) return;
+  if (event.tag === 'vb-upload-sync') {
+    event.waitUntil((async () => {
+      try {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+        for (const c of clients) {
+          try { c.postMessage({ type: 'flushPendingBackups' }); } catch(e) {}
+        }
+      } catch (e) { console.warn('sync event handler failed', e); }
+    })());
+  }
+});
+
+// Allow pages to ask the service worker to trigger a sync (via message)
+self.addEventListener('message', (event) => {
+  try {
+    const data = event.data || {};
+    if (data && data.type === 'requestSync') {
+      // Try to register a periodic sync if supported, otherwise trigger a client message
+      if (self.registration && self.registration.sync && data.tag) {
+        try { self.registration.sync.register(data.tag); } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) { console.warn('sw message handler failed', e); }
+});
+
 // Network with cache fallback, and offline fallback for navigations
 self.addEventListener('fetch', event => {
   const req = event.request;

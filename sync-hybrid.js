@@ -977,6 +977,24 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
           const arr = raw ? JSON.parse(raw) : [];
           arr.push({ path: pth, json: jsonStr, meta: metaObj, created_at: new Date().toISOString() });
           localStorage.setItem(key, JSON.stringify(arr));
+          // Also add to IndexedDB queue if available for more robust background retry
+          try {
+            if (window.indexedDBQueue && typeof window.indexedDBQueue.addPending === 'function') {
+              // store minimal metadata + json as base64 for compactness
+              const item = { id: pth, json: jsonStr, groupEmail: metaObj && metaObj.group_email ? metaObj.group_email : null, created_at: new Date().toISOString() };
+              try { window.indexedDBQueue.addPending(item).then(() => { /* ok */ }).catch(()=>{}); } catch(_){}
+            }
+          } catch(_){}
+          // Request background sync (best-effort)
+          try {
+            if (navigator && navigator.serviceWorker && navigator.serviceWorker.ready) {
+              navigator.serviceWorker.ready.then(reg => {
+                try { if (reg && reg.sync) reg.sync.register('vb-upload-sync').catch(()=>{}); } catch(_){}
+                // also send a message to service worker to proactively trigger client-side flush
+                try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'requestSync', tag: 'vb-upload-sync' }); } catch(_){}
+              }).catch(()=>{});
+            }
+          } catch (_) {}
           return true;
         } catch (e) { _log('savePendingBackupLocal failed', e); return false; }
       }
@@ -1334,6 +1352,26 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
         setStatus({ lastError: e && e.message ? e.message : String(e), syncing: false });
       }
     });
+
+    // Listen for service worker messages requesting a flush (from background sync)
+    try {
+      if (navigator && navigator.serviceWorker && typeof navigator.serviceWorker.addEventListener === 'function') {
+        navigator.serviceWorker.addEventListener('message', async (ev) => {
+          try {
+            const d = ev && ev.data ? ev.data : {};
+            if (d && d.type === 'flushPendingBackups') {
+              setStatus({ syncing: true });
+              try {
+                const client = await waitForClient();
+                await flushQueue(client);
+                await flushPendingBackups(client);
+              } catch (e) { _log('serviceworker-triggered flush failed', e); }
+              finally { setStatus({ syncing: false }); }
+            }
+          } catch (e) { console.warn('sw message handler in syncHybrid failed', e); }
+        });
+      }
+    } catch (e) { console.warn('installing sw message listener failed', e); }
   }
 
   // Flush any pending backups saved locally (attempt upload to storage)
@@ -1344,9 +1382,26 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
     try {
       const key = 'syncHybrid:pendingBackups';
       const raw = localStorage.getItem(key);
-      if (!raw) return true;
       let arr = [];
-      try { arr = JSON.parse(raw); } catch (e) { _log('flushPendingBackups: parse failed', e); return false; }
+      try { arr = raw ? JSON.parse(raw) : []; } catch (e) { _log('flushPendingBackups: parse failed', e); arr = []; }
+
+      // Also pull any pending items stored in IndexedDB queue for stronger reliability
+      try {
+        if (window.indexedDBQueue && typeof window.indexedDBQueue.getAllPending === 'function') {
+          try {
+            const pendingFromDb = await window.indexedDBQueue.getAllPending();
+            if (Array.isArray(pendingFromDb) && pendingFromDb.length) {
+              // normalize and append to arr if not already present
+              for (const it of pendingFromDb) {
+                const exists = arr.find(a => a.id === it.id || a.path === it.id || a.path === it.path);
+                if (!exists) arr.push({ id: it.id || it.path, json: it.json || it.base64 || it.data || null, groupEmail: it.groupEmail || it.meta && it.meta.group_email || null, created_at: it.created_at || new Date().toISOString(), _fromIndexedDB: true });
+              }
+            }
+          } catch (e) { _log('flushPendingBackups: getAllPending failed', e); }
+        }
+      } catch (e) { /* ignore */ }
+
+      if (!arr || arr.length === 0) { localStorage.removeItem(key); return true; }
       if (!Array.isArray(arr) || arr.length === 0) { localStorage.removeItem(key); return true; }
       for (let i = 0; i < arr.length; i++) {
         const item = arr[i];

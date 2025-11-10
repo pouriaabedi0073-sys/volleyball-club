@@ -11655,38 +11655,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (swErr) { console.debug('service worker guard failed', swErr); }
   }
 
-  // PWA install prompt
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    // نشان دادن دکمه نصب اگر لازم باشد
-  let installBtn = document.createElement('button');
-  // give it an id/class used elsewhere and ensure it sits above all UI
-  installBtn.id = 'installPWA';
-  installBtn.className = 'btn primary pwa-install-prompt';
-  installBtn.textContent = 'نصب اپ';
-  installBtn.style.position = 'fixed';
-  installBtn.style.bottom = '24px';
-  installBtn.style.left = '50%';
-  installBtn.style.transform = 'translateX(-50%)';
-  // ensure clickable and above overlays/modals
-  installBtn.style.zIndex = '2147483646';
-  installBtn.style.pointerEvents = 'auto';
-    installBtn.addEventListener('click', () => {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choice) => {
-        if (choice.outcome === 'accepted') {
-          console.log('اپ نصب شد');
-        }
-        deferredPrompt = null;
-      });
-    });
-  // append last so it's topmost in DOM order as well
-  document.body.appendChild(installBtn);
-  // auto-hide after a short delay but only if still present
-  setTimeout(() => { try { if (installBtn && installBtn.parentNode) installBtn.remove(); } catch(_){} }, 10000);
-  });
+  // PWA install prompt is handled centrally in pwa-bootstrap.js
 
   //qs('#mobileMenu').classList.add('hide');  مخفی کردن اولیه منو
 
