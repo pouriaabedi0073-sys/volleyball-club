@@ -7,6 +7,17 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>مدیریت باشگاه والیبال</title>
+<meta name="description" content="سیستم جامع مدیریت باشگاه والیبال با قابلیت مدیریت بازیکنان، کارت عضویت، مسابقات و حساب‌های مالی" />
+<meta name="theme-color" content="#f59e0b" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="والیبال" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+<link rel="canonical" href="https://pouriaabedi0073-sys.github.io/volleyball-club/" />
+<!-- TWA related tags -->
+<link rel="assetlinks.json" href=".well-known/assetlinks.json" />
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap" rel="stylesheet">
 <!-- Use Google Material Icons (more reliably available) -->
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -211,10 +222,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  /* prefer explicit per-theme header variables, fallback to generic --header-bg */
-  background: var(--header-bg, rgba(255,255,255,0.9));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* تنظیمات جدید شیشه‌ای */
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.4) 100%);
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   height: 94px;
   position: relative;
   /* use 100% instead of 100vw to avoid horizontal overflow when scrollbars present */
@@ -239,6 +251,32 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+  
+  /* افکت موج نوری برای عنوان */
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  
+  #appTitle {
+    font-family: "Vazirmatn FD", "Vazirmatn", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.7rem;
+    background: linear-gradient(90deg, 
+      var(--accent) 0%, 
+      #3b82f6 25%,
+      var(--accent) 50%,
+      #3b82f6 75%,
+      var(--accent) 100%
+    );
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: shimmer 4s ease-in-out infinite;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    letter-spacing: -0.01em;
     display: block;
     object-position: center center;
   }
@@ -1705,11 +1743,29 @@
     .no-print { display: none; }
     .player-row { page-break-inside: avoid; }
   }
-  /* اضافه برای جذابیت ورزشی */
+  /* اضافه برای جذابیت ورزشی: استفاده از آیکون والیبال بزرگ با بلِر ملایم در پس‌زمینه */
   .sports-bg {
-    background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="20" fill="%230ea5e9" opacity="0.1"/%3E%3C/svg%3E');
-    background-repeat: repeat;
+    position: relative; /* container for the decorative pseudo-element */
+    overflow: visible;
   }
+  .sports-bg::before {
+    content: "";
+    position: fixed;
+    left: 50%;
+    top: 30%; /* moved a bit higher */
+    width: 220px; /* closer to original small-circle scale */
+    height: 220px; /* closer to original small-circle scale */
+    transform: translate(-50%, -40%); /* nudge upward visually */
+    background-image: url('./icons/volleyball-svgrepo-com (10).svg');
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.12; /* slightly stronger but still soft */
+    filter: blur(4px); /* mild blur for softness */
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* ensure page content sits above the decorative background */
+  .wrap { position: relative; z-index: 1; }
   .health-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -2545,14 +2601,7 @@ function enableBackupButtons(enable = true) {
             </div>
           </div>
 
-          <div class="card birthday-card">
-  <div class="section-title">
-    <h3>متولدین امروز</h3>
-    <!-- birthday icon removed per request -->
-  </div>
-  <div id="birthdaysToday" class="players-preview"></div>
-  <div id="noBirthdaysMsg" style="display: none;">هیچ تولدی امروز نیست</div>
-</div>
+          <!-- birthdays card moved below to sit above payments preview -->
 
           <!-- sessions card kept but button moved to header of players card for compact layout -->
           <div class="card">
@@ -2581,6 +2630,15 @@ function enableBackupButtons(enable = true) {
           <div id="trainingPreview" class="training-preview"></div>
           </div>
           
+          <!-- birthdays card (moved here so it sits directly above latest payments) -->
+          <div class="card birthday-card">
+            <div class="section-title">
+              <h3>متولدین امروز</h3>
+            </div>
+            <div id="birthdaysToday" class="players-preview"></div>
+            <div id="noBirthdaysMsg" style="display: none;">هیچ تولدی امروز نیست</div>
+          </div>
+
           <div class="card">
               <div class="section-title">
                 <h3>آخرین پرداخت‌ها</h3>
@@ -6983,20 +7041,49 @@ function openMatchForm(editId) {
     } catch(e) { console.warn('populateHashtags failed', e); }
   })();
 
-  // wire file inputs to read data URLs and set preview + hidden logo input
+  // wire file inputs to read data URLs, compress/resize and set preview + hidden logo input
   const wireFile = (fileInputId, logoInputId, previewId) => {
     const fi = qs(fileInputId); const li = qs(logoInputId); const pi = qs(previewId);
     if (!fi) return;
-    fi.onchange = (ev) => {
+    fi.onchange = async (ev) => {
       const f = fi.files && fi.files[0];
       if (!f) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target.result;
-        if (li) li.value = url;
-        if (pi) { pi.src = url; pi.style.display = 'block'; }
-      };
-      reader.readAsDataURL(f);
+      try {
+        // Prefer the project's compressor if available (libs/image-compress.js)
+        if (window.imageCompress && typeof window.imageCompress.compressWithFaceCrop === 'function') {
+          const res = await window.imageCompress.compressWithFaceCrop(f, { outputSize: 256, mimeType: 'image/webp', quality: 0.78, detectFace: false });
+          if (li) li.value = res.dataUrl;
+          if (pi) { pi.src = res.dataUrl; pi.style.display = 'block'; }
+          if (res.size && res.size > 300*1024) console.warn('Compressed logo still large:', res.size);
+          return;
+        }
+
+        // Fallback: simple canvas resize -> webp
+        const dataUrl = await (async function simpleResize(file, maxSide = 512, quality = 0.8) {
+          const img = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = (e) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = e.target.result; };
+            r.onerror = rej; r.readAsDataURL(file);
+          });
+          let w = img.width, h = img.height;
+          const scale = Math.min(1, maxSide / Math.max(w, h));
+          const cw = Math.round(w * scale), ch = Math.round(h * scale);
+          const canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = ch;
+          const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, cw, ch);
+          return canvas.toDataURL('image/webp', quality);
+        })(f, 512, 0.8);
+        if (li) li.value = dataUrl;
+        if (pi) { pi.src = dataUrl; pi.style.display = 'block'; }
+      } catch (err) {
+        console.warn('logo file processing failed, falling back to raw dataURL', err);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const url = e.target.result;
+          if (li) li.value = url;
+          if (pi) { pi.src = url; pi.style.display = 'block'; }
+        };
+        reader.readAsDataURL(f);
+      }
     };
   };
   wireFile('#formTeamALogoFile','#formTeamALogo','#formTeamAPreview');
@@ -8516,14 +8603,25 @@ function renderPlayersPage() {
     if (profileBtn) profileBtn.addEventListener('click', () => showView('player-profile', {playerId: p.id}));
     if (payBtn) payBtn.addEventListener('click', () => openPaymentModal(p.id));
     if (editBtn) editBtn.addEventListener('click', () => showView('player-form', {player: p}));
-    if (delBtn) delBtn.addEventListener('click', () => {
-      if (confirm('حذف شود؟')) {
+    if (delBtn) delBtn.addEventListener('click', (e) => {
+      // prevent the click from bubbling or triggering duplicate handlers
+      try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch(_){}
+      const name = (p && p.name) ? p.name : 'این بازیکن';
+      // show a clear confirm including the player's name
+      if (confirm(`آیا مطمئن هستید که می‌خواهید «${name}» را حذف کنید؟`)) {
+        // disable the button to avoid accidental double-activation
+        try { delBtn.disabled = true; } catch(_){}
+        // perform removal
         state.players = state.players.filter(x => x.id !== p.id);
         state.sessions.forEach(s => { if (s.attendances) delete s.attendances[p.id]; });
         state.payments = state.payments.filter(x => x.playerId !== p.id);
         saveState();
-        renderPlayersPage();
-        renderHome();
+        // blur active element to avoid mouseup triggering a click on the next button
+        try { if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur(); } catch(_){}
+        // delay re-render slightly so any pending mouse events don't hit newly created buttons
+        setTimeout(() => {
+          try { renderPlayersPage(); renderHome(); } catch(e) { console.warn('re-render after delete failed', e); }
+        }, 260);
       }
     });
     list.appendChild(node);
@@ -9799,11 +9897,38 @@ function renderCoachForm(coach) {
   on('#c_photo', 'change', e => {
     let f = e.target.files[0];
     if (!f) return;
-    imageFileToDataURL(f, 500).then(data => {
-      qs('#coachPreview').innerHTML = `<img src="${data}" style="width: 100%; height: 100%; object-fit: cover;">`;
-      qs('#c_photo').dataset.dataurl = data;
-      qs('#removeCoachPhoto').disabled = false;
-    }).catch(err => alert('خطا در خواندن عکس'));
+    const prev = qs('#coachPreview');
+    try { prev.innerHTML = '<div class="muted">در حال پردازش تصویر...</div>'; } catch(_){}
+
+    // Prefer face-aware compressor if available (same behavior as player photo flow)
+    if (window.imageCompress && typeof window.imageCompress.compressWithFaceCrop === 'function') {
+      window.imageCompress.compressWithFaceCrop(f, { outputSize: 256, expand: 1.4, quality: 0.7, mimeType: 'image/webp' })
+        .then(res => {
+          if (prev.querySelector('img')) prev.querySelector('img').src = res.dataUrl;
+          else { prev.innerHTML = ''; const img = document.createElement('img'); img.src = res.dataUrl; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img); }
+          qs('#removeCoachPhoto').disabled = false;
+          qs('#c_photo').dataset.dataurl = res.dataUrl;
+          // mark that we have a processed blob available (actual blob handling is upstream)
+          qs('#c_photo').dataset.blob = true;
+        })
+        .catch(err => {
+          console.warn('compressWithFaceCrop failed for coach photo, falling back', err);
+          imageFileToDataURL(f, 500).then(data => {
+            prev.innerHTML = '';
+            let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img);
+            qs('#removeCoachPhoto').disabled = false;
+            qs('#c_photo').dataset.dataurl = data;
+          }).catch(err2 => { console.error(err2); alert('خطا در خواندن عکس'); prev.innerHTML = '<div style="color:#666">خطا در پردازش تصویر</div>'; });
+        });
+    } else {
+      // fallback: basic resize + quality loop
+      imageFileToDataURL(f, 500).then(data => {
+        if (prev.querySelector('img')) prev.querySelector('img').src = data;
+        else { prev.innerHTML = ''; let img = document.createElement('img'); img.src = data; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; prev.appendChild(img); }
+        qs('#removeCoachPhoto').disabled = false;
+        qs('#c_photo').dataset.dataurl = data;
+      }).catch(err => { console.error(err); alert('خطا در خواندن عکس'); });
+    }
   });
   on('#removeCoachPhoto', 'click', () => {
     qs('#coachPreview').innerHTML = '<div style="color:#666">عکس</div>';
@@ -11496,19 +11621,34 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!origin || origin === 'null' || origin.startsWith('file:')) {
         console.debug('Skipping service worker registration: origin not supported', origin);
       } else {
-        navigator.serviceWorker.register("./sw.js")
+        navigator.serviceWorker.register("./sw-advanced.js", { scope: './' })
           .then(reg => {
-        console.log('Service Worker registered');
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              if (confirm('نسخه جدید موجود است. بروزرسانی کنید؟')) {
-                newWorker.postMessage({ action: 'skipWaiting' });
-              }
+            console.log('Advanced Service Worker registered:', reg.scope);
+            // Setup periodic background sync if supported
+            if ('periodicSync' in reg) {
+              reg.periodicSync.register('sync-data', {
+                minInterval: 24 * 60 * 60 * 1000 // 24 hours
+              }).catch(() => {/* Ignore if not supported */});
             }
-          });
-        });
+            
+            // Handle updates
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // Show update notification with app version
+                  const updateNotification = document.createElement('div');
+                  updateNotification.className = 'update-notification';
+                  updateNotification.innerHTML = `
+                    <div class="update-content">
+                      نسخه جدید برنامه در دسترس است
+                      <button onclick="location.reload()" class="update-btn">بروزرسانی</button>
+                    </div>
+                  `;
+                  document.body.appendChild(updateNotification);
+                }
+              });
+            });
           })
           .catch(err => console.error('Service Worker registration failed:', err));
       }
@@ -11521,13 +11661,18 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     deferredPrompt = e;
     // نشان دادن دکمه نصب اگر لازم باشد
-    let installBtn = document.createElement('button');
-    installBtn.className = 'btn primary';
-    installBtn.textContent = 'نصب اپ';
-    installBtn.style.position = 'fixed';
-    installBtn.style.bottom = '80px';
-    installBtn.style.left = '50%';
-    installBtn.style.transform = 'translateX(-50%)';
+  let installBtn = document.createElement('button');
+  // give it an id/class used elsewhere and ensure it sits above all UI
+  installBtn.id = 'installPWA';
+  installBtn.className = 'btn primary pwa-install-prompt';
+  installBtn.textContent = 'نصب اپ';
+  installBtn.style.position = 'fixed';
+  installBtn.style.bottom = '24px';
+  installBtn.style.left = '50%';
+  installBtn.style.transform = 'translateX(-50%)';
+  // ensure clickable and above overlays/modals
+  installBtn.style.zIndex = '2147483646';
+  installBtn.style.pointerEvents = 'auto';
     installBtn.addEventListener('click', () => {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then((choice) => {
@@ -11537,8 +11682,10 @@ document.addEventListener('DOMContentLoaded', () => {
         deferredPrompt = null;
       });
     });
-    document.body.appendChild(installBtn);
-    setTimeout(() => installBtn.remove(), 10000); // پنهان پس از 10 ثانیه
+  // append last so it's topmost in DOM order as well
+  document.body.appendChild(installBtn);
+  // auto-hide after a short delay but only if still present
+  setTimeout(() => { try { if (installBtn && installBtn.parentNode) installBtn.remove(); } catch(_){} }, 10000);
   });
 
   //qs('#mobileMenu').classList.add('hide');  مخفی کردن اولیه منو

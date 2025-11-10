@@ -45,7 +45,135 @@ button, .btn {
   background: #009688;
   color: #fff;
   cursor: pointer;
+  transition: all 0.3s ease;
 }
 button:active, .btn:active {
   background: #00796B;
+  transform: scale(0.98);
 }
+
+/* Update Notification */
+.update-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 15px 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  animation: slide-in 0.3s ease-out;
+}
+
+.update-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 14px;
+  color: #333;
+}
+
+.update-btn {
+  background: #1976d2;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 32px;
+  min-width: auto;
+  transition: all 0.2s ease;
+}
+
+.update-btn:hover {
+  background: #1565c0;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Install PWA Button */
+#installPWA {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 240, 0.95));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 12px 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #1976d2;
+  font-weight: 600;
+  font-size: 15px;
+  z-index: 999999;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+
+#installPWA .install-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231976d2'%3E%3Cpath d='M13 5v6h1.17L12 13.17 9.83 11H11V5h2m2-2H9v6H5l7 7 7-7h-4V3zm4 15H5v2h14v-2z'/%3E%3C/svg%3E") no-repeat center;
+  background-size: contain;
+  vertical-align: middle;
+}
+
+#installPWA .install-text {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+#installPWA:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+#installPWA:active {
+  transform: translateX(-50%) translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Styles for the new floating install prompt (used by pwa-bootstrap.js) */
+.pwa-install-prompt, #pwaInstallPrompt {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%) translateY(100%);
+  background: linear-gradient(135deg,#f59e0b,#f97316);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 2147483646; /* very high to avoid being hidden by modals */
+  cursor: pointer;
+  transition: all 280ms cubic-bezier(.2,.9,.2,1);
+  pointer-events: auto;
+}
+.pwa-install-prompt .install-icon { width:24px;height:24px;display:inline-block;background-size:contain;background-repeat:no-repeat;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M13 5v6h3l-4 4-4-4h3V5h2M17 3H7v6H5l7 7 7-7h-2V3m0 18H7v-2h10v2z'/%3E%3C/svg%3E"); }
+.pwa-install-prompt .install-text { font-weight:700; font-size:15px; }
+.pwa-install-prompt .close-button { background:transparent;border:0;color:rgba(255,255,255,0.9);font-size:18px;padding:6px;border-radius:8px;cursor:pointer }
+.pwa-install-prompt.show { transform: translateX(-50%) translateY(0); }
+
+/* Ensure modals/backdrops don't intercept clicks intended for this floating prompt */
+.pwa-install-prompt, #pwaInstallPrompt { mix-blend-mode: normal; }

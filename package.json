@@ -1,17 +1,11 @@
 {
-  "name": "project_fixed_finaly--100",
+  "name": "volleyball-pwa-tools",
   "version": "1.0.0",
-  "description": "این پروژه یک **Progressive Web App (PWA)** برای مدیریت باشگاه والیبال است.",
-  "main": "backup-storage.js",
+  "description": "Small helper scripts for optimizing icons in the volleyball PWA",
   "scripts": {
-    "build-apk": "npx bubblewrap build",
-    "init-twa": "npx bubblewrap init --manifest twa-manifest.json",
-    "doctor": "npx bubblewrap doctor"
+    "optimize-icons": "node tools/optimize-icons.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@bubblewrap/cli": "^1.24.1"
+  "dependencies": {
+    "sharp": "^0.32.0"
   }
 }
