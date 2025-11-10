@@ -1,0 +1,17 @@
+{
+  "name": "project_fixed_finaly--100",
+  "version": "1.0.0",
+  "description": "این پروژه یک **Progressive Web App (PWA)** برای مدیریت باشگاه والیبال است.",
+  "main": "backup-storage.js",
+  "scripts": {
+    "build-apk": "npx bubblewrap build",
+    "init-twa": "npx bubblewrap init --manifest twa-manifest.json",
+    "doctor": "npx bubblewrap doctor"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@bubblewrap/cli": "^1.24.1"
+  }
+}

@@ -165,12 +165,9 @@
   "related_applications": [
     {
       "platform": "play",
-      "id": "ir.pouriaabedi.volleyballclub",
+      "id": "com.pouriaabediapps.volleyballclub",
       "fingerprints": [
-        { 
-          "type": "sha256_cert", 
-          "value": "15l0hNNMAGrGyeofj7zSOeae2GrE4BJHHoOQeaXDxzg=" 
-        }
+        { "type": "sha256_cert", "value": "CHANGE_TO_PLAY_SHA256_BASE64" }
       ]
     }
   ],
