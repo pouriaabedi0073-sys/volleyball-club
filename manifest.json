@@ -4,9 +4,8 @@
   "description": "ابزاری برای مدیریت بازیکنان، کارت عضویت، مسابقات و حساب‌های باشگاه والیبال.",
   "lang": "fa",
   "dir": "rtl",
-  "id": "volleyball-club-management-pwa",
-  "start_url": "/volleyball-club/index.html",
-  "scope": "/volleyball-club/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
@@ -26,36 +25,8 @@
     { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { 
-      "name": "بازیکنان", 
-      "short_name": "بازیکنان", 
-      "description": "لیست بازیکنان", 
-      "url": "/volleyball-club/index.html#players", 
-      "icons": [{ "src": "assets/icons/icon-192.png", "sizes":"192x192" }] 
-    },
-    { 
-      "name": "صدور کارت", 
-      "short_name": "کارت", 
-      "description": "ایجاد کارت عضویت", 
-      "url": "/volleyball-club/index.html#membership", 
-      "icons": [{ "src": "assets/icons/icon-256.png", "sizes":"256x256" }] 
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "assets/screenshots/home-mobile.webp",
-      "sizes": "1080x2340",
-      "type": "image/webp",
-      "platform": "narrow",
-      "label": "صفحه اصلی در موبایل"
-    },
-    {
-      "src": "assets/screenshots/players-mobile.webp",
-      "sizes": "1080x2340",
-      "type": "image/webp", 
-      "platform": "narrow",
-      "label": "لیست بازیکنان در موبایل"
-    }
+    { "name": "بازیکنان", "short_name": "بازیکنان", "description": "لیست بازیکنان", "url": "./index.html#players", "icons": [{ "src": "icons/icon-192.png", "sizes":"192x192" }] },
+    { "name": "صدور کارت", "short_name": "کارت", "description": "ایجاد کارت عضویت", "url": "./index.html#membership", "icons": [{ "src": "icons/icon-256.png", "sizes":"256x256" }] }
   ],
   "categories": ["productivity","sports"],
   "prefer_related_applications": false

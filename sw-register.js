@@ -4,11 +4,11 @@
   // Register as early as possible
   window.addEventListener('load', function() {
     try {
-      if (!location || (location.protocol !== 'http:' && location.protocol !== 'https:'')) {
+      if (!location || (location.protocol !== 'http:' && location.protocol !== 'https:')) {
         console.debug('Service worker registration skipped: unsupported protocol', location.protocol);
         return;
       }
-      const swPath = 'sw-advanced.js'; // Using the advanced service worker
+      const swPath = 'sw.js';
       navigator.serviceWorker.register(swPath, { scope: './' })
         .then(function(reg) {
           console.log('ServiceWorker registered with scope:', reg.scope);

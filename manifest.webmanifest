@@ -10,45 +10,45 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "./assets/icons/icon-192.png",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./assets/icons/icon-256.png",
+      "src": "icons/icon-256.png",
       "sizes": "256x256",
       "type": "image/png"
     },
     {
-      "src": "./assets/icons/icon-384.png",
+      "src": "icons/icon-384.png",
       "sizes": "384x384",
       "type": "image/png"
     },
     {
-      "src": "./assets/icons/icon-512.png",
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "./assets/icons/icon-maskable-192.png",
+      "src": "icons/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "./assets/icons/icon-maskable-256.png",
+      "src": "icons/icon-maskable-256.png",
       "sizes": "256x256",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "./assets/icons/icon-maskable-384.png",
+      "src": "icons/icon-maskable-384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "./assets/icons/icon-maskable-512.png",
+      "src": "icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -161,15 +161,5 @@
         }
       ]
     }
-  ],
-  "related_applications": [
-    {
-      "platform": "play",
-      "id": "com.pouriaabediapps.volleyballclub",
-      "fingerprints": [
-        { "type": "sha256_cert", "value": "CHANGE_TO_PLAY_SHA256_BASE64" }
-      ]
-    }
-  ],
-  "prefer_related_applications": true
+  ]
 }
