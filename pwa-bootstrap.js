@@ -2,12 +2,18 @@
 (function(){
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.getRegistration().then(reg => {
+      // Register service worker with explicit absolute path and correct scope for GitHub Pages
+      const swPath = '/volleyball-club/service-worker.js';
+      const swScope = '/volleyball-club/';
+      navigator.serviceWorker.getRegistration(swScope).then(reg => {
         if (!reg) {
-          navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-            .catch(console.error);
+          navigator.serviceWorker.register(swPath, { scope: swScope })
+            .then(r => { console.log('Service Worker registered:', r); })
+            .catch(err => { console.error('Service Worker registration failed:', err); });
+        } else {
+          console.log('Service Worker already registered for scope', swScope, reg);
         }
-      });
+      }).catch(err => console.warn('SW getRegistration failed', err));
     });
   }
   window.addEventListener('beforeinstallprompt', (e) => {

@@ -38,80 +38,44 @@
     .profile-status-box .status-item{ display:flex; gap:8px; align-items:center; color:#065f46; font-size:0.95em; margin:4px 0 }
     .profile-status-box .status-item .status-text{ color: #064e3b }
   </style>
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
 <!-- Ensure Supabase library is loaded early for auth UI -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
     <script>
-      // Minimal Supabase client initializer: prefer window vars if set, otherwise use project defaults
       (function(){
+        // Simple Supabase initializer: create window.supabase as soon as the library is available.
         try {
           if (typeof window.SUPABASE_URL === 'undefined') window.SUPABASE_URL = 'https://wtycgduarwpgnxxvwtgz.supabase.co';
           if (typeof window.SUPABASE_ANON_KEY === 'undefined') window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
-          // Initialize client if supabase lib is available
-          try {
+
+          function initSupabaseClient() {
+            try {
               if (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function') {
-              const client = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-              window.supabase = client;
-              window.supabaseClient = client;
-            } else if (window.supabase && typeof window.supabase.createClient === 'function') {
-              // already present (UMD injected), create a namespaced client
-              const client = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-              window.supabase = client;
-              window.supabaseClient = client;
+                const client = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+                window.supabase = client;
+                window.supabaseClient = client;
+                console.info('Supabase client initialized');
+              }
+            } catch (e) { console.warn('supabase client init failed', e); }
+          }
+
+          if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+            initSupabaseClient();
+          } else {
+            const s = document.querySelector('script[src*="@supabase/supabase-js"]');
+            if (s) {
+              s.addEventListener('load', initSupabaseClient);
+              s.addEventListener('error', () => console.warn('supabase script failed to load'));
+            } else {
+              // If the script tag is missing for some reason, try to create client later
+              document.addEventListener('DOMContentLoaded', initSupabaseClient);
             }
-          } catch(e) { console.warn('supabase client init failed', e); }
+          }
 
-          // Supabase .from(...).select wrapper to catch select lists containing player_name (debug helper)
-          try {
-            const sup = window.supabase;
-            if (sup && typeof sup.from === 'function') {
-              const _from = sup.from.bind(sup);
-              sup.from = function(table) {
-                const q = _from(table);
-                if (q && typeof q.select === 'function') {
-                  const _select = q.select.bind(q);
-                  q.select = function(sel) {
-                    try {
-                      if (String(sel || '').includes('player_name')) {
-                        console.group('%cDEBUG: detected player_name in supabase select','color:#b45309;font-weight:bold');
-                        console.log('table:', table);
-                        console.log('select:', sel);
-                        console.trace();
-                        console.groupEnd();
-                      }
-                    } catch(e){}
-                    return _select.apply(this, arguments);
-                  };
-                }
-                return q;
-              };
-            }
-          } catch(e) { console.warn('supabase select wrapper install failed', e); }
-
-          console.info('Debug wrapper for player_name installed.');
-
-          // Runtime detector: catch any runtime attempts to call supabase.from('users')
-          try {
-            const sup = window.supabase;
-            if (sup && typeof sup.from === 'function') {
-              const _from = sup.from.bind(sup);
-              sup.from = function(table) {
-                if (String(table).toLowerCase() === 'users') {
-                  try {
-        // editEmail removed from form; skip setting email
-                    console.trace();
-                    console.groupEnd();
-                  } catch (e) { console.warn('users detect trace failed', e); }
-                }
-                return _from.apply(this, arguments);
-              };
-            }
-          } catch (e) { console.warn('install users runtime detector failed', e); }
-
-        } catch (e) { console.warn('supabase init wrapper failed', e); }
+        } catch (e) { console.warn('supabase init failed', e); }
       })();
     </script>
 <link rel="manifest" href="./manifest.json">
@@ -2251,10 +2215,10 @@ section:not(#view-home) {
   })();
   </script>
   <!-- Image compress / face-crop (libraries + helper) -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
-  <script src="./libs/image-compress.js"></script>
-  <script src="./libs/indexeddb-queue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js" defer></script>
+  <script src="./libs/image-compress.js" defer></script>
+  <script src="./libs/indexeddb-queue.js" defer></script>
   <style>
     /* Inline spinner used inside buttons */
     .inline-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,0.12);border-top-color:var(--accent,#0a7);border-radius:50%;animation:__spin 1s linear infinite;vertical-align:middle}
@@ -6399,8 +6363,25 @@ function imageFileToDataURL(file, maxKB) {
           }
         } catch(e) { console.debug('post-login restore prompt failed', e); }
       } else {
-        if (dbg) { dbg.innerHTML = `<span class="auth-event">سشن معتبر نیست</span><span class="auth-msg">نمایش فرم لاگین</span>`; dbg.classList.remove('signed-in','auth-error'); }
-        try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
+        try {
+          // Double-check current auth user before showing login UI — avoids showing the form
+          // in edge cases where a user exists but session retrieval returned null.
+          const maybe = await client.auth.getUser();
+          const authUser = maybe && maybe.data && maybe.data.user ? maybe.data.user : null;
+          if (authUser && authUser.id) {
+            // A user exists: hide embedded auth UI and clear debug line
+            if (dbg) { dbg.style.display = 'none'; dbg.classList.remove('auth-error'); dbg.classList.add('signed-in'); }
+            try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
+          } else {
+            // No user — show a friendly, well-formed Persian message and display login form
+            if (dbg) { dbg.innerHTML = `<span class="auth-event">نشست معتبر نیست</span><span class="auth-msg">فرم ورود نمایش داده می‌شود</span>`; dbg.classList.remove('signed-in'); dbg.classList.add('auth-error'); dbg.style.display = 'block'; }
+            try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
+          }
+        } catch(e) {
+          // Fallback: if the getUser check fails, show the login form and an explanatory message
+          if (dbg) { dbg.innerHTML = `<span class="auth-event">نشست نامعتبر است</span><span class="auth-msg">فرم ورود نمایش داده می‌شود</span>`; dbg.classList.add('auth-error'); dbg.style.display = 'block'; }
+          try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
+        }
       }
     } catch(e){ console.debug('auth restore failed', e); if (dbg) dbg.textContent = 'خطا هنگام بررسی سشن'; }
   }

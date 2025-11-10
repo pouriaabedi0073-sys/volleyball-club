@@ -71,12 +71,15 @@ self.addEventListener('fetch', event => {
   // Navigation requests: SPA fallback to cached index.html
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
+      // Prefer the cached shell so the app loads instantly offline.
+      const cached = await caches.match('./index.html');
+      if (cached) return cached;
       try {
         const networkResponse = await fetch(req);
         return networkResponse;
       } catch (err) {
-        const cached = await caches.match('./index.html');
-        return cached || Response.error();
+        // Last-resort offline response
+        return new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><h1>آفلاین</h1><p>در حال حاضر به اینترنت متصل نیستید.</p>', { headers: { 'Content-Type': 'text/html' } });
       }
     })());
     return;
