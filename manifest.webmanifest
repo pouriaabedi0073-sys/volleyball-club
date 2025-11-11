@@ -2,7 +2,7 @@
   "name": "مدیریت باشگاه والیبال",
   "short_name": "والیبال",
   "description": "اپلیکیشن PWA برای مدیریت باشگاه والیبال: بازیکنان، مربیان، پرداخت‌ها، جلسات و گزارش‌ها.",
-  "start_url": "/volleyball-club/",
+  "start_url": "/volleyball-club/#home"
   "scope": "/volleyball-club/",
   "display": "standalone",
   "background_color": "#ffffff",
