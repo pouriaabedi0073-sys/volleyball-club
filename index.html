@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="والیبال" />
-<link rel="manifest" href="manifest.webmanifest" />
+<link rel="manifest" href="/volleyball-club/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
 <link rel="canonical" href="https://pouriaabedi0073-sys.github.io/volleyball-club/" />
 <!-- TWA related tags -->
@@ -114,10 +114,7 @@
         } catch (e) { console.warn('supabase init wrapper failed', e); }
       })();
     </script>
-<link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
 <meta name="theme-color" content="#0ea5e9">
 <style>
 /* Competitions: two-column tabs layout */
@@ -6399,7 +6396,7 @@ function imageFileToDataURL(file, maxKB) {
           }
         } catch(e) { console.debug('post-login restore prompt failed', e); }
       } else {
-        if (dbg) { dbg.innerHTML = `<span class="auth-event">سشن معتبر نیست</span><span class="auth-msg">نمایش فرم لاگین</span>`; dbg.classList.remove('signed-in','auth-error'); }
+        if (dbg) { dbg.innerHTML = `<span class="auth-event"> سشن معتبر نیست </span><span class="auth-msg"> نمایش فرم لاگین </span>`; dbg.classList.remove('signed-in','auth-error'); }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
       }
     } catch(e){ console.debug('auth restore failed', e); if (dbg) dbg.textContent = 'خطا هنگام بررسی سشن'; }
@@ -6659,23 +6656,59 @@ let customStoragePath = null;
 
 function loadState() {
   try {
-    let raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state = JSON.parse(raw);
-    else seedSample();
-    state.user = state.user || {loggedIn: false}; // خط جدید
+    // بررسی دسترسی به localStorage (بخصوص در محیط file:// و private browsing)
+    const isStorageAvailable = () => {
+      try {
+        const test = '__localStorage_test__';
+        window.localStorage.setItem(test, test);
+        window.localStorage.removeItem(test);
+        return true;
+      } catch (e) {
+        console.warn('localStorage not available:', e.message);
+        return false;
+      }
+    };
+    
+    let raw = null;
+    if (isStorageAvailable()) {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } else {
+      console.warn('Warning: localStorage disabled. Using in-memory state only.');
+    }
+    
+    if (raw) {
+      state = JSON.parse(raw);
+    } else {
+      seedSample();
+    }
+    state.user = state.user || {loggedIn: false};
   } catch (e) {
-    console.error(e);
+    console.error('loadState error:', e);
     seedSample();
-    state.user = state.user || {loggedIn: false}; // خط جدید برای حالت خطا
+    state.user = state.user || {loggedIn: false};
   }
 
-  // بروزرسانی اتومات رده‌ها
+  // بروزرسانی اتومات رده‌ها و اطمینان از وجود ranks و privateClasses
+  state.settings = state.settings || {};
+  state.settings.ranks = state.settings.ranks || [
+    { id: 'mini', name: 'مینی والیبال', minAgeYears: 0, maxAgeYears: 12, startDateJ: '' },
+    { id: 'noonahal', name: 'نونهالان', minAgeYears: 13, maxAgeYears: 14, startDateJ: '' },
+    { id: 'nojavanan', name: 'نوجوانان', minAgeYears: 15, maxAgeYears: 16, startDateJ: '' },
+    { id: 'nojavanan_boghr', name: 'نوجوانان بزرگ', minAgeYears: 17, maxAgeYears: 18, startDateJ: '' },
+    { id: 'javan', name: 'جوانان', minAgeYears: 19, maxAgeYears: 20, startDateJ: '' },
+    { id: 'omid', name: 'امیدها', minAgeYears: 21, maxAgeYears: 22, startDateJ: '' },
+    { id: 'adult', name: 'بزرگسالان', minAgeYears: 23, maxAgeYears: 200, startDateJ: '' }
+  ];
+  state.privateClasses = state.privateClasses || [];
+  state.settings.ranksReferenceDate = state.settings.ranksReferenceDate || todayJalali();
+  
   state.players.forEach(p => {
     if (p.birthdate) {
       let age = calcExactAge(p.birthdate);
       p.category = determineCategory(age);
     }
     if (!p.events) p.events = [];
+
   });
   // بروزرسانی تاریخ آخرین آپدیت رده‌ها
   let todayParts = todayJalali().split('/').map(Number);
@@ -6706,11 +6739,22 @@ function logSampleCategories() {
 // call logger after seeding (useful on first load)
 try { if (!localStorage.getItem(STORAGE_KEY)) { logSampleCategories(); } } catch(e){}
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  // also attempt to store an online backup of the current profile/state
+  try {
+    // تلاش برای ذخیره در localStorage (اگر دسترسی داشته باشیم)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('localStorage.setItem failed (quota exceeded or disabled):', e.message);
+      }
+    }
+  } catch (e) {
+    console.warn('saveState localStorage check failed:', e);
+  }
+  
+  // همیشه سعی کن backup را بکافت (آنلاین)
   try {
     if (typeof backupNow === 'function') {
-      // fire-and-forget; update UI status on completion inside backupNow
       backupNow().catch(e => { console.warn('background backup failed', e); });
     }
   } catch(e){ console.debug('backup call from saveState failed', e); }
@@ -6746,6 +6790,10 @@ function seedSample() {
   state.coaches.push({
     id: uid('c'), name: 'محمد محمدی', title: 'مربی اصلی', phone: '09120000010', photo: '', createdAt: new Date(now - 600000).toISOString()
   });
+  
+  // Initialize private classes array (for session management)
+  state.privateClasses = state.privateClasses || [];
+  
   // نمونهٔ برنامه‌های تمرین (notes)
   state.trainingPlans = [];
   state.sessions.push({
