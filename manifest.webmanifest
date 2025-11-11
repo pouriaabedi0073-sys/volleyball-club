@@ -2,174 +2,41 @@
   "name": "مدیریت باشگاه والیبال",
   "short_name": "والیبال",
   "description": "اپلیکیشن PWA برای مدیریت باشگاه والیبال: بازیکنان، مربیان، پرداخت‌ها، جلسات و گزارش‌ها.",
-  "start_url": "./?source=pwa",
-  "scope": "./",
+  "start_url": "/volleyball-club/index.html#home",
+  "scope": "/volleyball-club/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "fullscreen"
+  ],
   "background_color": "#ffffff",
-  "theme_color": "#0ea5e9",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
-    {
-      "src": "./assets/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-256.png",
-      "sizes": "256x256",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-256.png",
-      "sizes": "256x256",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./assets/icons/icon-48.png",
-      "sizes": "48x48",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-72.png",
-      "sizes": "72x72",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-96.png",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-128.png",
-      "sizes": "128x128",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-144.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-152.png",
-      "sizes": "152x152",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-256.png",
-      "sizes": "256x256",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "./assets/icons/icon-mono-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "monochrome"
-    },
-    {
-      "src": "./assets/icons/icon-mono-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "monochrome"
-    }
+    { "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/volleyball-club/assets/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/volleyball-club/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/volleyball-club/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/volleyball-club/assets/icons/icon-monochrome-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "monochrome" }
   ],
-  "id": "./",
+  "id": "/volleyball-club/",
   "lang": "fa",
   "dir": "rtl",
-  "display_override": [
-    "standalone",
-    "fullscreen",
-    "minimal-ui"
-  ],
-  "categories": [
-    "sports",
-    "productivity"
-  ],
+  "categories": [ "sports", "productivity" ],
   "screenshots": [
-    {
-      "src": "./assets/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "label": "نمایش اپ در موبایل"
-    }
+    { "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "label": "نمایش اپ — صفحه اصلی", "platform": "narrow" },
+    { "src": "/volleyball-club/assets/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "label": "نمایش اپ — پنل کنترل", "platform": "narrow" },
+    { "src": "/volleyball-club/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "label": "نمایش اپ — لیست بازیکنان", "platform": "wide" }
   ],
   "shortcuts": [
-    {
-      "name": "داشبورد",
-      "short_name": "داشبورد",
-      "url": "./",
-      "icons": [
-        {
-          "src": "./assets/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    }
+    { "name": "بازیکنان", "short_name": "بازیکنان", "description": "لیست بازیکنان", "url": "/volleyball-club/index.html#players", "icons": [{ "src": "/volleyball-club/assets/icons/icon-192.png", "sizes":"192x192" }] },
+    { "name": "جلسات", "short_name": "جلسات", "description": "مدیریت جلسات تمرینی", "url": "/volleyball-club/index.html#sessions", "icons": [{ "src": "/volleyball-club/assets/icons/icon-192.png", "sizes":"192x192" }] }
   ],
-  "related_applications": [
-    {
-      "platform": "play",
-      "id": "com.pouriaabediapps.volleyballclub",
-      "fingerprints": [
-        { "type": "sha256_cert", "value": "CHANGE_TO_PLAY_SHA256_BASE64" }
-      ]
-    }
-  ],
-  "prefer_related_applications": true
+  "related_applications": [ { "platform": "play", "id": "ir.pouriaabedi.volleyballclub", "fingerprints": [ { "type": "sha256_cert", "value": "15l0hNNMAGrGyeofj7zSOeae2GrE4BJHHoOQeaXDxzg=" } ] } ],
+  "prefer_related_applications": true,
+  "iarc_rating_id": "e84b9d60-a4a7-4cf7-8c12-7a9d0f2e5f8a",
+  "protocol_handlers": [ { "protocol": "web+volleyball", "url": "/volleyball-club/?protocol=%s" } ],
+  "share_target": { "action": "/volleyball-club/share", "method": "POST", "enctype": "multipart/form-data", "params": { "title": "title", "text": "text", "url": "url", "files": [ { "name": "file", "accept": ["image/*", "application/pdf"] } ] } },
+  "edge_side_panel": { "preferred_width": 400 }
 }

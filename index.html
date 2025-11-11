@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="والیبال" />
-<link rel="manifest" href="manifest.webmanifest" />
+<link rel="manifest" href="/volleyball-club/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
 <link rel="canonical" href="https://pouriaabedi0073-sys.github.io/volleyball-club/" />
 <!-- TWA related tags -->
@@ -114,10 +114,7 @@
         } catch (e) { console.warn('supabase init wrapper failed', e); }
       })();
     </script>
-<link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
 <meta name="theme-color" content="#0ea5e9">
 <style>
 /* Competitions: two-column tabs layout */
@@ -6399,7 +6396,7 @@ function imageFileToDataURL(file, maxKB) {
           }
         } catch(e) { console.debug('post-login restore prompt failed', e); }
       } else {
-        if (dbg) { dbg.innerHTML = `<span class="auth-event">سشن معتبر نیست</span><span class="auth-msg">نمایش فرم لاگین</span>`; dbg.classList.remove('signed-in','auth-error'); }
+        if (dbg) { dbg.innerHTML = `<span class="auth-event"> سشن معتبر نیست </span><span class="auth-msg"> نمایش فرم لاگین </span>`; dbg.classList.remove('signed-in','auth-error'); }
         try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
       }
     } catch(e){ console.debug('auth restore failed', e); if (dbg) dbg.textContent = 'خطا هنگام بررسی سشن'; }
@@ -6659,23 +6656,59 @@ let customStoragePath = null;
 
 function loadState() {
   try {
-    let raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state = JSON.parse(raw);
-    else seedSample();
-    state.user = state.user || {loggedIn: false}; // خط جدید
+    // بررسی دسترسی به localStorage (بخصوص در محیط file:// و private browsing)
+    const isStorageAvailable = () => {
+      try {
+        const test = '__localStorage_test__';
+        window.localStorage.setItem(test, test);
+        window.localStorage.removeItem(test);
+        return true;
+      } catch (e) {
+        console.warn('localStorage not available:', e.message);
+        return false;
+      }
+    };
+    
+    let raw = null;
+    if (isStorageAvailable()) {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } else {
+      console.warn('Warning: localStorage disabled. Using in-memory state only.');
+    }
+    
+    if (raw) {
+      state = JSON.parse(raw);
+    } else {
+      seedSample();
+    }
+    state.user = state.user || {loggedIn: false};
   } catch (e) {
-    console.error(e);
+    console.error('loadState error:', e);
     seedSample();
-    state.user = state.user || {loggedIn: false}; // خط جدید برای حالت خطا
+    state.user = state.user || {loggedIn: false};
   }
 
-  // بروزرسانی اتومات رده‌ها
+  // بروزرسانی اتومات رده‌ها و اطمینان از وجود ranks و privateClasses
+  state.settings = state.settings || {};
+  state.settings.ranks = state.settings.ranks || [
+    { id: 'mini', name: 'مینی والیبال', minAgeYears: 0, maxAgeYears: 12, startDateJ: '' },
+    { id: 'noonahal', name: 'نونهالان', minAgeYears: 13, maxAgeYears: 14, startDateJ: '' },
+    { id: 'nojavanan', name: 'نوجوانان', minAgeYears: 15, maxAgeYears: 16, startDateJ: '' },
+    { id: 'nojavanan_boghr', name: 'نوجوانان بزرگ', minAgeYears: 17, maxAgeYears: 18, startDateJ: '' },
+    { id: 'javan', name: 'جوانان', minAgeYears: 19, maxAgeYears: 20, startDateJ: '' },
+    { id: 'omid', name: 'امیدها', minAgeYears: 21, maxAgeYears: 22, startDateJ: '' },
+    { id: 'adult', name: 'بزرگسالان', minAgeYears: 23, maxAgeYears: 200, startDateJ: '' }
+  ];
+  state.privateClasses = state.privateClasses || [];
+  state.settings.ranksReferenceDate = state.settings.ranksReferenceDate || todayJalali();
+  
   state.players.forEach(p => {
     if (p.birthdate) {
       let age = calcExactAge(p.birthdate);
       p.category = determineCategory(age);
     }
     if (!p.events) p.events = [];
+
   });
   // بروزرسانی تاریخ آخرین آپدیت رده‌ها
   let todayParts = todayJalali().split('/').map(Number);
@@ -6706,11 +6739,22 @@ function logSampleCategories() {
 // call logger after seeding (useful on first load)
 try { if (!localStorage.getItem(STORAGE_KEY)) { logSampleCategories(); } } catch(e){}
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  // also attempt to store an online backup of the current profile/state
+  try {
+    // تلاش برای ذخیره در localStorage (اگر دسترسی داشته باشیم)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('localStorage.setItem failed (quota exceeded or disabled):', e.message);
+      }
+    }
+  } catch (e) {
+    console.warn('saveState localStorage check failed:', e);
+  }
+  
+  // همیشه سعی کن backup را بکافت (آنلاین)
   try {
     if (typeof backupNow === 'function') {
-      // fire-and-forget; update UI status on completion inside backupNow
       backupNow().catch(e => { console.warn('background backup failed', e); });
     }
   } catch(e){ console.debug('backup call from saveState failed', e); }
@@ -6746,6 +6790,10 @@ function seedSample() {
   state.coaches.push({
     id: uid('c'), name: 'محمد محمدی', title: 'مربی اصلی', phone: '09120000010', photo: '', createdAt: new Date(now - 600000).toISOString()
   });
+  
+  // Initialize private classes array (for session management)
+  state.privateClasses = state.privateClasses || [];
+  
   // نمونهٔ برنامه‌های تمرین (notes)
   state.trainingPlans = [];
   state.sessions.push({
@@ -7041,20 +7089,49 @@ function openMatchForm(editId) {
     } catch(e) { console.warn('populateHashtags failed', e); }
   })();
 
-  // wire file inputs to read data URLs and set preview + hidden logo input
+  // wire file inputs to read data URLs, compress/resize and set preview + hidden logo input
   const wireFile = (fileInputId, logoInputId, previewId) => {
     const fi = qs(fileInputId); const li = qs(logoInputId); const pi = qs(previewId);
     if (!fi) return;
-    fi.onchange = (ev) => {
+    fi.onchange = async (ev) => {
       const f = fi.files && fi.files[0];
       if (!f) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target.result;
-        if (li) li.value = url;
-        if (pi) { pi.src = url; pi.style.display = 'block'; }
-      };
-      reader.readAsDataURL(f);
+      try {
+        // Prefer the project's compressor if available (libs/image-compress.js)
+        if (window.imageCompress && typeof window.imageCompress.compressWithFaceCrop === 'function') {
+          const res = await window.imageCompress.compressWithFaceCrop(f, { outputSize: 256, mimeType: 'image/webp', quality: 0.78, detectFace: false });
+          if (li) li.value = res.dataUrl;
+          if (pi) { pi.src = res.dataUrl; pi.style.display = 'block'; }
+          if (res.size && res.size > 300*1024) console.warn('Compressed logo still large:', res.size);
+          return;
+        }
+
+        // Fallback: simple canvas resize -> webp
+        const dataUrl = await (async function simpleResize(file, maxSide = 512, quality = 0.8) {
+          const img = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = (e) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = e.target.result; };
+            r.onerror = rej; r.readAsDataURL(file);
+          });
+          let w = img.width, h = img.height;
+          const scale = Math.min(1, maxSide / Math.max(w, h));
+          const cw = Math.round(w * scale), ch = Math.round(h * scale);
+          const canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = ch;
+          const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, cw, ch);
+          return canvas.toDataURL('image/webp', quality);
+        })(f, 512, 0.8);
+        if (li) li.value = dataUrl;
+        if (pi) { pi.src = dataUrl; pi.style.display = 'block'; }
+      } catch (err) {
+        console.warn('logo file processing failed, falling back to raw dataURL', err);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const url = e.target.result;
+          if (li) li.value = url;
+          if (pi) { pi.src = url; pi.style.display = 'block'; }
+        };
+        reader.readAsDataURL(f);
+      }
     };
   };
   wireFile('#formTeamALogoFile','#formTeamALogo','#formTeamAPreview');
@@ -8574,14 +8651,25 @@ function renderPlayersPage() {
     if (profileBtn) profileBtn.addEventListener('click', () => showView('player-profile', {playerId: p.id}));
     if (payBtn) payBtn.addEventListener('click', () => openPaymentModal(p.id));
     if (editBtn) editBtn.addEventListener('click', () => showView('player-form', {player: p}));
-    if (delBtn) delBtn.addEventListener('click', () => {
-      if (confirm('حذف شود؟')) {
+    if (delBtn) delBtn.addEventListener('click', (e) => {
+      // prevent the click from bubbling or triggering duplicate handlers
+      try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch(_){}
+      const name = (p && p.name) ? p.name : 'این بازیکن';
+      // show a clear confirm including the player's name
+      if (confirm(`آیا مطمئن هستید که می‌خواهید «${name}» را حذف کنید؟`)) {
+        // disable the button to avoid accidental double-activation
+        try { delBtn.disabled = true; } catch(_){}
+        // perform removal
         state.players = state.players.filter(x => x.id !== p.id);
         state.sessions.forEach(s => { if (s.attendances) delete s.attendances[p.id]; });
         state.payments = state.payments.filter(x => x.playerId !== p.id);
         saveState();
-        renderPlayersPage();
-        renderHome();
+        // blur active element to avoid mouseup triggering a click on the next button
+        try { if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur(); } catch(_){}
+        // delay re-render slightly so any pending mouse events don't hit newly created buttons
+        setTimeout(() => {
+          try { renderPlayersPage(); renderHome(); } catch(e) { console.warn('re-render after delete failed', e); }
+        }, 260);
       }
     });
     list.appendChild(node);
@@ -11615,31 +11703,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (swErr) { console.debug('service worker guard failed', swErr); }
   }
 
-  // PWA install prompt
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    // نشان دادن دکمه نصب اگر لازم باشد
-    let installBtn = document.createElement('button');
-    installBtn.className = 'btn primary';
-    installBtn.textContent = 'نصب اپ';
-    installBtn.style.position = 'fixed';
-    installBtn.style.bottom = '80px';
-    installBtn.style.left = '50%';
-    installBtn.style.transform = 'translateX(-50%)';
-    installBtn.addEventListener('click', () => {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choice) => {
-        if (choice.outcome === 'accepted') {
-          console.log('اپ نصب شد');
-        }
-        deferredPrompt = null;
-      });
-    });
-    document.body.appendChild(installBtn);
-    setTimeout(() => installBtn.remove(), 10000); // پنهان پس از 10 ثانیه
-  });
+  // PWA install prompt is handled centrally in pwa-bootstrap.js
 
   //qs('#mobileMenu').classList.add('hide');  مخفی کردن اولیه منو
 
