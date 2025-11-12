@@ -2,9 +2,10 @@
 (function(){
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      // Register service worker with explicit absolute path and correct scope for GitHub Pages
-      const swPath = '/volleyball-club/service-worker.js';
-      const swScope = '/volleyball-club/';
+      // Register root-scoped service worker for offline support. Use relative paths
+      // so this works on different hosting setups (local file, root, or subpath).
+      const swPath = './service-worker.js';
+      const swScope = './';
       navigator.serviceWorker.getRegistration(swScope).then(reg => {
         if (!reg) {
           navigator.serviceWorker.register(swPath, { scope: swScope })
@@ -79,6 +80,17 @@
         }
         if (data.type === 'backup:create') {
           try { if (window.backupClient && typeof window.backupClient.createBackup === 'function') window.backupClient.createBackup().catch(e => console.warn('periodic createBackup failed', e)); } catch(e){}
+        }
+        // Notifications from service worker (push forwarded to clients)
+        if (data.type === 'notifier:push' && data.payload) {
+          try {
+            const p = data.payload || {};
+            const title = p.title || p.t || 'پیام جدید';
+            const body = p.body || p.b || p.message || '';
+            // Persist into in-app notifications and attempt browser notification via helper
+            try { if (typeof window.showLocalNotification === 'function') window.showLocalNotification(title, body, p.type || 'push'); }
+            catch(e) { console.warn('handling notifier:push failed', e); }
+          } catch(e) {}
         }
       } catch(e) {}
     });

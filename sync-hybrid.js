@@ -1296,6 +1296,40 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
     }
   };
 
+  // Add lightweight UI confirmation wrappers for sensitive deletes (sessions / trainingPlans).
+  // This only prompts when the page is focused (interactive UI). Programmatic or background
+  // deletes (when page is not focused) will proceed without a blocking confirm so automated
+  // flows and sync tasks are not interrupted.
+  try {
+    if (typeof window !== 'undefined' && window.syncHybrid) {
+      const wrapConfirm = (key) => {
+        try {
+          const api = window.syncHybrid[key];
+          if (!api || typeof api.remove !== 'function') return;
+          const orig = api.remove.bind(api);
+          api.remove = async function(id, ...rest) {
+            try {
+              // Only show confirm when the document is focused and visible (i.e. user interaction)
+              if (typeof document !== 'undefined' && typeof document.hasFocus === 'function' && document.hasFocus()) {
+                let name = id;
+                try {
+                  const arr = (window.state && window.state[ (key === 'trainingPlans') ? 'trainingPlans' : key ]) || [];
+                  const row = Array.isArray(arr) ? arr.find(r => r && r.id === id) : null;
+                  if (row) name = row.title || row.name || (row.player_name || row.id || id);
+                } catch (e) {}
+                const ok = confirm('آیا مطمئن هستید که می\'خواهید "' + String(name) + '" را حذف کنید؟ این عمل غیرقابل‌بازگشت است.');
+                if (!ok) return { cancelled: true };
+              }
+            } catch (e) { /* ignore confirm errors */ }
+            return orig(id, ...rest);
+          };
+        } catch (e) { /* ignore wrapping errors */ }
+      };
+      wrapConfirm('sessions');
+      wrapConfirm('trainingPlans');
+    }
+  } catch (e) { /* ignore */ }
+
   // Helpers: inspect and manage dead-letter queues
   try {
     window.syncHybrid.listDeadLetterOps = function() { return getDeadLetterOps(); };

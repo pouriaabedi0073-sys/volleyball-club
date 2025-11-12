@@ -273,7 +273,19 @@ self.addEventListener('push', event => {
       badge: data.badge || '/volleyball-club/assets/icons/icon-192.png',
       data: data.data || {}
     }, data.options || {});
-    event.waitUntil(self.registration.showNotification(title, opts));
+    // Show the system notification
+    event.waitUntil((async () => {
+      try {
+        await self.registration.showNotification(title, opts);
+      } catch (e) { /* ignore showNotification errors */ }
+      // Also notify any open clients so they can persist the notification into in-app UI
+      try {
+        const clientsList = await self.clients.matchAll({ includeUncontrolled: true });
+        for (const client of clientsList) {
+          try { client.postMessage({ type: 'notifier:push', payload: data }); } catch (e){}
+        }
+      } catch (e) { /* ignore client messaging errors */ }
+    })());
   } catch (e) { console.warn('push handler failed', e); }
 });
 

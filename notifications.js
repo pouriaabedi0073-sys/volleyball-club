@@ -252,6 +252,8 @@
             setTimeout(() => b.classList.remove('badge-pop'), 700);
           });
         } catch(e){}
+        // re-render notifications list if visible
+        try { if (typeof renderNotificationsList === 'function') renderNotificationsList(); } catch(e){}
       } catch(e){ console.warn('persisting notification to state failed', e); }
 
       return shown;
@@ -314,16 +316,43 @@
           document.body.insertBefore(view, document.body.firstChild);
         }
         if (!document.getElementById('notificationsContent')) {
-          const content = document.createElement('div');
-          content.id = 'notificationsContent';
-          content.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;';
+          // If the page already has an older container (#notificationsList), prefer reusing it
+          let content = document.getElementById('notificationsList');
+          if (content) {
+            content.id = 'notificationsContent';
+          } else {
+            content = document.createElement('div');
+            content.id = 'notificationsContent';
+          }
+          // Make the notifications drawer scrollable and visually consistent
+          content.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;scrollbar-width:thin;padding-bottom:64px;';
+          // Add container for action buttons (Close all) at bottom-left
+          const actions = document.createElement('div');
+          actions.id = 'notificationsActions';
+          actions.style.cssText = 'display:flex;justify-content:flex-start;gap:8px;padding:12px 0 0 0;margin-top:12px;border-top:1px solid rgba(0,0,0,0.06);';
+          const closeAll = document.createElement('button');
+          closeAll.id = 'notificationsCloseAll';
+          closeAll.className = 'btn';
+          closeAll.textContent = 'بستن همه اعلان‌ها';
+          closeAll.style.cssText = 'min-width:auto;padding:8px 12px;border-radius:10px;font-size:0.9em;';
+          closeAll.addEventListener('click', () => {
+            try {
+              if (!window.state) window.state = {};
+              window.state.notifications = [];
+              try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
+              renderNotificationsList();
+              try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
+            } catch (e) { console.warn('close all notifications failed', e); }
+          });
+          actions.appendChild(closeAll);
           view.appendChild(content);
+          view.appendChild(actions);
         }
       } catch(e) { /* ignore */ }
-      // cleanup notifications older than 7 days
+      // cleanup notifications older than 3 days
       try {
         if (window.state && Array.isArray(window.state.notifications)) {
-          const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+          const cutoff = Date.now() - (3 * 24 * 60 * 60 * 1000);
           window.state.notifications = window.state.notifications.filter(n => (n && n.ts && n.ts >= cutoff) || !n.ts);
           try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
         }
@@ -338,9 +367,81 @@
   }
 
   // expose
+  // helper to render the in-app notifications list inside #notificationsContent
+  function renderNotificationsList(){
+    try {
+      const container = document.getElementById('notificationsContent');
+      if (!container) return;
+      // clear
+      container.innerHTML = '';
+      const notes = (window.state && Array.isArray(window.state.notifications)) ? window.state.notifications.slice() : [];
+      if (notes.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'no-notifications';
+        empty.textContent = 'هیچ اعلانی موجود نیست';
+        empty.style.cssText = 'padding:12px;color:var(--muted);text-align:center;';
+        container.appendChild(empty);
+        return;
+      }
+      notes.forEach(n => {
+        try {
+          const card = document.createElement('div');
+          card.className = 'notification-card';
+          card.style.cssText = 'position:relative;padding:12px;border-radius:10px;background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,0.04);';
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'notification-close';
+          closeBtn.setAttribute('aria-label','بستن اعلان');
+          closeBtn.innerHTML = '&times;';
+          // place close button in top-right corner (respect RTL)
+          closeBtn.style.cssText = 'position:absolute;top:8px;left:8px;';
+          if (document.documentElement && document.documentElement.getAttribute('dir') !== 'rtl') {
+            closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;';
+          }
+          closeBtn.addEventListener('click', () => {
+            try {
+              if (!window.state) window.state = {};
+              window.state.notifications = (window.state.notifications||[]).filter(x => x.id !== n.id);
+              try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
+              renderNotificationsList();
+              try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
+            } catch (e) { console.warn('remove notification failed', e); }
+          });
+          const title = document.createElement('div');
+          title.className = 'notification-title';
+          title.textContent = n.title || '';
+          title.style.cssText = 'font-weight:700;margin-bottom:6px;';
+          const body = document.createElement('div');
+          body.className = 'notification-body';
+          body.textContent = n.body || '';
+          body.style.cssText = 'color:var(--muted);font-size:14px;';
+          card.appendChild(closeBtn);
+          card.appendChild(title);
+          card.appendChild(body);
+          container.appendChild(card);
+        } catch(e){ console.warn('render single notification failed', e); }
+      });
+    } catch (e) { console.warn('renderNotificationsList failed', e); }
+  }
+
+  // helper to update badge count (used by app buttons)
+  window.updateNotificationsBadge = function(){
+    try {
+      const count = (window.state && Array.isArray(window.state.notifications)) ? window.state.notifications.length : 0;
+      Array.from(document.querySelectorAll('.notifications-badge')).forEach(b => {
+        try {
+          if (count <= 0) { b.style.display = 'none'; b.textContent = ''; }
+          else { b.style.display = 'inline-block'; b.textContent = String(count); }
+        } catch(e){}
+      });
+    } catch(e) { console.warn('updateNotificationsBadge failed', e); }
+  };
+
+  // attempt to render on load if notifications exist
+  try { renderNotificationsList(); } catch(e){}
+
   window.initNotifications = initNotifications;
   window.notifyNow = window.notifyNow || function(){ runCheck(); };
-    // expose helpers for console testing
-    window.showLocalNotification = showLocalNotification;
-    window.renderInPageNotice = renderInPageNotice;
+  // expose helpers for console testing
+  window.showLocalNotification = showLocalNotification;
+  window.renderInPageNotice = renderInPageNotice;
 })();

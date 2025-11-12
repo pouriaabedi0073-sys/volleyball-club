@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="والیبال" />
-<link rel="manifest" href="/volleyball-club/manifest.webmanifest" />
+<link rel="manifest" href="./manifest.json" />
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
 <link rel="canonical" href="https://pouriaabedi0073-sys.github.io/volleyball-club/" />
 <!-- TWA related tags -->
@@ -3688,7 +3688,14 @@ window.handleManualBackup = async function handleManualBackup() {
     return;
   }
   
+  const btn = document.getElementById('backupNowBtn');
+  const spinner = document.getElementById('backupNowSpinner');
+  
   try {
+    // Show spinner and disable button
+    if (spinner) spinner.style.display = 'inline-block';
+    if (btn) btn.disabled = true;
+    
     if (window.setBackupButtonLoading) window.setBackupButtonLoading(true);
     
     // Make sure user is authenticated and group email is set to avoid RLS errors
@@ -3697,48 +3704,47 @@ window.handleManualBackup = async function handleManualBackup() {
       return;
     }
     const email = await window.backupSync.getCurrentUserEmail();
-    if (!email) return alert('لطفاً ابتدا وارد شوید');
+    if (!email) {
+      alert('لطفاً ابتدا وارد شوید');
+      return;
+    }
     window.backupSync.setGroupEmail(email);
 
     const res = await window.backupSync.createBackup({ force: true });
+    
     if (res && res.ok) {
-      // successful immediate save on server
       alert('✅ بک‌آپ با موفقیت ذخیره شد');
-      updateBackupStatus('بکاپ ذخیره شد');
     } else if (res && res.ok === 'pending' && res.id) {
-      // saved locally for later upload — optionally wait for server confirmation for a short period
-      updateBackupStatus('بکاپ در صف آپلود قرار گرفت — تلاش برای آپلود...');
       const client = window.supabase;
       let uploaded = false;
       if (client) {
-        const pollInterval = 2000; // ms
-        const maxAttempts = 15; // ~30s
+        const pollInterval = 2000;
+        const maxAttempts = 15;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           try {
-            // check backups table for presence of this backup id
             const { data, error } = await client.from('backups').select('backup_id').eq('backup_id', res.id).maybeSingle();
             if (!error && data && data.backup_id) { uploaded = true; break; }
           } catch (e) { /* ignore and retry */ }
-          // keep spinner active
           await new Promise(r => setTimeout(r, pollInterval));
         }
       }
       if (uploaded) {
         alert('✅ بک‌آپ با موفقیت روی سرور ذخیره شد');
-        updateBackupStatus('بکاپ ذخیره شد');
       } else {
         alert('⚠️ بک‌آپ در حالت انتظار ذخیره شد و پس از اتصال آپلود خواهد شد');
-        updateBackupStatus('بکاپ در صف آپلود قرار گرفت', true);
       }
+    } else if (res && res.reason === 'nochange') {
+      alert('ℹ️ داده‌ها از آخرین بک‌آپ تغییری نکرده‌اند');
     } else {
       alert('⚠️ خطا در بک‌آپ: ' + (res && res.reason ? res.reason : 'نامشخص'));
-      updateBackupStatus('خطا در ایجاد بکاپ', true);
     }
   } catch (err) {
     console.error('handleManualBackup failed', err);
     alert('⚠️ خطا در بک‌آپ: ' + (err && err.message ? err.message : String(err)));
   } finally {
     if (window.setBackupButtonLoading) window.setBackupButtonLoading(false);
+    if (spinner) spinner.style.display = 'none';
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -8799,12 +8805,63 @@ function renderSessionsPage() {
       </div>
     `;
     node.querySelector('.att-btn').addEventListener('click', () => showView('session-attendance', {sessionId: s.id}));
-    node.querySelector('.del-sess').addEventListener('click', () => {
-      if (confirm('حذف شود؟')) {
-        state.sessions = state.sessions.filter(x => x.id !== s.id);
-        saveState();
-        renderSessionsPage();
-        renderHome();
+    node.querySelector('.del-sess').addEventListener('click', (ev) => {
+      // Prevent the click event from hitting newly rendered elements underneath
+      ev.stopPropagation(); ev.preventDefault();
+      
+      const btn = ev.currentTarget;
+      const sessionId = s && s.id;
+      const sessionTitle = s.title || 'جلسه';
+      const sessionDate = (typeof isoToJalali === 'function') ? isoToJalali(s.date) : String(s.date || '');
+      
+      // global guard to prevent any double-run from other handlers
+      if (window.__sessionDeleteInProgress) {
+        console.warn('session delete already in progress, ignoring click', sessionId);
+        return;
+      }
+      
+      // Check if session still exists (in case it was deleted by another handler)
+      if (!state.sessions.find(x => x.id === sessionId)) {
+        console.warn('session already deleted', sessionId);
+        return;
+      }
+      
+      // Disable button immediately to prevent double-clicks
+      try { btn.disabled = true; } catch(_){}
+      
+      window.__sessionDeleteInProgress = true;
+      console.log('[del-sess] clicked for', sessionId, sessionTitle);
+      
+      try {
+        const msg = `آیا مطمئن هستید که می‌خواهید «${sessionTitle}» (${sessionDate}) را حذف کنید؟ این عمل قابل‌برگشت نیست.`;
+        if (confirm(msg)) {
+          // Double-check session still exists before deleting
+          if (state.sessions.find(x => x.id === sessionId)) {
+            state.sessions = state.sessions.filter(x => x.id !== sessionId);
+            console.log('[del-sess] deleted session', sessionId);
+            saveState();
+            // Use setTimeout to ensure UI updates after state change
+            setTimeout(() => {
+              try {
+                renderSessionsPage();
+                renderHome();
+              } catch (renderErr) {
+                console.warn('render after delete failed', renderErr);
+              }
+            }, 0);
+          } else {
+            console.warn('[del-sess] session disappeared before deletion', sessionId);
+          }
+        } else {
+          console.log('[del-sess] user cancelled delete for', sessionId);
+        }
+      } catch (e) { console.warn('[del-sess] handler failed', e); }
+      finally {
+        // Re-enable button after a small delay
+        setTimeout(() => {
+          try { btn.disabled = false; } catch(_){}
+          window.__sessionDeleteInProgress = false;
+        }, 50);
       }
     });
     list.appendChild(node);
@@ -8902,12 +8959,66 @@ function renderSessionsPage() {
           modal.style.display = 'flex';
         }));
   trainingNotes.querySelectorAll('.del-plan').forEach(b => b.addEventListener('click', (e) => {
-          let id = e.currentTarget.dataset.id;
-          if (!confirm('حذف شود؟')) return;
-          state.trainingPlans = (state.trainingPlans||[]).filter(x => x.id !== id);
-          saveState();
-          renderSessionsPage();
-          showToast('یادداشت حذف شد');
+          const planId = e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id;
+          
+          // Prevent the click event from bubbling
+          e.stopPropagation(); e.preventDefault();
+          
+          const btn = e.currentTarget;
+          
+          // global guard to avoid double-run
+          if (window.__planDeleteInProgress) {
+            console.warn('[del-plan] delete already in progress, ignoring click', planId);
+            return;
+          }
+          
+          // Check if plan still exists
+          if (!planId || !(state.trainingPlans||[]).find(x => x.id === planId)) {
+            console.warn('[del-plan] plan not found or already deleted', planId);
+            return;
+          }
+          
+          window.__planDeleteInProgress = true;
+          
+          // Disable button immediately to prevent double-clicks
+          try { btn.disabled = true; } catch(_){}
+          
+          try {
+            console.log('[del-plan] clicked for', planId);
+            const pl = (state.trainingPlans||[]).find(x => x.id === planId) || {};
+            const title = pl.title || 'یادداشت تمرین';
+            const msg = `آیا مطمئن هستید که می‌خواهید یادداشت «${title}» را حذف کنید؟`;
+            if (!confirm(msg)) {
+              console.log('[del-plan] user cancelled delete for', planId);
+              return;
+            }
+            
+            // Double-check plan still exists before deleting
+            if ((state.trainingPlans||[]).find(x => x.id === planId)) {
+              state.trainingPlans = (state.trainingPlans||[]).filter(x => x.id !== planId);
+              console.log('[del-plan] deleted plan', planId);
+              saveState();
+              
+              // Use setTimeout to ensure UI updates after state change
+              setTimeout(() => {
+                try {
+                  renderSessionsPage();
+                  showToast('یادداشت حذف شد');
+                } catch (renderErr) {
+                  console.warn('[del-plan] render after delete failed', renderErr);
+                }
+              }, 0);
+            } else {
+              console.warn('[del-plan] plan disappeared before deletion', planId);
+            }
+          } catch (err) { console.warn('[del-plan] handler failed', err); }
+          finally {
+            // Re-enable button after a small delay
+            setTimeout(() => {
+              try { btn.disabled = false; } catch(_){}
+              window.__planDeleteInProgress = false;
+            }, 50);
+          }
         }));
   trainingNotes.querySelectorAll('.edit-plan').forEach(b => b.addEventListener('click', (e) => {
           let id = e.currentTarget.dataset.id;
@@ -11669,7 +11780,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!origin || origin === 'null' || origin.startsWith('file:')) {
         console.debug('Skipping service worker registration: origin not supported', origin);
       } else {
-        navigator.serviceWorker.register("./sw-advanced.js", { scope: './' })
+        // Use the lightweight, root-scoped service worker to ensure offline support
+        navigator.serviceWorker.register("./service-worker.js", { scope: './' })
           .then(reg => {
             console.log('Advanced Service Worker registered:', reg.scope);
             // Setup periodic background sync if supported
