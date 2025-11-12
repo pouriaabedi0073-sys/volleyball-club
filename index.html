@@ -2092,6 +2092,7 @@ section:not(#view-home) {
 })();
 
 </script>
+<script src="./profile-tweaks.js"></script>
 
 <!-- Theme tokens override (volleyball light/dark) -->
 <style id="vb-theme">
@@ -8098,24 +8099,32 @@ function renderHome() {
   playersPreview.style.overflowX = 'auto';
   playersPreview.style.gap = '12px';
   // render newest players: show only the 4 most-recent items and let the rest be scrollable
-  state.players
-    .slice()
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 4)
-    .forEach(p => {
-      let row = document.createElement('div');
-      row.className = 'player-row';
-  // rely on CSS for responsive sizing/scroll-snap; keep only semantic class
-  // (removed inline flex sizing so media queries can control item width)
-      row.innerHTML = `
-  <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
-        <div class="meta"><strong>${escapeHtml(p.name)}</strong><small class="muted">${p.category || ''}</small></div>
-      `;
-      row.addEventListener('click', () => showView('player-profile', {playerId: p.id}));
-      playersPreview.appendChild(row);
-    });
-    // ensure preview is touch-scrollable and compact on small screens
-    try { enableHorizontalSwipeLock(); } catch (e) {}
+  if (state.players.length === 0) {
+    // show empty message when no players exist
+    let empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'اولین بازیکن خود را ثبت کنید';
+    playersPreview.appendChild(empty);
+  } else {
+    state.players
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 4)
+      .forEach(p => {
+        let row = document.createElement('div');
+        row.className = 'player-row';
+    // rely on CSS for responsive sizing/scroll-snap; keep only semantic class
+    // (removed inline flex sizing so media queries can control item width)
+        row.innerHTML = `
+    <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
+          <div class="meta"><strong>${escapeHtml(p.name)}</strong><small class="muted">${p.category || ''}</small></div>
+        `;
+        row.addEventListener('click', () => showView('player-profile', {playerId: p.id}));
+        playersPreview.appendChild(row);
+      });
+      // ensure preview is touch-scrollable and compact on small screens
+      try { enableHorizontalSwipeLock(); } catch (e) {}
+  }
   // enable swipe lock for better touch behavior
   try { enableHorizontalSwipeLock(); } catch (e) {}
   
@@ -8181,20 +8190,28 @@ function renderHome() {
   // آخرین جلسات
   let sessionsPreview = qs('#sessionsPreview');
   sessionsPreview.innerHTML = '';
+  if (state.sessions.length === 0) {
+    // show empty message when no sessions exist
+    let empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'ابتدا بازیکنان خودت را ثبت کنید و برای آن ها جلسه (حضور/ غیاب) تشکیل دهید';
+    sessionsPreview.appendChild(empty);
+  } else {
     state.sessions.slice(0, 3).forEach(s => {
-    let attCount = Object.values(s.attendances || {}).filter(a => a.present).length;
-    let row = document.createElement('div');
-    row.className = 'player-row';
-    // compact layout: put attendee badge at the right side and date/category to its left
-    row.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-        <div class="meta" style="flex:1;min-width:0"><strong>${escapeHtml(s.title || 'جلسه')}</strong><small style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isoToJalali(s.date)} • ${s.category || '—'}</small></div>
-        <div style="margin-right:12px;flex:0 0 auto"><div class="badge">${attCount} حاضر</div></div>
-      </div>
-    `;
-    row.addEventListener('click', () => showView('session-attendance', {sessionId: s.id}));
-    sessionsPreview.appendChild(row);
-  });
+      let attCount = Object.values(s.attendances || {}).filter(a => a.present).length;
+      let row = document.createElement('div');
+      row.className = 'player-row';
+      // compact layout: put attendee badge at the right side and date/category to its left
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+          <div class="meta" style="flex:1;min-width:0"><strong>${escapeHtml(s.title || 'جلسه')}</strong><small style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isoToJalali(s.date)} • ${s.category || '—'}</small></div>
+          <div style="margin-right:12px;flex:0 0 auto"><div class="badge">${attCount} حاضر</div></div>
+        </div>
+      `;
+      row.addEventListener('click', () => showView('session-attendance', {sessionId: s.id}));
+      sessionsPreview.appendChild(row);
+    });
+  }
 
   // باکس تمرینات برنامه‌ریزی‌شده (زیر آخرین جلسات)
   let trainingPreviewBox = qs('#trainingPreview');
@@ -8248,16 +8265,24 @@ function renderHome() {
   // آخرین پرداخت‌ها
   let paymentsPreview = qs('#paymentsPreview');
   paymentsPreview.innerHTML = '';
-  state.payments.slice(0, 3).forEach(pay => {
-    let player = state.players.find(p => p.id === pay.playerId);
-    let row = document.createElement('div');
-    row.className = 'player-row';
-    // show payment type before the amount
-    row.innerHTML = `
-      <div class="meta"><strong>${player ? escapeHtml(player.name) : '—'}</strong><small>${isoToJalali(pay.date)} • ${pay.type || '—'} • ${Number(pay.amount).toLocaleString()} تومان</small></div>
-    `;
-    paymentsPreview.appendChild(row);
-  });
+  if (state.payments.length === 0) {
+    // show empty message when no payments exist
+    let empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'اولین تراکنش خود را ثبت کنید';
+    paymentsPreview.appendChild(empty);
+  } else {
+    state.payments.slice(0, 3).forEach(pay => {
+      let player = state.players.find(p => p.id === pay.playerId);
+      let row = document.createElement('div');
+      row.className = 'player-row';
+      // show payment type before the amount
+      row.innerHTML = `
+        <div class="meta"><strong>${player ? escapeHtml(player.name) : '—'}</strong><small>${isoToJalali(pay.date)} • ${pay.type || '—'} • ${Number(pay.amount).toLocaleString()} تومان</small></div>
+      `;
+      paymentsPreview.appendChild(row);
+    });
+  }
 
   // بیمه‌های منقضی
   let expired = qs('#expiredInsurances');
@@ -8639,9 +8664,10 @@ function renderPlayersPage() {
           </div>
         </div>
         <div class="action-buttons" style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;flex:0 0 200px;">
+          <!-- Move Edit button up for easier access (requested) -->
+          <button class="btn small edit-btn" style="min-width:140px;">ویرایش</button>
           <button class="btn small profile-btn" style="min-width:140px;">پروفایل</button>
           <button class="btn small pay-btn" style="min-width:140px;">پرداخت</button>
-          <button class="btn small edit-btn" style="min-width:140px;">ویرایش</button>
           <button class="btn small danger del-btn" style="min-width:140px;">حذف</button>
         </div>
       </div>
@@ -9278,48 +9304,58 @@ function addPayment(dateStr, amount, type, pMonth, pYear, playerId) {
 function renderPaymentsPage() {
   let list = qs('#paymentList');
   list.innerHTML = '';
-  state.payments.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(pay => {
-    let player = state.players.find(p => p.id === pay.playerId);
-    let node = document.createElement('div');
-    node.className = 'transaction-card';
-    node.innerHTML = `
-      <div class="transaction-info">
-        <div>
-          <strong>${player ? escapeHtml(player.name) : '—'}</strong>
-          <div class="transaction-meta">${isoToJalali(pay.date)} • ${Number(pay.amount).toLocaleString()} تومان • دوره: ${pay.paymentMonth}/${pay.paymentYear}</div>
+  if (state.payments.length === 0) {
+    // show empty message when no payments exist
+    let empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.style.padding = '16px';
+    empty.style.textAlign = 'center';
+    empty.textContent = 'اولین تراکنش خود را ثبت کنید';
+    list.appendChild(empty);
+  } else {
+    state.payments.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(pay => {
+      let player = state.players.find(p => p.id === pay.playerId);
+      let node = document.createElement('div');
+      node.className = 'transaction-card';
+      node.innerHTML = `
+        <div class="transaction-info">
+          <div>
+            <strong>${player ? escapeHtml(player.name) : '—'}</strong>
+            <div class="transaction-meta">${isoToJalali(pay.date)} • ${Number(pay.amount).toLocaleString()} تومان • دوره: ${pay.paymentMonth}/${pay.paymentYear}</div>
+          </div>
+          </div>
+          <div class="transaction-meta" style="min-width:80px;text-align:right">${pay.type || '—'}</div>
         </div>
+        <div class="transaction-actions">
+          <button class="btn small send-receipt">ارسال رسید</button>
+          <button class="btn small edit-pay">ویرایش</button>
+          <button class="btn small danger del-pay">حذف</button>
         </div>
-        <div class="transaction-meta" style="min-width:80px;text-align:right">${pay.type || '—'}</div>
-      </div>
-      <div class="transaction-actions">
-        <button class="btn small send-receipt">ارسال رسید</button>
-        <button class="btn small edit-pay">ویرایش</button>
-        <button class="btn small danger del-pay">حذف</button>
-      </div>
-    `;
-    // send receipt handler: open receipt modal and prefills with phone
-    const _sr = node.querySelector('.send-receipt');
-    if (_sr) safeClick(_sr, () => {
-      let phone = player ? (player.parentPhone || player.phone || '') : '';
-      let modal = qs('#receiptModal');
-      if (!modal) return alert('مدیریت رسید موجود نیست');
-      qs('#receiptPlayerName').textContent = player ? player.name : '—';
-      qs('#receiptPhone').value = phone;
-      qs('#receiptAmount').value = Number(pay.amount).toLocaleString();
-      qs('#receiptNote').value = `رسید پرداخت شهریه به مبلغ ${Number(pay.amount).toLocaleString()} تومان برای دوره ${pay.paymentMonth}/${pay.paymentYear}`;
-      modal.style.display = 'flex';
-    }, 450);
-    node.querySelector('.edit-pay').addEventListener('click', () => showView('edit-payment', {pay}));
-    node.querySelector('.del-pay').addEventListener('click', () => {
-      if (confirm('حذف شود؟')) {
-        state.payments = state.payments.filter(x => x.id !== pay.id);
-        saveState();
-        renderPaymentsPage();
-        renderHome();
-      }
+      `;
+      // send receipt handler: open receipt modal and prefills with phone
+      const _sr = node.querySelector('.send-receipt');
+      if (_sr) safeClick(_sr, () => {
+        let phone = player ? (player.parentPhone || player.phone || '') : '';
+        let modal = qs('#receiptModal');
+        if (!modal) return alert('مدیریت رسید موجود نیست');
+        qs('#receiptPlayerName').textContent = player ? player.name : '—';
+        qs('#receiptPhone').value = phone;
+        qs('#receiptAmount').value = Number(pay.amount).toLocaleString();
+        qs('#receiptNote').value = `رسید پرداخت شهریه به مبلغ ${Number(pay.amount).toLocaleString()} تومان برای دوره ${pay.paymentMonth}/${pay.paymentYear}`;
+        modal.style.display = 'flex';
+      }, 450);
+      node.querySelector('.edit-pay').addEventListener('click', () => showView('edit-payment', {pay}));
+      node.querySelector('.del-pay').addEventListener('click', () => {
+        if (confirm('حذف شود؟')) {
+          state.payments = state.payments.filter(x => x.id !== pay.id);
+          saveState();
+          renderPaymentsPage();
+          renderHome();
+        }
+      });
+      list.appendChild(node);
     });
-    list.appendChild(node);
-  });
+  }
   populatePaymentMonthYear();
   populatePaymentPlayerSelect();
 }
@@ -13276,11 +13312,63 @@ navigator.serviceWorker.addEventListener('message', (event) => {
     window.buildPoster600 = buildPoster600;
     window.exportPoster600 = exportPoster600;
   })();
-  <!-- Floating Close-All button (bottom-right) - placed globally so it's not affected by container transforms/overflow -->
-  <button id="closeAllNotificationsFloat" aria-label="بستن همه اعلان‌ها" style="position:fixed;right:16px;bottom:20px;z-index:10010;padding:10px 14px;background:var(--accent, #0ea5a4);color:#fff;border:none;border-radius:28px;box-shadow:0 6px 18px rgba(0,0,0,0.18);font-weight:700;display:none;cursor:pointer;width:110px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">بستن همه</button>
-
   </script>
   <script>
+    // Clean-up and coach-form back-button fix
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        // Remove any leftover global floating Close-All button (should only exist inside notifications view)
+        const globalClose = document.getElementById('closeAllNotificationsFloat');
+        if (globalClose && globalClose.parentNode) {
+          globalClose.parentNode.removeChild(globalClose);
+          console.info('Removed global closeAllNotificationsFloat (moved to notifications view).');
+        }
+
+        // Ensure back button inside coach form navigates to coaches list
+        // This is resilient: it looks for common selectors used for coach-form containers/headers.
+        function wireCoachBack() {
+          const possibleContainers = [];
+          // common id variants
+          ['coach-form', 'view-coach-form', 'view-coaches', 'coaches', 'coachEdit'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) possibleContainers.push(el);
+          });
+          // data-view variants
+          document.querySelectorAll('[data-view]').forEach(n => {
+            if (/coach/i.test(n.getAttribute('data-view') || '')) possibleContainers.push(n);
+          });
+
+          // Find any back button inside those containers and rewire it to open coaches view
+          possibleContainers.forEach(container => {
+            const backBtn = container.querySelector('.back-btn, .btn.back, button.back, [data-action="back"]');
+            if (backBtn) {
+              backBtn.addEventListener('click', function(ev){
+                try { ev.preventDefault(); } catch(_){}
+                if (typeof showView === 'function') {
+                  try { showView('coaches'); return; } catch(e) { /* fallback below */ }
+                }
+                // fallback: attempt to call render and show a generic coaches view element
+                try {
+                  if (typeof renderCoaches === 'function') renderCoaches();
+                  const view = document.getElementById('view-coaches') || document.getElementById('coachesView') || document.getElementById('view-coach-list');
+                  if (view) {
+                    // hide other views and show coaches view
+                    document.querySelectorAll('[id^="view-"]').forEach(v => v.style.display = 'none');
+                    view.style.display = '';
+                  }
+                } catch (e) { console.warn('coach back fallback failed', e); }
+              });
+            }
+          });
+        }
+
+        // Wire now and also after a short delay (in case views are rendered later)
+        wireCoachBack();
+        setTimeout(wireCoachBack, 600);
+      } catch (e) { console.warn('coach back fix init failed', e); }
+    });
+
+  </script>
     window.setBackupButtonLoading = function(on){
       const btn = document.getElementById('backupNowBtn');
       const spinner = document.getElementById('backupNowSpinner');
