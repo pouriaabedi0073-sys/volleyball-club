@@ -6504,19 +6504,8 @@ function imageFileToDataURL(file, maxKB) {
     }
 
     async function backupNow() {
-      // helper to toggle spinner on backup button
-      function setBackupButtonLoading(on) {
-        try {
-          const btn = document.getElementById('backupNowBtn');
-          const spinner = document.getElementById('backupNowSpinner');
-          const textEl = document.getElementById('backupNowText');
-          if (btn) btn.disabled = !!on;
-          if (btn) btn.style.opacity = on ? '0.7' : '';
-          if (spinner) spinner.style.display = on ? 'inline-block' : 'none';
-          if (textEl) textEl.textContent = on ? 'در حال بک‌آپ گیری...' : 'ایجاد بک‌آپ جدید';
-        } catch(e) {}
-      }
-      setBackupButtonLoading(true);
+      // Use the global setBackupButtonLoading function (defined at line 2265)
+      if (typeof window.setBackupButtonLoading === 'function') window.setBackupButtonLoading(true);
       try {
         const client = getSupabaseClient(); if (!client) throw new Error('Supabase client not ready');
         const { data: userData } = await client.auth.getUser(); const user = userData?.user;
@@ -6584,7 +6573,7 @@ function imageFileToDataURL(file, maxKB) {
         throw e;
       } finally {
         try { 
-          setBackupButtonLoading(false);
+          if (typeof window.setBackupButtonLoading === 'function') window.setBackupButtonLoading(false);
           const backupProgressContainer = document.getElementById('backupProgressContainer');
           if (backupProgressContainer) backupProgressContainer.style.display = 'none';
         } catch(_){}
@@ -13367,19 +13356,8 @@ navigator.serviceWorker.addEventListener('message', (event) => {
         setTimeout(wireCoachBack, 600);
       } catch (e) { console.warn('coach back fix init failed', e); }
     });
-
   </script>
-    window.setBackupButtonLoading = function(on){
-      const btn = document.getElementById('backupNowBtn');
-      const spinner = document.getElementById('backupNowSpinner');
-      const text = document.querySelector('#backupNowBtn span:last-child');
-      if(btn) btn.disabled = !!on;
-      if(btn) btn.style.opacity = on ? '0.7' : '';
-      if(spinner) spinner.style.display = on ? 'inline-block' : 'none';
-      if(text) text.textContent = on ? 'در حال بک‌آپ گیری...' : 'ایجاد بک‌آپ جدید';
-    };
-  </script>
-    <script type="module">
+  <script type="module">
       // Test harness for backup-storage.js — call `await window.testBackupStorage()` in the browser console
       import { openAppDB, saveAppState, loadAppState, createFullBackup } from './backup-storage.js';
 
