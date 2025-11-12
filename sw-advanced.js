@@ -227,3 +227,66 @@ async function updateCache(request, cacheConfig) {
     // Ignore network errors in background update
   }
 }
+
+// Listen for one-off Background Sync events (e.g. flush pending uploads)
+self.addEventListener('sync', event => {
+  try {
+    if (!event || !event.tag) return;
+    if (event.tag === 'flush-backups') {
+      event.waitUntil((async () => {
+        // Ask all controlled clients (pages) to flush pending uploads
+        const clients = await self.clients.matchAll({ includeUncontrolled: true });
+        for (const client of clients) {
+          try { client.postMessage({ type: 'backup:flush', tag: event.tag }); } catch(e){}
+        }
+      })());
+    }
+  } catch (e) {
+    console.warn('sync handler error', e);
+  }
+});
+
+// Periodic Background Sync handler (when supported)
+self.addEventListener('periodicsync', event => {
+  try {
+    if (!event || !event.tag) return;
+    if (event.tag === 'weekly-backup' || event.tag === 'fetch-new-content') {
+      event.waitUntil((async () => {
+        // Notify clients to create a backup or update content
+        const clients = await self.clients.matchAll({ includeUncontrolled: true });
+        for (const client of clients) {
+          try { client.postMessage({ type: 'backup:create', tag: event.tag }); } catch(e){}
+        }
+      })());
+    }
+  } catch (e) { console.warn('periodicsync handler error', e); }
+});
+
+// Push notifications handler (front-end must subscribe and server must send push)
+self.addEventListener('push', event => {
+  try {
+    const data = (event && event.data) ? event.data.json() : { title: 'پیام جدید', body: 'یک اعلان جدید دریافت شد' };
+    const title = data.title || 'پیام جدید';
+    const opts = Object.assign({
+      body: data.body || '',
+      icon: data.icon || '/volleyball-club/assets/icons/icon-192.png',
+      badge: data.badge || '/volleyball-club/assets/icons/icon-192.png',
+      data: data.data || {}
+    }, data.options || {});
+    event.waitUntil(self.registration.showNotification(title, opts));
+  } catch (e) { console.warn('push handler failed', e); }
+});
+
+// Notification click handling
+self.addEventListener('notificationclick', event => {
+  try {
+    event.notification.close();
+    const url = event.notification.data && event.notification.data.url ? event.notification.data.url : '/volleyball-club/';
+    event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if (client.url === url && 'focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    }));
+  } catch (e) { console.warn('notificationclick handler failed', e); }
+});

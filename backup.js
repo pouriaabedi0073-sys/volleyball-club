@@ -47,6 +47,16 @@
         } catch(e) { LOG('addPendingItem: blob->base64 failed', e); }
       }
       const pend = getPending(); pend.push(toSave); savePending(pend);
+      // Try to register a one-off background sync so the service worker can flush pending uploads when online
+      try {
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.sync.register('flush-backups');
+            LOG('addPendingItem: registered flush-backups sync');
+          } catch (e) { LOG('addPendingItem: sync.register failed', e); }
+        }
+      } catch(e) { LOG('addPendingItem: background sync register error', e); }
     } catch(e) { LOG('addPendingItem failed', e); }
   }
 
