@@ -104,54 +104,106 @@
       // Wait a short time to avoid blocking critical load
       setTimeout(async () => {
         try {
-          // Simple non-intrusive prompt. You can replace with a nicer UI.
+          // Ask user permission for periodic background sync
           const ok = confirm('آیا مایل هستید پشتیبان‌گیری هفتگی خودکار (پس‌زمینه) برای اپ فعال شود؟\n(در هر زمان قابل غیرفعال شدن است)');
           localStorage.setItem('backup:periodicPromptAsked','1');
           if (!ok) return;
-          // Register periodic sync
-          if ('serviceWorker' in navigator && 'periodicSync' in Registration.prototype) {
-            try {
-              const reg = await navigator.serviceWorker.ready;
-              // 7 days in ms
-              const minInterval = 7 * 24 * 60 * 60 * 1000;
-              await reg.periodicSync.register('weekly-backup', { minInterval });
-              console.log('Periodic weekly-backup registered');
-              alert('پشتیبان‌گیری هفتگی فعال شد.');
-            } catch (e) {
-              console.warn('periodicSync register failed', e);
-              alert('ثبت پشتیبان‌گیری هفتگی موفقیت‌آمیز نبود؛ مرورگر ممکن است از آن پشتیبانی نکند.');
+          
+          // Register periodic sync following PWA standards
+          try {
+            if (!('serviceWorker' in navigator)) {
+              console.warn('Service Worker not supported');
+              return;
             }
-          } else {
-            // Try to ask for permission via Permissions API if available
-            try {
-              const p = await navigator.permissions.query({ name: 'periodic-background-sync' });
-              if (p && p.state === 'granted') {
-                const reg = await navigator.serviceWorker.ready;
-                const minInterval = 7 * 24 * 60 * 60 * 1000;
-                await reg.periodicSync.register('weekly-backup', { minInterval });
-                alert('پشتیبان‌گیری هفتگی فعال شد.');
-              } else {
-                alert('مرورگر شما از Periodic Background Sync پشتیبانی نمی‌کند یا دسترسی لازم را ندارد.');
-              }
-            } catch(e) { console.warn('periodic permission check failed', e); alert('پشتیبان‌گیری هفتگی ثبت نشد.'); }
+            const reg = await navigator.serviceWorker.ready;
+            if (!reg || !reg.periodicSync) {
+              console.warn('Periodic Background Sync not supported in this browser');
+              return;
+            }
+            
+            // Register with 7-day minimum interval (standard for backup tasks)
+            const minInterval = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+            await reg.periodicSync.register('weekly-backup', { minInterval });
+            console.log('✓ Periodic weekly-backup registered successfully');
+            alert('✓ پشتیبان‌گیری هفتگی خودکار فعال شد.');
+          } catch (e) {
+            console.warn('periodicSync registration failed:', e);
+            // Fallback: store preference locally for manual fallback
+            localStorage.setItem('backup:periodicPreference', 'enabled');
+            alert('توجه: مرورگر شما از پشتیبان‌گیری خودکای پس‌زمینه پشتیبانی نمی‌کند. فقط یادداشت شد.');
           }
         } catch(e) { console.warn('weekly backup prompt handler failed', e); }
       }, 1500);
     } catch(e) {}
   })();
 
+  // Auto-request Notification permission on app load (optional, can be triggered later)
+  (async function requestNotificationPermission() {
+    try {
+      // Only prompt if not previously denied and SW is ready
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+      
+      const permission = Notification.permission;
+      if (permission === 'granted') {
+        console.log('✓ Notification permission already granted');
+      } else if (permission === 'default') {
+        // Request permission (user hasn't been asked yet)
+        console.log('Requesting notification permission...');
+        const result = await Notification.requestPermission();
+        if (result === 'granted') {
+          console.log('✓ Notification permission granted');
+        } else {
+          console.log('✗ Notification permission denied');
+        }
+      }
+    } catch(e) {
+      console.warn('requestNotificationPermission failed:', e);
+    }
+  })();
+
   // Helper: request Notification permission and optionally subscribe to Push (requires server VAPID key)
   window.requestNotificationAndPush = async function(vapidPublicKey) {
     try {
-      const p = await Notification.requestPermission();
-      if (p !== 'granted') return { ok:false, reason: 'permission_denied' };
-      if (!('serviceWorker' in navigator)) return { ok:false, reason:'no_sw' };
-      if (!vapidPublicKey || !('PushManager' in window)) return { ok:true, note:'notifications_granted_but_push_not_configured' };
+      // Step 1: Request notification permission (required for both browser notifications and push)
+      const notifPerm = await Notification.requestPermission();
+      if (notifPerm !== 'granted') {
+        console.warn('Notification permission not granted');
+        return { ok: false, reason: 'permission_denied' };
+      }
+      console.log('✓ Notification permission granted');
+      
+      // Step 2: Ensure service worker is ready
+      if (!('serviceWorker' in navigator)) {
+        console.warn('Service Worker not available');
+        return { ok: false, reason: 'no_sw' };
+      }
+      
+      // Step 3: Subscribe to push notifications (requires VAPID key from server)
+      if (!vapidPublicKey || !('PushManager' in window)) {
+        console.warn('Push not configured (no VAPID key provided)');
+        return { ok: true, note: 'notifications_enabled_but_push_not_configured' };
+      }
+      
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) });
-      // Send subscription to server to save it (implement server endpoint)
-      return { ok:true, subscription: sub };
-    } catch(e) { console.warn('requestNotificationAndPush failed', e); return { ok:false, error: e }; }
+      if (!reg || !reg.pushManager) {
+        console.warn('PushManager not available');
+        return { ok: false, reason: 'push_not_available' };
+      }
+      
+      // Subscribe using VAPID key
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+      });
+      
+      console.log('✓ Successfully subscribed to push notifications');
+      
+      // Return subscription object (should be sent to server to save)
+      return { ok: true, subscription: subscription };
+    } catch(e) {
+      console.error('requestNotificationAndPush failed:', e);
+      return { ok: false, error: e.message };
+    }
   };
 
   // small helper to convert VAPID key

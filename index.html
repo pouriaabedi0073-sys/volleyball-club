@@ -12711,6 +12711,60 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
   window.location.reload();
 });
 
+// Handle messages from Service Worker (periodic sync, push notifications, backups)
+navigator.serviceWorker.addEventListener('message', (event) => {
+  try {
+    const data = event.data || {};
+    const type = data.type;
+    
+    // Handle periodic sync trigger from service worker
+    if (type === 'periodicsync:trigger' || type === 'sync:backup') {
+      try {
+        if (window.backupClient && typeof window.backupClient.createBackup === 'function') {
+          window.backupClient.createBackup()
+            .then(() => {
+              console.log('✓ Periodic backup completed:', data.tag);
+              try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'sync:complete', tag: data.tag }); } catch(e){}
+            })
+            .catch(err => {
+              console.warn('Periodic backup failed:', err);
+              try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'sync:error', tag: data.tag, error: err.message }); } catch(e){}
+            });
+        }
+      } catch (e) {
+        console.warn('periodicsync trigger handler failed:', e);
+      }
+    }
+    
+    // Handle push notification from service worker
+    if (type === 'push:notification') {
+      try {
+        // Persist into in-app notifications
+        if (typeof window.showLocalNotification === 'function') {
+          window.showLocalNotification(data.title, data.body, 'push');
+        }
+      } catch (e) {
+        console.warn('push notification handler failed:', e);
+      }
+    }
+    
+    // Handle backup flush request
+    if (type === 'sync:backup' || type === 'flushPendingBackups') {
+      try {
+        if (window.backupClient && typeof window.backupClient.flushPendingUploads === 'function') {
+          window.backupClient.flushPendingUploads()
+            .catch(e => console.warn('flush pending failed:', e));
+        }
+      } catch (e) {
+        console.warn('flush handler failed:', e);
+      }
+    }
+    
+  } catch (e) {
+    console.warn('sw message event handler failed:', e);
+  }
+});
+
 </script>
   <script src="sync-supabase.js"></script>
   <script src="sw-register.js"></script>
@@ -13275,5 +13329,6 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
 
       console.log('backup-storage test helper installed: run `await window.testBackupStorage()` in the console');
     </script>
+  <script src="pwa-test.js"></script>
 </body>
 </html>
