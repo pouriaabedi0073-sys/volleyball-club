@@ -8,5 +8,25 @@
         "D7:96:84:D3:4C:00:6A:C6:C9:EA:1F:8F:BC:D2:39:E6:9E:D8:6A:AC:E4:B0:32:47:1E:83:90:79:A5:C3:C7:38"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.pouriaabedi0073_sys.twa",
+      "sha256_cert_fingerprints": [
+        "2E:B7:EF:9E:04:8E:A5:F5:CF:62:1B:65:16:4E:0F:C4:82:47:14:4E:38:64:7F:7F:1E:85:BC:02:2B:3E:F3:BD"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "cafebazaar_twa",
+      "package_name": "io.github.pouriaabedi0073_sys.twa",
+      "sha256_cert_fingerprints": [
+        "2E:B7:EF:9E:04:8E:A5:F5:CF:62:1B:65:16:4E:0F:C4:82:47:14:4E:38:64:7F:7F:1E:85:BC:02:2B:3E:F3:BD"
+      ]
+    }
   }
 ]
