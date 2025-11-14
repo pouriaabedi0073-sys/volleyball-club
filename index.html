@@ -5145,7 +5145,8 @@ function calcExactAge(birthJalali) {
     years--;
     months += 12;
   }
-  return { years, months, days };
+  // include original birthdate so callers (determineCategory) can recompute age
+  return { years, months, days, birthdate: birthJalali };
 }
 
 // تابع تعیین رده بر اساس سن (جایگزین determineCategory)
@@ -5154,6 +5155,12 @@ function parseJalaliRefDate(rawRef) {
   const persianMonths = { 'فروردین':1,'اردیبهشت':2,'خرداد':3,'تیر':4,'مرداد':5,'شهریور':6,'مهر':7,'آبان':8,'آذر':9,'دی':10,'بهمن':11,'اسفند':12 };
   if (!rawRef) return null;
   let s = String(rawRef).trim();
+  // If the value contains a prefix like 'خودکار ' or 'ویرایش دستی ', try to extract the date-like substring
+  // Match either YYYY/MM/DD or DD <MonthName> YYYY anywhere in the string
+  const isoMatch = s.match(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  const persianMatch = s.match(/(\d{1,2}\s+[^\s\d]+\s+\d{4})/);
+  if (isoMatch) s = isoMatch[0];
+  else if (persianMatch) s = persianMatch[1];
   // YYYY/MM/DD
   if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(s)) {
     return s.split('/').map(n => Number(n));
@@ -6728,7 +6735,7 @@ function imageFileToDataURL(file, maxKB) {
   ================================================================ */
 /* Storage & State */
 const STORAGE_KEY = 'vb_dashboard_v8'; // بروزرسانی نسخه
-let state = { players: [], coaches: [], sessions: [], payments: [], settings: { title: 'مدیریت باشگاه والیبال', logo: 'https://www.transparentpng.com/thumb/volleyball/2esoDe-volleyball-transparent-background.png', style: 'modern', lastCategoryUpdate: '11 دی 1403', ranks: null, ranksReferenceDate: null } };
+let state = { players: [], coaches: [], sessions: [], payments: [], settings: { title: 'مدیریت باشگاه والیبال', logo: 'https://www.transparentpng.com/thumb/volleyball/2esoDe-volleyball-transparent-background.png', style: 'modern', lastCategoryUpdate: todayJalali(), ranks: null, ranksReferenceDate: null } };
 // competitions storage
 state.competitions = state.competitions || [];
 let customStoragePath = null;
@@ -6843,7 +6850,7 @@ function seedSample() {
   state.coaches = [];
   state.sessions = [];
   state.payments = [];
-  state.settings = { title: 'مدیریت باشگاه والیبال', logo: 'https://www.transparentpng.com/thumb/volleyball/2esoDe-volleyball-transparent-background.png', style: 'modern', lastCategoryUpdate: '11 دی 1403', ranks: null, ranksReferenceDate: null };
+  state.settings = { title: 'مدیریت باشگاه والیبال', logo: 'https://www.transparentpng.com/thumb/volleyball/2esoDe-volleyball-transparent-background.png', style: 'modern', lastCategoryUpdate: todayJalali(), ranks: null, ranksReferenceDate: null };
   let now = Date.now();
   // sample players covering each rank (male)
   state.players.push({ id: uid('p'), name: 'آریا کوچک', birthdate: '1394/01/15', joinDate: todayJalali(), category: '', favoritePosition: 'OH', phone: '09120001011', fatherName: 'لیلا', nationalCode: '1000000001', photo: '', height: 140, weight: 35, insuranceDate: todayJalali(), scores: {}, createdAt: new Date(now - 950000).toISOString(), events: [] });
@@ -10244,7 +10251,7 @@ function renderCoachForm(coach) {
     showView('coaches');
     renderHome();
   });
-  on('#backCoachForm', 'click', () => { if (!goBack()) showView('coaches'); });
+  on('#backCoachForm', 'click', () => { showView('coaches'); });
 }
 
 function createSession() {
@@ -11427,7 +11434,7 @@ function deleteEvent(playerId, index) {
 function renderSettings() {
   let content = qs('#settingsContent');
   let dataSize = (localStorage.getItem(STORAGE_KEY)?.length / 1024 || 0).toFixed(2);
-  let lastUpdate = state.settings.lastCategoryUpdate || '11 دی 1403';
+  let lastUpdate = state.settings.lastCategoryUpdate || todayJalali();
   // determine display date and color for ranks reference based on mode
   const refMode = state.settings.ranksRefMode || 'auto';
   let displayDate;
@@ -11897,7 +11904,7 @@ function updateCategoryReferenceDate() {
   let today = todayJalali(); // تاریخ امروز، مثل '1404/06/10'
   let [todayYear, todayMonth, todayDay] = today.split('/').map(Number);
   
-  let lastUpdate = state.settings.lastCategoryUpdate || '11 دی 1403';
+  let lastUpdate = state.settings.lastCategoryUpdate || todayJalali();
   let refDay, refMonth, refYear, refMonthStr;
 
   // بررسی فرمت‌های مختلف تاریخ مرجع
@@ -11924,6 +11931,9 @@ function updateCategoryReferenceDate() {
   console.log('تاریخ امروز:', today);
   console.log('تاریخ مرجع فعلی:', lastUpdate);
   console.log('پارامترهای مرجع:', { refDay, refMonth, refYear, refMonthStr });
+  // keep copies of previous values so we know whether ranksReferenceDate was the same as lastCategoryUpdate
+  const prevLast = state.settings && state.settings.lastCategoryUpdate ? state.settings.lastCategoryUpdate : null;
+  const prevRanksRef = state.settings && state.settings.ranksReferenceDate ? state.settings.ranksReferenceDate : null;
 
   // بررسی فرمت معتبر
   if (!refDay || !refMonth || !refYear || isNaN(refDay) || isNaN(refMonth) || isNaN(refYear)) {
@@ -11938,13 +11948,21 @@ function updateCategoryReferenceDate() {
   if (todayYear > refYear || 
       (todayYear === refYear && (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay)))) {
     refYear = todayYear + (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay) ? 1 : 0);
-    state.settings.lastCategoryUpdate = `${refDay} ${refMonthStr} ${refYear}`;
-    saveState(); // ذخیره تغییرات
+  }
+  // normalized reference string
+  const newRefStr = `${refDay} ${refMonthStr} ${refYear}`;
+  // update lastCategoryUpdate and, if ranksReferenceDate is missing or previously matched the old last value, sync it too
+  state.settings.lastCategoryUpdate = newRefStr;
+  if (!state.settings.ranksReferenceDate || state.settings.ranksReferenceDate === prevLast) {
+    state.settings.ranksReferenceDate = newRefStr;
+  }
+  // re-evaluate player categories so stored player records reflect new reference date
+  try { state.players.forEach(p => { if (p.birthdate) p.category = determineCategory(calcExactAge(p.birthdate)); }); } catch(e){ console.warn('recomputing player categories failed', e); }
+  saveState(); // ذخیره تغییرات
+  // log whether an actual bump was required (for compatibility with previous logs)
+  if (prevLast !== newRefStr) {
     console.log('تاریخ مرجع بروز شد به:', state.settings.lastCategoryUpdate);
   } else {
-    // اگر بروزرسانی لازم نیست، همچنان فرمت را اصلاح کنیم
-    state.settings.lastCategoryUpdate = `${refDay} ${refMonthStr} ${refYear}`;
-    saveState();
     console.log('بروزرسانی لازم نبود، تاریخ مرجع اصلاح شد به:', state.settings.lastCategoryUpdate);
   }
 }
@@ -12351,7 +12369,14 @@ document.addEventListener('DOMContentLoaded', () => {
   on('#sessionsBtnAccess', 'click', () => showView('sessions'));
   on('#tabCompetitions', 'click', () => showView('competitions'));
   on('#backPlayers', 'click', () => { showView('home'); });
-  on('#backCoaches', 'click', () => { if (!goBack()) showView('home'); });
+  try {
+    const backCoachesBtn = document.getElementById('backCoaches');
+    if (backCoachesBtn) {
+      backCoachesBtn.addEventListener('click', () => { showView('home'); });
+    } else {
+      console.warn('init: #backCoaches element not found');
+    }
+  } catch (e) { console.error('init: error binding #backCoaches', e); }
   on('#backSessions', 'click', () => { showView('home'); });
   on('#backPayments', 'click', () => { if (!goBack()) showView('home'); });
   on('#backInsurance', 'click', () => { if (!goBack()) return; });
@@ -13548,9 +13573,11 @@ navigator.serviceWorker.addEventListener('message', (event) => {
           // Find any back button inside those containers and rewire it to open coaches view
           possibleContainers.forEach(container => {
             const backBtn = container.querySelector('.back-btn, .btn.back, button.back, [data-action="back"]');
+            // Do not re-wire the global #backCoaches button — keep its direct handler
+            if (backBtn && backBtn.id === 'backCoaches') return;
             if (backBtn) {
               backBtn.addEventListener('click', function(ev){
-                try { ev.preventDefault(); } catch(_){}
+                try { ev.preventDefault(); } catch(_){ }
                 if (typeof showView === 'function') {
                   try { showView('coaches'); return; } catch(e) { /* fallback below */ }
                 }
