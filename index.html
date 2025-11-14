@@ -1112,6 +1112,7 @@
     inset: 0;
     background: rgba(0,0,0,0.45);
     z-index: 2500;
+    pointer-events: none;
   }
   .modal .modal-content {
     position: relative;
@@ -1195,13 +1196,14 @@
     background: var(--card);
     border-radius: 12px;
     padding: 16px;
-    box-shadow: 0 10px 30px var(--shadow);
-    z-index: 2600; /* above other UI layers */
+    box-shadow: 0 10px 30px var(--shadow), 0 0 0 9999px rgba(0,0,0,0.35);
+    z-index: 9999999 !important;
     direction: ltr;
     animation: fadeIn 0.3s ease;
     max-width: 95vw;
     max-height: 80vh;
     overflow: auto;
+    pointer-events: auto;
   }
   .cal-grid {
     display: grid;
@@ -1958,7 +1960,7 @@ section:not(#view-home) {
 .matches-controls button, .matches-controls .btn { flex: 0 0 auto; margin:0; }
 
 /* ensure compact clear button looks correct and doesn't force wider layout */
-#clearMatchesDate { padding:6px 8px; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; }
+#clearMatchesDate { padding:8px 12px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; }
 
 /* marker used in markup so we can target elements easily; not hidden by default */
 .no-capture { box-sizing: border-box; }
@@ -1972,7 +1974,7 @@ section:not(#view-home) {
 .matches-date-wrap { min-width:0; }
 
 /* compact clear button in competitions controls */
-#clearMatchesDate { padding:6px 8px; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; }
+#clearMatchesDate { padding:8px 12px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center; }
 
 /* precise match card layout requested */
 .match-card .row-top { display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px dashed rgba(0,0,0,0.04); }
@@ -2759,7 +2761,7 @@ function enableBackupButtons(enable = true) {
               </div>
               <div class="form-row" style="margin-top:8px;">
                 <label class="muted-small">تماس مسئول</label>
-                <input id="formContact" class="input" placeholder="شماره تماس" />
+                <input id="formContact" class="input" placeholder="شماره تماس" type="tel" inputmode="numeric" pattern="[0-9]*" />
               </div>
               <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;"><button id="saveMatchBtn" class="btn primary">ذخیره</button></div>
             </div>
@@ -2878,22 +2880,8 @@ function enableBackupButtons(enable = true) {
             <div class="matches-controls" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;">
               <div class="matches-controls-left" style="display:flex;gap:8px;flex:1;align-items:center;min-width:0;">
                 <input id="matchesSearch" class="input" placeholder="جستجو در مسابقات..." style="flex:1;min-width:140px;box-sizing:border-box;" />
-                <div class="matches-date-wrap" style="display:flex;gap:6px;align-items:center;position:relative;min-width:0;">
-                  <input id="matchesDateFilter" class="input jalali-input" placeholder="فیلتر بر اساس تاریخ (YYYY/MM/DD)" style="width:180px;text-align:center;box-sizing:border-box;" autocomplete="off" />
-                  <button id="clearMatchesDate" class="btn" title="پاک کردن فیلتر">✖</button>
-                  <div id="matchesDateWidget" style="position:absolute;right:0;top:46px;z-index:1200;display:none;box-shadow:0 10px 24px rgba(0,0,0,0.12);background:var(--card);border-radius:8px;padding:8px;min-width:300px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                      <button id="mdwPrev" class="btn">‹</button>
-                      <div style="font-weight:700;"> <span id="mdwTitle">-</span> </div>
-                      <button id="mdwNext" class="btn">›</button>
-                    </div>
-                    <div id="mdwGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:13px;"> <!-- days will render here -->
-                    </div>
-                    <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;"><button id="mdwToday" class="btn">امروز</button><button id="mdwClose" class="btn">بستن</button></div>
-                  </div>
-                </div>
               </div>
-              <div class="muted-small" style="white-space:nowrap;">تعداد: <span id="matchesCount">0</span></div>
+              <div class="muted-small" style="white-space:nowrap;display:flex;align-items:center;gap:12px;">تعداد: <span id="matchesCount">0</span></div>
             </div>
           </div>
 
@@ -3190,20 +3178,6 @@ function enableBackupButtons(enable = true) {
           <div id="editPaymentContent"></div>
         </div>
       </section>
-
-      <section id="view-birthday-greeting" class="hide">
-  <div class="view-header fixed">
-    <h3>تبریک تولد</h3>
-    <button class="back-btn" id="backBirthdayGreeting">
-      <svg viewBox="0 0 24 24">
-        <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none"/>
-      </svg>
-    </button>
-  </div>
-  <div class="card">
-    <div id="birthdayGreetingContent" style="text-align: center; animation: fadeIn 0.5s ease-in-out;"></div>
-  </div>
-</section>
 
       <section id="view-notifications" class="hide">
         <div class="view-header fixed">
@@ -4480,13 +4454,13 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
   <div class="fab" id="fabPayment" title="ثبت پرداخت" style="display:none">+</div>
   <div id="jalaliCalendar" class="jalali-calendar hide" aria-hidden="true"></div>
   <!-- Birthday modal container -->
-  <div id="birthdayModal" class="hide" aria-hidden="true" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:2000;">
-    <div style="background:rgba(0,0,0,0.5);position:absolute;inset:0;" id="birthdayModalBackdrop"></div>
-    <div id="birthdayModalCard" style="position:relative;background:var(--card);padding:20px;border-radius:12px;max-width:420px;width:90%;box-shadow:0 8px 30px var(--shadow);text-align:center;">
-      <div id="birthdayModalContent"></div>
-      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;">
-        <button id="birthdayModalClose" class="btn">بستن</button>
+  <div id="birthdayModal" class="hide" aria-hidden="true" style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:99999;padding:12px;padding-bottom:80px;">
+    <div style="background:rgba(0,0,0,0.65);position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;" id="birthdayModalBackdrop"></div>
+    <div id="birthdayModalCard" style="position:relative;z-index:99999;background:var(--card);padding:14px;border-radius:12px;max-width:520px;width:100%;box-shadow:0 18px 48px rgba(0,0,0,0.3);text-align:center;max-height:none;overflow:visible;display:block;">
+      <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:6px;flex-shrink:0;">
+        <button id="birthdayModalClose" class="btn" style="min-width:auto;width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:rgba(239,68,68,0.08);color:#b91c1c;border:none;border-radius:6px;cursor:pointer;">✕</button>
       </div>
+      <div id="birthdayModalContent" style="overflow:visible;"></div>
     </div>
   </div>
   <!-- Plan view modal -->
@@ -4532,7 +4506,10 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
       <div style="display:grid;gap:8px;">
         <input id="paymentPlayerSearch" class="input" placeholder="جستجوی بازیکن..." />
         <select id="paymentPlayer" class="input"><option value="">انتخاب بازیکن</option></select>
-        <input id="paymentDate" class="input jalali-input" placeholder="تاریخ پرداخت (YYYY/MM/DD)" />
+        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+          <input id="paymentDate" class="input jalali-input" placeholder="تاریخ پرداخت (YYYY/MM/DD)" style="flex:1;" />
+          <button type="button" class="jalali-toggle" data-target="paymentDate" title="باز کردن تقویم" style="border:0;background:transparent;cursor:pointer;padding:6px;border-radius:6px;">📅</button>
+        </div>
         <div style="display:flex;gap:8px;">
           <select id="paymentMonth" class="input"></select>
           <select id="paymentYear" class="input"></select>
@@ -4552,7 +4529,10 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
     <div class="modal-body">
       <div style="display:flex;gap:8px;flex-direction:column;">
         <input id="sessionTitle" class="input" placeholder="عنوان جلسه (اختیاری)" />
-        <input id="sessionDate" class="input jalali-input" placeholder="تاریخ جلسه (YYYY/MM/DD)" style="text-align:center;" />
+        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+          <input id="sessionDate" class="input jalali-input" placeholder="تاریخ جلسه (YYYY/MM/DD)" style="text-align:center;flex:1;" />
+          <button type="button" class="jalali-toggle" data-target="sessionDate" title="باز کردن تقویم" style="border:0;background:transparent;cursor:pointer;padding:6px;border-radius:6px;">📅</button>
+        </div>
         <select id="sessionCategory" class="input"><option value="">همه رده‌ها</option></select>
   <select id="sessionPrivateClass" class="input" style="display:none"><option value="">انتخاب کلاس خصوصی</option></select>
   <select id="sessionCoach" class="input"><option value="">بدون مربی</option></select>
@@ -4565,11 +4545,14 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
 <!-- Training plan note modal -->
 <div id="trainingFormModal" class="modal hide" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10002;">
   <div class="modal-content" style="width:min(96vw,720px);background:var(--card);border-radius:12px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.12);">
-  <div class="modal-header"><strong>یادداشت برنامهٔ تمرین</strong></div>
+  <div class="modal-header"><strong>یاداشت برنامهٔ تمرین</strong></div>
     <div class="modal-body">
       <div style="display:grid;gap:8px;">
         <input id="planTitle" class="input" placeholder="عنوان تمرین" style="flex:1;min-width:180px;" />
-        <input id="planDate" class="input jalali-input" placeholder="تاریخ تمرین (YYYY/MM/DD)" style="width:130px;" />
+        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+          <input id="planDate" class="input jalali-input" placeholder="تاریخ تمرین (YYYY/MM/DD)" style="width:130px;flex:0 0 auto;" />
+          <button type="button" class="jalali-toggle" data-target="planDate" title="باز کردن تقویم" style="border:0;background:transparent;cursor:pointer;padding:6px;border-radius:6px;">📅</button>
+        </div>
         <div style="display:flex;gap:6px;align-items:center;">
           <select id="planHour" class="input" style="width:70px;padding:6px;"></select>
           <select id="planMinute" class="input" style="width:60px;padding:6px;"></select>
@@ -6646,8 +6629,6 @@ const STORAGE_KEY = 'vb_dashboard_v8'; // بروزرسانی نسخه
 let state = { players: [], coaches: [], sessions: [], payments: [], settings: { title: 'مدیریت باشگاه والیبال', logo: 'https://www.transparentpng.com/thumb/volleyball/2esoDe-volleyball-transparent-background.png', style: 'modern', lastCategoryUpdate: '11 دی 1403', ranks: null, ranksReferenceDate: null } };
 // competitions storage
 state.competitions = state.competitions || [];
-// currently selected date filter for matches (YYYY/MM/DD)
-let selectedMatchesDate = null;
 let customStoragePath = null;
 
 function loadState() {
@@ -6852,22 +6833,7 @@ function renderCompetitionsPage() {
 
   // Inline date filter: user can type/paste date or clear quickly
   // store selected date in `selectedMatchesDate` (YYYY/MM/DD) or null
-  if (qs('#matchesDateFilter')) {
-    const dEl = qs('#matchesDateFilter');
-    const newD = dEl.cloneNode(true); dEl.parentNode.replaceChild(newD, dEl);
-    newD.addEventListener('input', (e)=>{
-      const v = e.currentTarget.value.trim();
-      selectedMatchesDate = v === '' ? null : v;
-      renderMatchesList();
-    }, false);
-    // ensure clicking/focusing opens the inline widget
-    newD.addEventListener('focus', ()=>{ try { openJalaliCalendarForMatches(); const ev = new Event('click'); newD.dispatchEvent(ev); } catch(e){ console.warn(e); } }, false);
-    newD.addEventListener('click', (ev)=>{ try{ openJalaliCalendarForMatches(); ev.stopPropagation(); }catch(e){console.warn(e);} }, false);
-  }
-  bindClickOnce('#clearMatchesDate', ()=>{
-    const inpt = qs('#matchesDateFilter'); if (inpt) { inpt.value = ''; }
-    selectedMatchesDate = null; renderMatchesList();
-  });
+  // REMOVED: date filter UI removed
 
   // back button
   bindClickOnce('#backCompetitions', ()=> showView('home'));
@@ -6891,7 +6857,6 @@ function renderMatchesList() {
     if (active === 'scheduled' && m.status !== 'scheduled') return false;
     if (active === 'finished' && m.status !== 'finished') return false;
   // only 'all', 'scheduled', 'finished' are supported tabs now
-    if (selectedMatchesDate && m.date !== selectedMatchesDate) return false;
     if (searchQ) {
       const hay = ((m.teamA||'') + ' ' + (m.teamB||'') + ' ' + (m.title||'') + ' ' + (m.date||'')).toLowerCase();
       if (!hay.includes(searchQ)) return false;
@@ -7418,55 +7383,146 @@ async function shareToSocial(m) {
 
 // Renderer for player profile story image (1080x1920 scaled to preview)
 async function renderPlayerCanvasFromData(p, opts = {}) {
-  const w = opts.width || 1080; const h = opts.height || 1920;
-  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const w = opts.width || 1080;
+  const h = opts.height || 1080; // Square image
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
-  // background gradient
-  const colorA = opts.colorA || '#ff6b6b'; const colorB = opts.colorB || '#ff9ac2';
-  const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,colorA); g.addColorStop(1,colorB);
-  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
-  // draw optional photo box
-  const photoSize = Math.floor(w * 0.24); const photoX = Math.floor((w - photoSize)/2); const photoY = Math.floor(h * 0.08);
+
+  // White background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+
+  // Dark header bar at top
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, w, Math.floor(h * 0.1));
+
+  // Title in header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '600 28px Vazirmatn, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('پروفایل بازیکن', w / 2, Math.floor(h * 0.065));
+
+  // Layout: photo on right, info on left
+  const photoSize = Math.floor(h * 0.28);
+  const photoX = w - photoSize - 20;
+  const photoY = Math.floor(h * 0.15);
+
+  // Draw photo with border
+  ctx.fillStyle = '#f0f0f0';
+  ctx.fillRect(photoX - 4, photoY - 4, photoSize + 8, photoSize + 8);
+
   try {
     if (p.photo) {
-      const img = new Image(); img.crossOrigin = 'anonymous'; await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = p.photo; });
-      // draw circular/rounded photo
-      const r = Math.floor(photoSize * 0.12);
-      roundRect(ctx, photoX, photoY, photoSize, photoSize, r, true, false);
-      ctx.save(); roundedClip(ctx, photoX, photoY, photoSize, photoSize, r); ctx.drawImage(img, photoX, photoY, photoSize, photoSize); ctx.restore();
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = p.photo;
+      });
+      ctx.drawImage(img, photoX, photoY, photoSize, photoSize);
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(photoX, photoY, photoSize, photoSize);
+      // Placeholder
+      ctx.fillStyle = '#e0e0e0';
+      ctx.fillRect(photoX, photoY, photoSize, photoSize);
+      ctx.fillStyle = '#999';
+      ctx.font = '600 24px Vazirmatn, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('بدون عکس', photoX + photoSize / 2, photoY + photoSize / 2 + 10);
     }
-  } catch (e) { console.debug('player photo draw failed', e); }
-  // draw name
-  // draw name centered under photo
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '700 64px Vazirmatn, sans-serif';
-  const nameY = photoY + photoSize + 90;
-  ctx.fillText(p.name || '-', w/2, nameY);
-  // draw stacked centered info lines (multiline wrap helper)
-  function drawWrappedCenter(text, x, startY, maxWidth, lineHeight, font) {
-    ctx.font = font;
-    const words = String(text || '').split(/\s+/);
-    const lines = [];
-    let line = '';
-    words.forEach((wrd) => {
-      const test = line ? (line + ' ' + wrd) : wrd;
-      const m = ctx.measureText(test).width;
-      if (m > maxWidth && line) { lines.push(line); line = wrd; } else { line = test; }
-    });
-    if (line) lines.push(line);
-    lines.forEach((ln, idx) => { ctx.fillText(ln, x, startY + idx * lineHeight); });
-    return lines.length;
+  } catch (e) {
+    console.debug('player photo draw failed', e);
   }
-  const infoX = Math.floor(w * 0.12); const infoW = Math.floor(w * 0.76);
-  let lineY = nameY + 48;
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  drawWrappedCenter('تاریخ تولد: ' + (p.birthdate || '-'), w/2, lineY, infoW, 42, '600 30px Vazirmatn, sans-serif'); lineY += 48;
-  drawWrappedCenter('سابقه عضویت: ' + (p.joinDate || '-'), w/2, lineY, infoW, 40, '500 28px Vazirmatn, sans-serif'); lineY += 44;
-  drawWrappedCenter('قد/وزن: ' + ((p.height || '-') + 'cm / ' + (p.weight || '-') + 'kg'), w/2, lineY, infoW, 40, '500 28px Vazirmatn, sans-serif'); lineY += 44;
-  drawWrappedCenter('مهارت: ' + (p.skills || '-') + ' • امتیاز: ' + (p.score || '-'), w/2, lineY, infoW, 40, '600 30px Vazirmatn, sans-serif');
-  // return blob
-  return await new Promise((res, rej) => { canvas.toBlob(b => { if (b) res(b); else rej(new Error('toBlob failed')); }, 'image/png'); });
+
+  // Info panel on left
+  const infoX = 20;
+  const infoMaxWidth = photoX - 30;
+  const infoStartY = Math.floor(h * 0.15);
+  const lineHeight = 50;
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#1a1a1a';
+
+  let currentY = infoStartY;
+
+  // Helper: draw label + value
+  function drawLabelValue(label, value) {
+    ctx.font = '600 24px Vazirmatn, sans-serif';
+    ctx.fillStyle = '#666';
+    ctx.fillText(label, infoX + infoMaxWidth, currentY);
+    currentY += 30;
+    ctx.font = '700 28px Vazirmatn, sans-serif';
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText(value || '-', infoX + infoMaxWidth, currentY);
+    currentY += lineHeight;
+  }
+
+  // Name (large)
+  ctx.font = '700 36px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText(p.name || '-', infoX + infoMaxWidth, currentY);
+  currentY += lineHeight + 10;
+
+  // Birthdate
+  const birthDisplay = p.birthdate ? `${p.birthdate}` : '-';
+  drawLabelValue('تاریخ تولد:', birthDisplay);
+
+  // Join date
+  const joinDisplay = p.joinDate ? `${p.joinDate}` : '-';
+  drawLabelValue('تاریخ عضویت:', joinDisplay);
+
+  // Physical stats
+  const heightDisplay = p.height ? `${p.height} سانتی‌متر` : '-';
+  const weightDisplay = p.weight ? `${p.weight} کیلوگرم` : '-';
+  ctx.font = '600 24px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.fillText('قد / وزن:', infoX + infoMaxWidth, currentY);
+  currentY += 30;
+  ctx.font = '700 28px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText(`${heightDisplay} / ${weightDisplay}`, infoX + infoMaxWidth, currentY);
+  currentY += lineHeight;
+
+  // Score and Skills
+  const scoreDisplay = p.score ? `${p.score}` : '-';
+  const skillsDisplay = p.skills ? `${p.skills}` : '-';
+  ctx.font = '600 24px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.fillText('امتیازات:', infoX + infoMaxWidth, currentY);
+  currentY += 30;
+  ctx.font = '700 28px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText(scoreDisplay, infoX + infoMaxWidth, currentY);
+  currentY += lineHeight;
+
+  drawLabelValue('مهارت‌ها:', skillsDisplay);
+
+  // Physical condition/status
+  const physicalStatus = p.physicalStatus || '-';
+  drawLabelValue('وضعیت جسمانی:', physicalStatus);
+
+  // Bottom footer bar
+  const footerY = h - 40;
+  ctx.fillStyle = '#f5f5f5';
+  ctx.fillRect(0, footerY, w, 40);
+  ctx.font = '500 18px Vazirmatn, sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'center';
+  const dateStr = new Date().toLocaleDateString('fa-IR');
+  ctx.fillText(`تولید شده: ${dateStr}`, w / 2, footerY + 25);
+
+  // Convert to blob
+  return await new Promise((res, rej) => {
+    canvas.toBlob(
+      (b) => {
+        if (b) res(b);
+        else rej(new Error('toBlob failed'));
+      },
+      'image/png'
+    );
+  });
 }
 
 // Helpers for rounded drawing (reuse existing functions names from renderer)
@@ -7479,19 +7535,42 @@ function roundedClip(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y)
 
 // Create image and share/download it
 async function captureAndSharePlayerProfile(p, shareText = '') {
-  // create blob via renderer
-  const blob = await renderPlayerCanvasFromData(p, { width:1080, height:1920 });
+  // create square image (1080x1080)
+  const blob = await renderPlayerCanvasFromData(p, { width: 1080, height: 1080 });
   if (!blob) throw new Error('render failed');
-  const file = new File([blob], (p.name||'player') + '.png', { type: 'image/png' });
+  const file = new File([blob], (p.name || 'player') + '.png', { type: 'image/png' });
   // Include the textual profile as a separate text file when sharing alongside the image.
   try {
-    const textFile = new File([shareText || formatPlayerProfileText(p) || ''], `${(p.name||'player').replace(/\s+/g,'_')}_profile.txt`, { type: 'text/plain;charset=utf-8' });
+    const textFile = new File(
+      [shareText || formatPlayerProfileText(p) || ''],
+      `${(p.name || 'player').replace(/\s+/g, '_')}_profile.txt`,
+      { type: 'text/plain;charset=utf-8' }
+    );
     const filesArray = [file, textFile];
     if (navigator.canShare && navigator.canShare({ files: filesArray })) {
-      try { await navigator.share({ files: filesArray, title: p.name || 'پروفایل بازیکن', text: shareText || undefined }); return; } catch (e) { console.warn('navigator.share(files+text) failed', e); }
+      try {
+        await navigator.share({
+          files: filesArray,
+          title: p.name || 'پروفایل بازیکن',
+          text: shareText || undefined
+        });
+        return;
+      } catch (e) {
+        console.warn('navigator.share(files+text) failed', e);
+      }
     }
-  } catch (e) { console.warn('creating text file for share failed', e); }
-  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (p.name||'player') + '.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  } catch (e) {
+    console.warn('creating text file for share failed', e);
+  }
+  // Fallback: download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (p.name || 'player') + '.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function formatPlayerProfileText(p) {
@@ -7589,93 +7668,6 @@ async function fallbackTextStory(m) {
   }
 }
 
-function openJalaliCalendarForMatches() {
-  // calendar modal removed; focus the inline date filter for convenience
-  const el = qs('#matchesDateFilter'); if (el) { el.focus(); el.scrollIntoView({behavior:'smooth',block:'center'}); }
-}
-
-// --- Inline Jalali calendar widget for matches date filter ---
-(function(){
-  let current = null; // { y, m }
-  const widget = () => qs('#matchesDateWidget');
-  const grid = () => qs('#mdwGrid');
-  const title = () => qs('#mdwTitle');
-  function openWidget() { const w = widget(); if (!w) return; w.style.display = 'block'; document.addEventListener('click', outsideHide); }
-  function closeWidget() { const w = widget(); if (!w) return; w.style.display = 'none'; document.removeEventListener('click', outsideHide); }
-  function outsideHide(e) {
-    const w = widget(); if (!w) return; const input = qs('#matchesDateFilter');
-    if (!w.contains(e.target) && e.target !== input) closeWidget();
-  }
-  function pad(n){ return String(n).padStart(2,'0'); }
-  function renderMonth(y,m){
-    current = { y, m };
-    if (!grid()||!title()) return;
-    // title: year/month
-    title().textContent = `${y}/${pad(m)}`;
-    // compute first day of month weekday and days in month using jalali_to_gregorian
-    // create days array
-    const days = [];
-    // find weekday of first day: convert to ISO and use Date
-    const firstISO = jalaliToISO(`${y}/${pad(m)}/01`);
-    const wd = new Date(firstISO).getDay(); // 0 (Sun) .. 6
-    // Jalali week in UI will start on Sat (but we'll align with existing locale using JS weekday)
-    const daysInMonth = (function(){
-      // determine by trying next month day 1 minus one day
-      let nextM = m+1, nextY = y; if (nextM>12){ nextM=1; nextY++; }
-      const nextISO = jalaliToISO(`${nextY}/${pad(nextM)}/01`);
-      const d = new Date(nextISO); d.setDate(d.getDate()-1);
-      const j = gregorian_to_jalali(d.getFullYear(), d.getMonth()+1, d.getDate()); return j[2];
-    })();
-    // clear grid and render empty slots + days
-    grid().innerHTML = '';
-    // render weekday headers (short Persian)
-    const wNames = ['ش','ی','د','س','چ','پ','ج']; // Sat..Fri (approx short)
-    wNames.forEach(n=>{ const el = document.createElement('div'); el.style.fontWeight='700'; el.style.textAlign='center'; el.style.padding='6px 0'; el.textContent = n; grid().appendChild(el); });
-    for (let i=0;i< (7*6); i++){ // 6 rows to cover all months
-      const cell = document.createElement('div'); cell.style.minHeight='34px'; cell.style.textAlign='center'; cell.style.padding='6px 4px'; cell.style.borderRadius='6px';
-      const hdrCount = 7; // first row is weekdays so skip placing day numbers until index >=7
-      if (i < hdrCount) continue; // skip header placeholders since already added
-    }
-    // We will render days starting after weekday header row; create separate container for numbers
-    const numsContainer = document.createElement('div'); numsContainer.style.gridColumn = '1/-1'; numsContainer.style.display='grid'; numsContainer.style.gridTemplateColumns='repeat(7,1fr)'; numsContainer.style.gap='6px';
-    // compute offset: weekday of first date (JS getDay) where Sun=0; we want to align to Sat-first view; shift accordingly
-    // Convert JS weekday to index where Sat=0: ((wd+1)%7)
-    const offset = ((wd + 1) % 7);
-    for (let i=0;i<offset;i++){ const e = document.createElement('div'); numsContainer.appendChild(e); }
-    for (let d=1; d<=daysInMonth; d++){
-      const e = document.createElement('button'); e.className='btn'; e.style.padding='6px'; e.style.width='100%'; e.style.boxSizing='border-box'; e.textContent = String(d);
-      e.addEventListener('click', ()=>{
-        const val = `${y}/${pad(m)}/${pad(d)}`;
-        const inpt = qs('#matchesDateFilter'); if (inpt) inpt.value = val;
-        selectedMatchesDate = val; renderMatchesList(); closeWidget();
-      });
-      numsContainer.appendChild(e);
-    }
-    // append empty cells to complete grid (optional)
-    const totalCells = offset + daysInMonth; const trailing = (7 - (totalCells % 7)) % 7;
-    for (let i=0;i<trailing;i++) numsContainer.appendChild(document.createElement('div'));
-    // now put weekdays header + numbers into mdwGrid
-    const mdw = grid(); mdw.innerHTML = ''; wNames.forEach(n=>{ const h = document.createElement('div'); h.style.fontWeight='700'; h.style.textAlign='center'; h.style.padding='6px 0'; h.textContent = n; mdw.appendChild(h); });
-    mdw.appendChild(numsContainer);
-  }
-  // nav handlers
-  function initWidget(){
-    const inpt = qs('#matchesDateFilter'); if (!inpt) return;
-    const w = widget(); if (!w) return;
-    inpt.addEventListener('focus', ()=>{ // open and set to input month or today
-      const parts = (inpt.value || todayJalali()).split('/').map(Number);
-      renderMonth(parts[0], parts[1]); openWidget();
-    }, false);
-    inpt.addEventListener('click', (e)=>{ e.stopPropagation(); const parts = (inpt.value || todayJalali()).split('/').map(Number); renderMonth(parts[0], parts[1]); openWidget(); }, false);
-  const prevBtn = qs('#mdwPrev'); if (prevBtn) prevBtn.addEventListener('click', ()=>{ if (!current) return; let y=current.y, m=current.m-1; if (m<1){ m=12; y--; } renderMonth(y,m); });
-  const nextBtn = qs('#mdwNext'); if (nextBtn) nextBtn.addEventListener('click', ()=>{ if (!current) return; let y=current.y, m=current.m+1; if (m>12){ m=1; y++; } renderMonth(y,m); });
-  const todayBtn = qs('#mdwToday'); if (todayBtn) todayBtn.addEventListener('click', ()=>{ const t = todayJalali().split('/').map(Number); renderMonth(t[0], t[1]); const inpt = qs('#matchesDateFilter'); if (inpt) inpt.value = todayJalali(); selectedMatchesDate = todayJalali(); renderMatchesList(); closeWidget(); });
-  const closeBtn = qs('#mdwClose'); if (closeBtn) closeBtn.addEventListener('click', ()=>{ closeWidget(); });
-    // clicking calendar icon (if any) or calling openJalaliCalendarForMatches should focus; we already wired that function
-  }
-  // expose init on DOM ready for competitions page
-  document.addEventListener('DOMContentLoaded', ()=>{ try{ initWidget(); }catch(e){console.warn('initWidget failed',e);} });
-})();
 
 /* ================================================================
   SECTION: Views & Rendering
@@ -8441,50 +8433,6 @@ function renderHome() {
     } catch(e){}
   }
 
-}
-
-function renderBirthdayGreeting(playerId) {
-  let content = qs('#birthdayGreetingContent');
-  let p = state.players.find(x => x.id === playerId); // فرض: state.players آرایه بازیکن‌هاست
-  if (!p) return showView('home'); // اگه بازیکن پیدا نشد، برگرد به خانه
-
-  let age = calcExactAge(p.birthdate);
-  let greetingMsg = `تولدت مبارک ${p.name}! حالا ${age.years} ساله شدی. امیدوارم سالی پر از موفقیت در والیبال داشته باشی! 🎉`;
-
-  content.innerHTML = `
-    <div style="padding: 16px; background: linear-gradient(135deg, #FF6B6B, #FFD700); border-radius: 16px; color: #fff; animation: pulse 1.5s infinite;">
-      <div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; margin: 0 auto;">
-  ${p.photo ? `<img class="player-image" src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" alt="${p.name}">` : '<div>بدون عکس</div>'}
-      </div>
-      <h2 style="margin-top: 12px;">${greetingMsg}</h2>
-      <div class="form-actions" style="margin-top: 16px;">
-        <button id="shareBirthday" class="btn primary">اشتراک‌گذاری</button>
-        <button id="closeBirthday" class="btn">بستن</button>
-      </div>
-    </div>
-  `;
-
-  on('#closeBirthday', 'click', () => showView('home'));
-  on('#backBirthdayGreeting', 'click', () => { if (!goBack()) showView('home'); });
-  on('#shareBirthday', 'click', () => {
-    html2canvas(content).then(canvas => {
-      let imgData = canvas.toDataURL('image/png');
-      if (navigator.share) {
-        fetch(imgData).then(res => res.blob()).then(blob => {
-          navigator.share({
-            files: [new File([blob], 'birthday.png', { type: 'image/png' })],
-            title: 'تبریک تولد',
-            text: greetingMsg
-          });
-        });
-      } else {
-        let a = document.createElement('a');
-        a.href = imgData;
-        a.download = 'birthday.png';
-        a.click();
-      }
-    });
-  });
 }
 
 function populateCategoryFilter(select) {
@@ -9333,7 +9281,24 @@ function renderPaymentsPage() {
         qs('#receiptNote').value = `رسید پرداخت شهریه به مبلغ ${Number(pay.amount).toLocaleString()} تومان برای دوره ${pay.paymentMonth}/${pay.paymentYear}`;
         modal.style.display = 'flex';
       }, 450);
-      node.querySelector('.edit-pay').addEventListener('click', () => showView('edit-payment', {pay}));
+      node.querySelector('.edit-pay').addEventListener('click', () => {
+        // open payment modal and prefill for editing
+        try {
+          openPaymentModal(pay.playerId || pay.playerId);
+          const m = qs('#paymentModal');
+          if (!m) return;
+          try { attachJalaliInputs(m); } catch(e) {}
+          try { m.querySelector('#paymentDate').value = isoToJalali(pay.date); } catch(e) {}
+          try { m.querySelector('#paymentAmount').value = Number(pay.amount).toLocaleString(); } catch(e) {}
+          try { m.querySelector('#paymentType').value = pay.type || ''; } catch(e) {}
+          try { m.querySelector('#paymentMonth').value = pay.paymentMonth || ''; } catch(e) {}
+          try { m.querySelector('#paymentYear').value = pay.paymentYear || ''; } catch(e) {}
+          try { m.querySelector('#paymentPlayer').value = pay.playerId || ''; } catch(e) {}
+          m.dataset.editId = pay.id;
+          // change add button label to indicate save
+          try { qs('#addPaymentBtn').textContent = 'ذخیره'; } catch(e) {}
+        } catch(err) { console.error('open edit payment failed', err); }
+      });
       node.querySelector('.del-pay').addEventListener('click', () => {
         if (confirm('حذف شود؟')) {
           state.payments = state.payments.filter(x => x.id !== pay.id);
@@ -9348,6 +9313,36 @@ function renderPaymentsPage() {
   populatePaymentMonthYear();
   populatePaymentPlayerSelect();
 }
+
+function updatePaymentCardInHome(paymentId) {
+  // update or refresh a single payment card in home view's payments preview
+  try {
+    const pay = state.payments.find(p => p.id === paymentId);
+    if (!pay) return;
+    const player = state.players.find(p => p.id === pay.playerId);
+    const paymentsPreview = qs('#paymentsPreview');
+    if (!paymentsPreview) return;
+    // recreate only the first 3 payments in preview to ensure latest changes appear
+    paymentsPreview.innerHTML = '';
+    if (state.payments.length === 0) {
+      let empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.textContent = 'اولین تراکنش خود را ثبت کنید';
+      paymentsPreview.appendChild(empty);
+    } else {
+      state.payments.slice(0, 3).forEach(p => {
+        let player = state.players.find(x => x.id === p.playerId);
+        let row = document.createElement('div');
+        row.className = 'player-row';
+        row.innerHTML = `
+          <div class="meta"><strong>${player ? escapeHtml(player.name) : '—'}</strong><small>${isoToJalali(p.date)} • ${p.type || '—'} • ${Number(p.amount).toLocaleString()} تومان</small></div>
+        `;
+        paymentsPreview.appendChild(row);
+      });
+    }
+  } catch(err) { console.warn('updatePaymentCardInHome error', err); }
+}
+
 
 function renderEditPayment(pay) {
   let content = qs('#editPaymentContent');
@@ -9948,7 +9943,10 @@ function renderPlayerForm(player = null) {
     let scores = {};
     qsa('#scoresContainer input[type="number"]').forEach(input => {
       let key = input.id.replace('score_', '');
-      scores[key] = input.value || 0;
+      let val = parseInt(input.value) || 0;
+      // همه 0-10
+      val = Math.max(0, Math.min(val, 10));
+      scores[key] = val;
     });
     
   // Determine photo: prefer uploaded image, else keep existing, else use gender placeholder
@@ -10000,9 +9998,10 @@ function renderScoreFields(category, position) {
   fields.forEach(key => {
     let div = document.createElement('div');
     const displayLabel = ('' + key).replace(/_/g, ' ');
+    // همه کادرها 0-10
     div.innerHTML = `
       <label for="score_${key}">${displayLabel}</label>
-      <input id="score_${key}" type="number" min="0" max="10" step="1" class="input" placeholder="0-10" title="امتیاز 0 تا 10" aria-label="امتیاز ${displayLabel} (0-10)">
+      <input id="score_${key}" type="number" min="0" max="10" step="1" class="input" placeholder="0-10" title="امتیاز 0 تا 10" aria-label="امتیاز ${displayLabel} (0-10)" style="font-feature-settings: 'zero';">
     `;
     container.appendChild(div);
   });
@@ -11518,6 +11517,7 @@ function openPaymentModal(playerId) {
   if (m) {
     try { m.classList.remove('hide'); m.style.display = 'flex'; m.setAttribute('aria-hidden','false'); } catch(e){}
     try { m.querySelector('#paymentDate').value = todayJalali(); } catch(e){}
+      try { attachJalaliInputs(m); } catch(e) {}
     if (playerId) {
       try { m.querySelector('#paymentPlayer').value = playerId; } catch(e){}
       let player = state.players.find(x => x.id === playerId);
@@ -11539,6 +11539,7 @@ function openSessionModal(editId) {
   if (m) {
     try { m.classList.remove('hide'); m.style.display = 'flex'; m.setAttribute('aria-hidden','false'); } catch(e){}
     try { m.querySelector('#sessionDate').value = todayJalali(); } catch(e){}
+      try { attachJalaliInputs(m); } catch(e) {}
     try { if (editId) m.querySelector('#createSessionBtn')?.dataset && (m.querySelector('#createSessionBtn').dataset.editId = editId); } catch(e){}
     // populate categories and append private-classes option specifically for session modal
     try {
@@ -11568,6 +11569,7 @@ function openTrainingFormModal(editId) {
   if (m) {
     try { m.classList.remove('hide'); m.style.display = 'flex'; m.setAttribute('aria-hidden','false'); } catch(e){}
     try { m.querySelector('#planDate').value = todayJalali(); } catch(e){}
+      try { attachJalaliInputs(m); } catch(e) {}
     try { if (editId) m.querySelector('#savePlanBtn')?.dataset && (m.querySelector('#savePlanBtn').dataset.editId = editId); } catch(e){}
     return;
   }
@@ -11584,15 +11586,22 @@ const calendar = qs('#jalaliCalendar');
 let activeInput = null;
 
 function showJalaliCalendar(inputEl) {
+  try { console.debug('[jalali] showJalaliCalendar called for', inputEl && (inputEl.id || inputEl.name)); } catch(e){}
+  if (!inputEl) return;
   activeInput = inputEl;
+  // ensure calendar element is attached to document.body so it floats above any modal stacking context
+  try {
+    if (calendar && calendar.parentNode !== document.body) document.body.appendChild(calendar);
+  } catch(e) { console.warn('failed to reparent calendar to body', e); }
   calendar.innerHTML = '';
   calendar.classList.remove('hide');
+  calendar.style.display = 'block';
   calendar.setAttribute('aria-hidden', 'false');
-  // make sure the calendar overlay appears above modals
-  try { calendar.style.zIndex = '20000'; } catch(e) {}
+  // make sure the calendar overlay appears above modals with EXTREME z-index
+  try { calendar.style.zIndex = '9999999'; calendar.style.position = 'fixed'; calendar.style.pointerEvents = 'auto'; } catch(e) {}
   // Use CSS fixed centering; do not position relative to input to ensure consistent centered display
-  calendar.style.top = '';
-  calendar.style.left = '';
+  calendar.style.top = '50%';
+  calendar.style.left = '50%';
   calendar.style.transform = 'translate(-50%, -50%)';
   let cur = inputEl.value && inputEl.value.match(/^\d{4}\/\d{2}\/\d{2}$/) ? inputEl.value : todayJalali();
   let parts = cur.split('/').map(Number);
@@ -11704,19 +11713,63 @@ function renderCalendar(year, month, selectedDay) {
 }
 
 function attachJalaliInputs(root = document) {
-  qsa('.jalali-input', root).forEach(inp => {
-    inp.addEventListener('keydown', e => e.preventDefault());
-    inp.addEventListener('paste', e => e.preventDefault());
-    inp.addEventListener('input', e => { if (e.inputType !== 'insertFromPaste') inp.value = inp.value.slice(0, -1); });
-    inp.addEventListener('focus', () => showJalaliCalendar(inp));
-    inp.addEventListener('click', () => showJalaliCalendar(inp));
+  const inputs = qsa('.jalali-input', root);
+  try { console.debug('[jalali] attachJalaliInputs - found', inputs.length, 'inputs in', root && (root.id || root.tagName)); } catch(e){}
+  inputs.forEach(inp => {
+    try {
+      inp.addEventListener('keydown', e => e.preventDefault());
+      inp.addEventListener('paste', e => e.preventDefault());
+      inp.addEventListener('input', e => { if (e.inputType !== 'insertFromPaste') inp.value = inp.value.slice(0, -1); });
+      inp.addEventListener('focus', (ev) => { try { console.debug('[jalali] focus on', inp.id || inp.name); } catch(e){}; showJalaliCalendar(inp); });
+      inp.addEventListener('click', (ev) => { try { console.debug('[jalali] click on', inp.id || inp.name); } catch(e){}; showJalaliCalendar(inp); });
+      // wire a nearby toggle button if present
+      try {
+        const wrapper = inp.parentElement;
+        if (wrapper) {
+          const toggle = wrapper.querySelector('.jalali-toggle');
+          if (toggle) toggle.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { showJalaliCalendar(inp); inp.focus(); } catch(err){} });
+        }
+      } catch(e){}
+    } catch(_){ }
   });
-  document.addEventListener('click', e => {
-    if (calendar.contains(e.target)) return;
-    let inputs = qsa('.jalali-input');
-    let isInp = Array.from(inputs).some(i => i === e.target);
-    if (!isInp) hideJalaliCalendar();
-  });
+  // hide calendar when clicking outside, but do not attach multiple handlers
+  if (!document._jalali_click_installed) {
+    document._jalali_click_installed = true;
+    document.addEventListener('click', e => {
+      try {
+        if (!calendar) return;
+        if (calendar.contains(e.target)) return;
+        // if clicked an input or a toggle, keep open
+        if (e.target && (e.target.classList && e.target.classList.contains('jalali-input'))) return;
+        if (e.target && (e.target.classList && e.target.classList.contains('jalali-toggle'))) return;
+        hideJalaliCalendar();
+      } catch(err) { console.warn('jalali click handler error', err); }
+    }, true);
+    // delegate focus/click for dynamically added inputs/toggles
+    document.addEventListener('focusin', (e) => {
+      try { if (e.target && e.target.classList && e.target.classList.contains('jalali-input')) { showJalaliCalendar(e.target); } } catch(e){}
+    });
+    document.addEventListener('click', (e) => {
+      try {
+        const el = e.target;
+        if (!el) return;
+        if (el.classList && el.classList.contains('jalali-toggle')) {
+          // find nearest input in parent chain
+          let p = el.parentElement;
+          while (p && p !== document.body) {
+            const inp = p.querySelector && p.querySelector('.jalali-input');
+            if (inp) { e.preventDefault(); e.stopPropagation(); showJalaliCalendar(inp); try { inp.focus(); } catch(_){}; return; }
+            p = p.parentElement;
+          }
+        }
+        if (el.classList && el.classList.contains('jalali-input')) {
+          showJalaliCalendar(el);
+        }
+      } catch(err) { console.warn('jalali delegated click error', err); }
+    }, true);
+    // close on Escape
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideJalaliCalendar(); });
+  }
 }
 // تابع کمکی برای تبدیل نام ماه به عدد
 function monthNameToNumber(monthName) {
@@ -12337,12 +12390,43 @@ function showSettingsAndRankInfo() {
   // removed showAllInsurancesBtn handler
   // addPaymentFromHomeBtn removed from home UI
   on('#addPaymentBtn', 'click', () => {
+    const m = qs('#paymentModal');
+    const editId = m && m.dataset && m.dataset.editId;
     let dateStr = qs('#paymentDate').value || todayJalali();
     let amount = qs('#paymentAmount').value.replace(/,/g, '');
     let type = qs('#paymentType').value || '';
     let pMonth = qs('#paymentMonth').value;
     let pYear = qs('#paymentYear').value;
     let playerId = qs('#paymentPlayer').value;
+
+    if (editId) {
+      // update existing payment
+      try {
+        const payments = state.payments || [];
+        const pay = payments.find(x => x.id === editId);
+        if (pay) {
+          pay.date = jalaliToISO(dateStr) || pay.date;
+          pay.amount = Number(amount) || 0;
+          pay.type = type;
+          pay.paymentMonth = pMonth;
+          pay.paymentYear = pYear;
+          pay.playerId = playerId;
+          saveState();
+          // clear edit state and restore button label
+          try { delete m.dataset.editId; } catch(e) { m.removeAttribute('data-edit-id'); }
+          try { qs('#addPaymentBtn').textContent = 'افزودن'; } catch(e) {}
+          // close modal
+          if (m) { m.classList.add('hide'); m.style.display='none'; m.setAttribute('aria-hidden','true'); }
+          // refresh payments list and home view immediately and hide calendar
+          try { renderPaymentsPage(); } catch(e) {}
+          try { updatePaymentCardInHome(editId); } catch(e) {}
+          try { hideJalaliCalendar(); } catch(e) {}
+        }
+      } catch (err) { console.error('update payment failed', err); }
+      return;
+    }
+
+    // default: add new payment
     addPayment(dateStr, amount, type, pMonth, pYear, playerId);
     qs('#paymentAmount').value = '';
     qs('#paymentDate').value = '';
@@ -12352,10 +12436,12 @@ function showSettingsAndRankInfo() {
   });
   on('#paymentPlayerSearch', 'input', (e) => populatePaymentPlayerSelect(e.target.value));
   on('#paymentAmount', 'input', (e) => formatNumber(e.target));
+  on('#formContact', 'input', (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
   // Open payment modal from buttons / FAB
   try { on('#openPaymentModalBtn', 'click', () => openPaymentModal(null)); } catch(e) {}
   try { on('#fabPayment', 'click', () => openPaymentModal(null)); } catch(e) {}
   try { on('#paymentModalCancel', 'click', () => { let m = qs('#paymentModal'); if (m) { m.classList.add('hide'); m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); } catch(e) {}
+  try { on('#paymentModalCancel', 'click', () => { let m = qs('#paymentModal'); if (m) { try { delete m.dataset.editId; } catch(e) { m.removeAttribute && m.removeAttribute('data-edit-id'); } try { qs('#addPaymentBtn').textContent = 'افزودن'; } catch(e){} m.classList.add('hide'); m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); } catch(e) {}
 
   // Session modal open/close handlers
   try { on('#openSessionModalBtn', 'click', () => openSessionModal()); } catch(e) {}
@@ -12563,9 +12649,9 @@ function openBirthdayModal(playerId) {
               <div style="color:var(--muted);margin-top:6px;font-size:13px;">${p.category || '—'} • سن: ${age.years} سال</div>
             </div>
           </div>
-          <div style="width:100%;margin-top:14px;">
-            <textarea id="birthdayMessageText" style="width:100%;min-height:160px;border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:12px;font-size:15px;resize:vertical;direction:rtl;">${defaultMsg}</textarea>
-          </div>
+            <div style="width:100%;margin-top:10px;">
+              <textarea id="birthdayMessageText" style="width:100%;min-height:110px;max-height:200px;border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:10px;font-size:15px;resize:vertical;direction:rtl;">${defaultMsg}</textarea>
+            </div>
         </div>
       </div>
       <!-- action area: kept OUTSIDE #birthdayCard so it won't be included in shared image -->
@@ -12575,7 +12661,7 @@ function openBirthdayModal(playerId) {
           <input id="birthdayPhoneInput" type="tel" style="padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);width:160px;text-align:left;" value="${escapeHtml(p.phone || '')}">
         </div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-          <button id="sendBirthdaySms" class="btn primary">ارسال SMS</button>
+          <button id="sendBirthdaySms" class="btn primary">ارسال پیامک</button>
           <button id="shareBirthdayImage" class="btn">اشتراک به‌صورت عکس</button>
         </div>
       </div>
@@ -12591,43 +12677,45 @@ function openBirthdayModal(playerId) {
     `;
     // No explicit close button here; use the modal close control or backdrop to dismiss
   }
-  // attach handlers for share buttons
-  setTimeout(() => {
+  // attach handlers for share buttons immediately (no delay) and provide instant feedback
   let smsBtn = qs('#sendBirthdaySms');
   let imgBtn = qs('#shareBirthdayImage');
-    if (smsBtn) smsBtn.addEventListener('click', () => {
-      // open sms app with recipient and body prefilled; fallback copies to clipboard
-      const phoneInput = qs('#birthdayPhoneInput');
-      const msgArea = qs('#birthdayMessageText');
-      const to = phoneInput?.value?.trim() || '';
-      const body = (msgArea?.value || defaultMsg) + ` — از طرف ${clubName}`;
-      const encoded = encodeURIComponent(body);
-      try {
-        // common pattern: sms:<number>?body=...
-        const smsUrl = `sms:${to}?body=${encoded}`;
-        window.location.href = smsUrl;
-      } catch (e) {
-        navigator.clipboard?.writeText(body);
-        alert('متن پیام در کلیپ‌بورد کپی شد. آن را در برنامه پیامک الصاق و شماره را وارد کنید.');
-      }
-    });
-    if (imgBtn) imgBtn.addEventListener('click', async () => {
+  if (smsBtn) smsBtn.addEventListener('click', () => {
+    const phoneInput = qs('#birthdayPhoneInput');
+    const msgArea = qs('#birthdayMessageText');
+    const to = phoneInput?.value?.trim() || '';
+    const body = (msgArea?.value || defaultMsg) + ` — از طرف ${clubName}`;
+    const encoded = encodeURIComponent(body);
+    try {
+      const smsUrl = `sms:${to}?body=${encoded}`;
+      window.location.href = smsUrl;
+    } catch (e) {
+      navigator.clipboard?.writeText(body);
+      alert('متن پیام در کلیپ‌بورد کپی شد. آن را در برنامه پیامک الصاق و شماره را وارد کنید.');
+    }
+  });
+
+  if (imgBtn) imgBtn.addEventListener('click', async (ev) => {
+    // prevent double clicks
+    if (imgBtn._busy) return;
+    imgBtn._busy = true;
+    const origHtml = imgBtn.innerHTML;
+    try {
+      // immediate visual feedback
+      imgBtn.disabled = true;
+      imgBtn.textContent = 'در حال آماده‌سازی...';
+
       // clone the card and replace textarea with full-message div so the entire text is captured
       const card = qs('#birthdayCard');
+      if (!card) { alert('کارت تولد بارگذاری نشده'); return; }
       const clone = card.cloneNode(true);
       const textarea = clone.querySelector('#birthdayMessageText');
-      // normalize Persian characters and ensure proper joining
       let fullText = (qs('#birthdayMessageText')?.value || defaultMsg) || '';
       try {
-        fullText = String(fullText)
-          .replace(/ي/g, 'ی')
-          .replace(/ك/g, 'ک')
-          .replace(/\u200C/g, ' ') // replace zero-width non-joiner with space to avoid rendering issues
-          .trim();
-      } catch(e) { /* ignore normalization errors */ }
+        fullText = String(fullText).replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\u200C/g, ' ').trim();
+      } catch(e) { /* ignore */ }
       if (textarea) {
         const div = document.createElement('div');
-        // important: set explicit Persian-capable font and RTL alignment
         div.style.whiteSpace = 'pre-wrap';
         div.style.fontSize = '15px';
         div.style.direction = 'rtl';
@@ -12641,7 +12729,6 @@ function openBirthdayModal(playerId) {
         div.textContent = fullText;
         textarea.parentNode.replaceChild(div, textarea);
       }
-      // place clone off-screen for rendering and set font on the clone container too
       clone.style.boxSizing = 'border-box';
       clone.style.width = card.offsetWidth + 'px';
       clone.style.background = getComputedStyle(card).backgroundColor || '#ffffff';
@@ -12650,34 +12737,32 @@ function openBirthdayModal(playerId) {
       clone.style.left = '-9999px';
       clone.style.fontFamily = "'Vazirmatn', 'IRANSans', 'Tahoma', 'Arial', sans-serif";
       document.body.appendChild(clone);
+      try { if (document.fonts && typeof document.fonts.ready !== 'undefined') await document.fonts.ready; } catch(e){}
+
+      // generate image (do heavy work after UI feedback)
       try {
-        // wait for fonts to be available (improves complex-script shaping)
-        if (document.fonts && typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
-      } catch(e) { /* ignore */ }
-      // use a slightly lower scale to avoid glyph separation issues
-      try {
-        await html2canvas(clone, { backgroundColor: '#ffffff', scale: 1.5 }).then(canvas => {
-          return new Promise((res) => {
-            canvas.toBlob(blob => { res(blob); }, 'image/png');
-          });
-        }).then(blob => {
-          if (!blob) return alert('خطا در تولید تصویر');
-          const file = new File([blob], `${normPersian(p.name).replace(/\s+/g,'_')}_birthday.png`, { type: 'image/png' });
-          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file], title: `تبریک تولد ${p.name}`, text: fullText });
-          } else {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = file.name;
-            a.click();
-            URL.revokeObjectURL(url);
-          }
-        }).catch(err => { console.error('html2canvas error', err); alert('خطا در آماده‌سازی تصویر'); });
-      } finally { try { clone.remove(); } catch(e){} }
-    });
-  // share-link removed per user request
-  }, 50);
+        const canvas = await html2canvas(clone, { backgroundColor: '#ffffff', scale: 1.5 });
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        if (!blob) return alert('خطا در تولید تصویر');
+        const file = new File([blob], `${normPersian(p.name).replace(/\s+/g,'_')}_birthday.png`, { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: `تبریک تولد ${p.name}`, text: fullText });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = file.name; a.click(); URL.revokeObjectURL(url);
+        }
+      } catch(err) { console.error('html2canvas error', err); alert('خطا در آماده‌سازی تصویر'); }
+      finally { try { clone.remove(); } catch(e){} }
+    } finally {
+      imgBtn._busy = false;
+      try { imgBtn.disabled = false; imgBtn.innerHTML = origHtml; } catch(_){}
+    }
+  });
+  // scroll to top to ensure modal is visible above menu
+  setTimeout(() => {
+    window.scrollTo(0, 0);
+    document.body.style.overflow = 'hidden';
+  }, 0);
   modal.classList.remove('hide');
   modal.setAttribute('aria-hidden','false');
   on('#birthdayModalClose', 'click', closeBirthdayModal);
@@ -12709,6 +12794,7 @@ function closeBirthdayModal() {
   const modal = qs('#birthdayModal');
   modal.classList.add('hide');
   modal.setAttribute('aria-hidden','true');
+  document.body.style.overflow = '';
   // remove focus trap and restore focus
   if (modal._trapHandler) {
     window.removeEventListener('keydown', modal._trapHandler);
