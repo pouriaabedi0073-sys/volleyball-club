@@ -75,21 +75,11 @@
       try {
         const data = ev && ev.data ? ev.data : null;
         if (!data || !data.type) return;
-        // Backups: flush pending uploads on request
         if (data.type === 'backup:flush') {
           try { if (window.backupClient && typeof window.backupClient.flushPendingUploads === 'function') window.backupClient.flushPendingUploads(); } catch(e){}
         }
-        // For periodic triggers we don't auto-run backups. Instead ask the user.
-        if (data.type === 'periodicsync:trigger') {
-          try {
-            // Dispatch a DOM event so page code can show a friendly UI prompt.
-            const evnt = new CustomEvent('app:periodicBackupRequested', { detail: { tag: data.tag, timestamp: data.timestamp } });
-            window.dispatchEvent(evnt);
-          } catch (e) { console.warn('periodicsync trigger dispatch failed', e); }
-        }
         if (data.type === 'backup:create') {
-          // legacy message: proceed to create backup if available (still allow)
-          try { if (window.backupClient && typeof window.backupClient.createBackup === 'function') window.backupClient.createBackup().catch(e => console.warn('createBackup failed', e)); } catch(e){}
+          try { if (window.backupClient && typeof window.backupClient.createBackup === 'function') window.backupClient.createBackup().catch(e => console.warn('periodic createBackup failed', e)); } catch(e){}
         }
         // Notifications from service worker (push forwarded to clients)
         if (data.type === 'notifier:push' && data.payload) {
@@ -106,39 +96,46 @@
     });
   }
 
-  // Attempt to register weekly periodic sync automatically (best-effort).
-  // We no longer inject a profile toggle; periodic registration is attempted silently.
-  (async function ensurePeriodicRegistration() {
+  // Prompt the user (once) to enable weekly automatic backups using Periodic Background Sync if available
+  (async function promptWeeklyBackup() {
     try {
-      // Only attempt once per client load. If browser doesn't support periodicSync,
-      // store a local preference so the app can fallback to manual backups.
-      try {
-        if (!('serviceWorker' in navigator)) return;
-        const reg = await navigator.serviceWorker.ready;
-        if (!reg || !reg.periodicSync || typeof reg.periodicSync.register !== 'function') {
-          // Not supported; remember preference for informational UI
-          localStorage.setItem('backup:periodicSupported','0');
-          return;
-        }
-        // Try to register 'weekly-backup' with a 7-day minimum interval. Ignore failures.
-        const minInterval = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-        try { await reg.periodicSync.register('weekly-backup', { minInterval }); console.log('Attempted to register weekly-backup periodic sync'); localStorage.setItem('backup:periodicSupported','1'); }
-        catch (e) { console.warn('periodicSync.register failed (ignored):', e); localStorage.setItem('backup:periodicSupported','0'); }
-      } catch (e) { console.warn('ensurePeriodicRegistration failed', e); }
-    } catch(e) { /* swallow */ }
+      const asked = localStorage.getItem('backup:periodicPromptAsked');
+      if (asked) return; // already asked
+      // Wait a short time to avoid blocking critical load
+      setTimeout(async () => {
+        try {
+          // Ask user permission for periodic background sync
+          const ok = confirm('آیا مایل هستید پشتیبان‌گیری هفتگی خودکار (پس‌زمینه) برای اپ فعال شود؟\n(در هر زمان قابل غیرفعال شدن است)');
+          localStorage.setItem('backup:periodicPromptAsked','1');
+          if (!ok) return;
+          
+          // Register periodic sync following PWA standards
+          try {
+            if (!('serviceWorker' in navigator)) {
+              console.warn('Service Worker not supported');
+              return;
+            }
+            const reg = await navigator.serviceWorker.ready;
+            if (!reg || !reg.periodicSync) {
+              console.warn('Periodic Background Sync not supported in this browser');
+              return;
+            }
+            
+            // Register with 7-day minimum interval (standard for backup tasks)
+            const minInterval = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+            await reg.periodicSync.register('weekly-backup', { minInterval });
+            console.log('✓ Periodic weekly-backup registered successfully');
+            alert('✓ پشتیبان‌گیری هفتگی خودکار فعال شد.');
+          } catch (e) {
+            console.warn('periodicSync registration failed:', e);
+            // Fallback: store preference locally for manual fallback
+            localStorage.setItem('backup:periodicPreference', 'enabled');
+            alert('توجه: مرورگر شما از پشتیبان‌گیری خودکای پس‌زمینه پشتیبانی نمی‌کند. فقط یادداشت شد.');
+          }
+        } catch(e) { console.warn('weekly backup prompt handler failed', e); }
+      }, 1500);
+    } catch(e) {}
   })();
-
-  // Listen for the custom event and show a confirmation to the user when periodic sync triggers
-  window.addEventListener('app:periodicBackupRequested', async (e) => {
-    try {
-      const detail = (e && e.detail) ? e.detail : {};
-      const ok = confirm('پشتیبان‌گیری هفتگی برنامه اجرا شده است. آیا مایل به گرفتن بک‌آپ اکنون هستید؟');
-      if (!ok) return;
-      if (window.backupClient && typeof window.backupClient.createBackup === 'function') {
-        try { await window.backupClient.createBackup(); alert('پشتیبان‌گیری در حال انجام است.'); } catch (err) { console.warn('periodic createBackup failed', err); alert('خطا در انجام بک‌آپ'); }
-      }
-    } catch (err) { console.warn('app:periodicBackupRequested handler failed', err); }
-  });
 
   // Auto-request Notification permission on app load (optional, can be triggered later)
   (async function requestNotificationPermission() {

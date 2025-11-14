@@ -3199,8 +3199,14 @@ function enableBackupButtons(enable = true) {
          <!-- Settings card (separate) -->
          <div class="card" style="padding:12px 16px; margin:12px; border-radius:12px; background:linear-gradient(90deg,#facc15,#fbbf24);">
               <div id="settingsBox" style="display:flex;justify-content:center;align-items:center;gap:12px;">
-               <button id="settingsFromAccount" class="btn" style="padding:8px 12px;background:#111;color:#fff;border-radius:10px;border:none;font-weight:700;">تنظیمات</button>
-               <button id="notificationsFromSettings" class="btn" style="padding:8px 10px;background:transparent;border:1px solid rgba(0,0,0,0.06);border-radius:10px;color:var(--muted);">اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px;">0</span></button>
+               <button id="settingsFromAccount" class="btn" style="padding:8px 12px;background:#111;color:#fff;border-radius:10px;border:none;font-weight:700;display:flex;align-items:center;gap:8px;">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                 تنظیمات
+               </button>
+               <button id="notificationsFromSettings" class="btn" style="padding:8px 10px;background:transparent;border:1px solid rgba(0,0,0,0.06);border-radius:10px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                 اعلان‌ها <span class="notifications-badge" style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px;">0</span>
+               </button>
              </div>
          </div>
          <!-- Notifications controls moved to dedicated Notifications page; quick-action removed -->
@@ -3308,7 +3314,11 @@ function enableBackupButtons(enable = true) {
                </div>
              </div>
            </div>
+
           <!-- Account profile container (static profile) -->
+
+          
+
           <style>
             /* Inline spinner for auth buttons: sits beside text and animates when .running is toggled */
             .inline-spinner {
@@ -3437,6 +3447,15 @@ function enableBackupButtons(enable = true) {
             <div id="profileDebugControls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
             <!-- editProfileForm moved earlier before logout for better UX on mobile -->
           </div>
+          
+            <!-- Contact methods card: placed at the bottom of the account page. Hidden by default; visibility controlled by auth checks. -->
+            <div id="contactMethodsCardAuth" class="card" style="padding:6px 12px;border-radius:12px;margin:24px 12px 12px 12px;display:none;" aria-hidden="true">
+              <button id="contactMethodsBtnAuth" class="btn" style="width:100%;background:#fff;color:#0b5cff;border:1px solid rgba(11,92,255,0.08);font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 8px;font-size:13px;height:auto;min-height:32px;border-radius:10px;box-shadow:0 1px 4px rgba(11,92,255,0.06);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                راه‌های ارتباطی
+              </button>
+            </div>
+            
 <script>
 // فرض: window.supabase و window.syncHybrid موجود است و کاربر لاگین کرده
 
@@ -3467,6 +3486,9 @@ function fillProfileUI(profile) {
   //updateProfileSyncHybridStatus();
   // Ensure profile container is visible when we have profile data
   try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(e) {}
+  try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'none'; } catch(_){ }
+  // Hide contact methods card when profile is shown (user is logged in)
+  try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'none'; } catch(_){}
 }
 
 // Open edit profile form and prefill fields from DB or auth metadata
@@ -3860,6 +3882,7 @@ async function loadProfile(passedUser) {
       try {
         // ensure the account container is visible so the user sees the edit area
         try { const pc = document.getElementById('accountProfileContainer'); if (pc) pc.style.display = 'block'; } catch(_){ }
+        try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'none'; } catch(_){ }
   // editEmail removed; no email field in edit form now
         document.getElementById('accountEmail').textContent = currentUser.email || '—';
         // ensure main display reflects current signed-in user when no stored profile exists
@@ -3920,6 +3943,12 @@ async function loadProfile(passedUser) {
       const ids = ['backupNowBtn','restoreBackupBtn','backupHistoryBtn'];
       ids.forEach(id => { try { const el = document.getElementById(id); if (el) el.style.display = showControls ? '' : 'none'; } catch(_){} });
     } catch(e) { console.debug('edit/backup toggle failed', e); }
+    // Show or hide contact methods card: hidden when logged in, shown only for logged-out users
+    try { 
+      const cmcAuth = document.getElementById('contactMethodsCardAuth'); 
+      if (cmcAuth) cmcAuth.style.display = isConfirmed ? 'none' : 'block'; 
+      console.debug('contactMethodsCardAuth visibility set:', isConfirmed ? 'hidden (logged in)' : 'visible (logged out)');
+    } catch(_){ }
   } catch(e) { console.debug('post-loadProfile UI adjustments failed', e); }
 }
 
@@ -4476,9 +4505,55 @@ try { document.addEventListener('DOMContentLoaded', installTapFixes); } catch(e)
   </div>
 
   <!-- ImageKit uploader removed -->
-</div>
+  </div>
 
-<!-- Receipt modal for sending payment receipts -->
+  <!-- Contact methods modal -->
+  <div id="contactMethodsModal" class="hide" aria-hidden="true" style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:99999;padding:12px;">
+    <div style="background:rgba(0,0,0,0.65);position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;" id="contactMethodsBackdrop"></div>
+    <div id="contactMethodsCard" style="position:relative;z-index:99999;background:var(--card);padding:16px;border-radius:12px;max-width:480px;width:100%;box-shadow:0 18px 48px rgba(0,0,0,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:18px;color:var(--text);">راه‌های ارتباطی</h3>
+        <button id="contactMethodsClose" class="btn" style="min-width:auto;width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:rgba(0,0,0,0.08);color:var(--text);border:none;border-radius:6px;cursor:pointer;">✕</button>
+      </div>
+    
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <!-- Email -->
+        <div style="padding:12px;background:linear-gradient(90deg,#f59e0b,#f97316);border-radius:10px;cursor:pointer;" id="emailMethod">
+          <div style="display:flex;align-items:center;gap:10px;color:#fff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+            <div>
+              <div style="font-weight:700;font-size:14px;">ایمیل</div>
+              <div style="font-size:12px;opacity:0.9;">Pouriaabedi0073@gmail.com</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WhatsApp -->
+        <div style="padding:12px;background:linear-gradient(90deg,#10b981,#059669);border-radius:10px;cursor:pointer;" id="whatsappMethod" data-phone="989184205814">
+          <div style="display:flex;align-items:center;gap:10px;color:#fff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.272-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-5.031 1.378c-3.055 2.289-3.585 6.991-1.311 10.566 1.454 2.189 3.82 3.645 6.529 3.645 1.432 0 2.823-.35 4.042-1.011l.289.017c3.85 0 6.979-3.118 6.979-6.99 0-3.868-3.135-6.982-7.023-6.982z"/></svg>
+            <div>
+              <div style="font-weight:700;font-size:14px;">پیام به واتس اپ</div>
+              <div style="font-size:12px;opacity:0.9;">برای ارسال پیام، روی این گزینه بزنید</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instagram -->
+        <div style="padding:12px;background:linear-gradient(90deg,#e1306c,#fd1d1d);border-radius:10px;cursor:pointer;" id="instagramMethod">
+          <div style="display:flex;align-items:center;gap:10px;color:#fff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="2"></rect><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"></circle></svg>
+            <div>
+              <div style="font-weight:700;font-size:14px;">اینستاگرام</div>
+              <div style="font-size:12px;opacity:0.9;">@club.management2025</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receipt modal for sending payment receipts -->
 <div id="receiptModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;z-index:2000;">
   <div style="background:#fff;max-width:520px;width:100%;border-radius:8px;padding:16px;box-shadow:0 6px 30px rgba(0,0,0,0.25);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -5398,6 +5473,7 @@ function calculateTimeToNextCategory(age, category) {
         try {
           // Keep the embedded auth box visible and show the minimal account card below it
           const pc = document.getElementById('accountProfileContainer'); if (pc) { pc.style.display = 'block'; pc.scrollIntoView({behavior:'smooth', block:'start'}); }
+          try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'none'; } catch(_){ }
           if (window.loadProfile) {
             // Ensure we have a stable user object from the auth client. Some Supabase setups
             // may not immediately expose getUser() data right after signInWithPassword returns.
@@ -5491,6 +5567,7 @@ function calculateTimeToNextCategory(age, category) {
             try { if (typeof window.showAuthForms === 'function') window.showAuthForms(false); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'none'; } } catch(_){ }
             const pc = document.getElementById('accountProfileContainer');
             if (pc) pc.style.display = 'block';
+            try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'none'; } catch(_){ }
             if (!isConfirmed) {
               // compact confirmation UI for unconfirmed signup
               try { document.getElementById('accountName').textContent = 'لطفاً ایمیل خود را تأیید کنید'; } catch(_){ }
@@ -6225,6 +6302,7 @@ function calculateTimeToNextCategory(age, category) {
   try { document.getElementById('accountProfileContainer').style.display = 'none'; } catch(_){ }
     try { if (typeof window.showAuthForms === 'function') window.showAuthForms(true); else { const eb = document.getElementById('embeddedAuthBox'); if (eb) eb.style.display = 'block'; } } catch(_){ }
     try { showView('account'); } catch(_){ }
+    try { const cmcAuth = document.getElementById('contactMethodsCardAuth'); if (cmcAuth) cmcAuth.style.display = 'block'; } catch(_){ }
   });
 
   // initial status and robust client detection
@@ -6272,6 +6350,30 @@ function calculateTimeToNextCategory(age, category) {
     if (getSupabaseClient()) { setEmbeddedStatus(true); clearInterval(statusInterval); }
     tries++; if (tries > 50) { setEmbeddedStatus(false); clearInterval(statusInterval); }
   }, 200);
+
+  // Ensure contactMethodsCardAuth is initialized on first load for logged-out users
+  (function(){
+    let contactInitTries = 0;
+    const contactInitInterval = setInterval(async ()=>{
+      try {
+        let userId = null;
+        if (typeof getCurrentUserId === 'function') {
+          try { const res = await getCurrentUserId(); userId = res && res.userId ? res.userId : null; } catch(_){ userId = null; }
+        } else {
+          try {
+            const client = getSupabaseClient();
+            if (client && client.auth && typeof client.auth.getUser === 'function') {
+              const r = await client.auth.getUser(); const u = r && r.data && r.data.user ? r.data.user : null; userId = u && u.id ? u.id : null;
+            }
+          } catch(_){ userId = null; }
+        }
+        const cmc = document.getElementById('contactMethodsCardAuth');
+        if (cmc) cmc.style.display = userId ? 'none' : (cmc.style.display === 'block' ? 'block' : 'block');
+        clearInterval(contactInitInterval);
+      } catch(e) { /* ignore */ }
+      contactInitTries++; if (contactInitTries > 30) clearInterval(contactInitInterval);
+    }, 200);
+  })();
 
 })();
 /* Image Helper */
@@ -7984,6 +8086,7 @@ function showView(viewId, params = {}, noPush = false) {
   } else {
     qs('#appHeader').style.display = 'none';
   }
+  
   if (viewId === 'players') renderPlayersPage();
   if (viewId === 'coaches') renderCoaches();
   if (viewId === 'sessions') renderSessionsPage();
@@ -10208,6 +10311,7 @@ function renderSessionAttendance(id) {
   `;
   content.innerHTML = html;
   on('#closeAttendance', 'click', () => showView('sessions'));
+  on('#backAttendance', 'click', () => showView('sessions'));
   qsa('[data-reason-btn]').forEach(btn => {
     let pid = btn.dataset.reasonBtn;
     let att = s.attendances?.[pid] || { reason: '' };
@@ -10235,7 +10339,6 @@ function renderSessionAttendance(id) {
     saveState();
     showView('sessions');
   });
-  on('#backAttendance', 'click', () => { if (!goBack()) return; });
 }
 
 function renderNote(playerId, currentNote, callback, sessionId, tempAttendances) {
@@ -12182,8 +12285,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // notifications button inside settings area
   const nbSettings = document.getElementById('notificationsFromSettings');
   if (nbSettings) nbSettings.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
-  // back button in notifications view
-  const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { if (!goBack()) showView('home'); });
+  // back button in notifications view: navigate directly to account view
+  const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { showView('account'); });
     // floating close-all button in notifications view (bottom-right)
     try {
       const closeFloat = document.getElementById('closeAllNotificationsFloat');
@@ -12249,7 +12352,7 @@ document.addEventListener('DOMContentLoaded', () => {
   on('#tabCompetitions', 'click', () => showView('competitions'));
   on('#backPlayers', 'click', () => { showView('home'); });
   on('#backCoaches', 'click', () => { if (!goBack()) showView('home'); });
-  on('#backSessions', 'click', () => { if (!goBack()) return; });
+  on('#backSessions', 'click', () => { showView('home'); });
   on('#backPayments', 'click', () => { if (!goBack()) showView('home'); });
   on('#backInsurance', 'click', () => { if (!goBack()) return; });
   on('#backHealth', 'click', () => { if (!goBack()) return; });
@@ -12386,6 +12489,35 @@ function showSettingsAndRankInfo() {
   on('#filterInsurance', 'change', renderPlayersPage);
   on('#sortPlayers', 'change', renderPlayersPage);
   on('#showAllPlayersBtn', 'click', () => showView('players'));
+  // Contact methods modal handlers
+  on('#contactMethodsBtnAuth', 'click', () => {
+    const modal = qs('#contactMethodsModal'); if (modal) modal.classList.remove('hide');
+  });
+  on('#contactMethodsBtn', 'click', () => {
+    const modal = qs('#contactMethodsModal'); if (modal) modal.classList.remove('hide');
+  });
+  on('#contactMethodsClose', 'click', () => { const modal = qs('#contactMethodsModal'); if (modal) modal.classList.add('hide'); });
+  on('#contactMethodsBackdrop', 'click', () => { const modal = qs('#contactMethodsModal'); if (modal) modal.classList.add('hide'); });
+
+  // Email method
+  on('#emailMethod', 'click', () => { window.location.href = 'mailto:Pouriaabedi0073@gmail.com'; });
+
+  // WhatsApp method: read number from data-phone and open wa.me with message text
+  on('#whatsappMethod', 'click', () => {
+    try {
+      const el = document.getElementById('whatsappMethod'); if (!el) return;
+      const phone = el.dataset && el.dataset.phone ? el.dataset.phone : '989184205814';
+      const message = 'سلام، من می‌خواهم با شما تماس بگیرم.';
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+    } catch(e) { console.debug('whatsapp open failed', e); }
+  });
+
+  // Instagram method
+  on('#instagramMethod', 'click', () => { window.open('https://instagram.com/club.management2025', '_blank'); });
+
+  // contactMethodsCardAuth visibility is controlled by post-load profile check (isConfirmed logic)
+  // Default display:block in HTML ensures it's visible on initial load for logged-out users
   // removed showAllSessionsBtn and showAllPaymentsBtn handlers per UI changes
   // removed showAllInsurancesBtn handler
   // addPaymentFromHomeBtn removed from home UI
