@@ -1,5 +1,5 @@
 // Lightweight cache-first service worker that passes PWABuilder checks
-const CACHE_NAME = 'app-cache-v3';
+const CACHE_NAME = 'app-cache-v2';
 const PRECACHE_URLS = [
   './',
   './index.html',
