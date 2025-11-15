@@ -5182,6 +5182,58 @@ function parseJalaliRefDate(rawRef) {
   return null;
 }
 
+// Central accessor for the reference date used to compute ranks.
+// This ensures a single source-of-truth and guarantees a sensible
+// fallback when settings are not yet initialized.
+function getRanksReferenceDate() {
+  try {
+    state.settings = state.settings || {};
+    const today = todayJalali();
+    const [year] = String(today).split('/');
+    const autoCutoff = `${year}/10/11`;
+
+    // Ensure mode has a default
+    const mode = state.settings.ranksRefMode || 'auto';
+
+    if (mode === 'auto') {
+      // Choose this-year or next-year cutoff depending on today's date
+      const thisYearCutoff = `${year}/10/11`;
+      const nextYearCutoff = `${Number(year) + 1}/10/11`;
+      const chosen = (jalaliToISO(today) <= jalaliToISO(thisYearCutoff)) ? thisYearCutoff : nextYearCutoff;
+      try {
+        state.settings.ranksReferenceDate = chosen;
+        state.settings.lastCategoryUpdate = `خودکار ${chosen}`;
+      } catch (e) { /* ignore */ }
+      return chosen;
+    }
+
+    // Manual mode: normalize lastCategoryUpdate -> prefer YYYY/MM/DD
+    let raw = String(state.settings.lastCategoryUpdate || '').trim();
+    raw = raw.replace(/^\s*خودکار\s+/i, '').replace(/^\s*ویرایش\s+دستی\s+/i, '').trim();
+    // If it's already a YYYY/MM/DD, keep it
+    if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(raw)) {
+      const parts = raw.split('/').map(n => Number(n));
+      const y = parts[0], m = String(parts[1]).padStart(2,'0'), d = String(parts[2]).padStart(2,'0');
+      const iso = `${y}/${m}/${d}`;
+      state.settings.ranksReferenceDate = iso;
+      return iso;
+    }
+    // Try to parse human-friendly formats (e.g. '11 دی 1404') via parseJalaliRefDate
+    const parsed = parseJalaliRefDate(raw);
+    if (parsed && parsed.length === 3) {
+      const iso = `${parsed[0]}/${String(parsed[1]).padStart(2,'0')}/${String(parsed[2]).padStart(2,'0')}`;
+      state.settings.ranksReferenceDate = iso;
+      return iso;
+    }
+
+    // Fallback: if nothing parseable, fall back to autoCutoff
+    state.settings.ranksReferenceDate = state.settings.ranksReferenceDate || autoCutoff;
+    return state.settings.ranksReferenceDate;
+  } catch (e) {
+    return todayJalali();
+  }
+}
+
 function determineCategory(age) {
   // age: { years, months, days, birthdate }
   const ranks = (state.settings && state.settings.ranks) ? state.settings.ranks : [
@@ -5194,27 +5246,37 @@ function determineCategory(age) {
     { id: 'adult', name: 'بزرگسالان', minAgeYears: 23, maxAgeYears: 200 }
   ];
 
-  // Reference date to compute age against (Jalali). Prefer explicit ranksReferenceDate, otherwise use lastCategoryUpdate or today
-  const rawRef = (state.settings && state.settings.ranksReferenceDate) ? state.settings.ranksReferenceDate : ((state.settings && state.settings.lastCategoryUpdate) ? state.settings.lastCategoryUpdate : todayJalali());
+  // Reference date to compute age against (Jalali). Use centralized accessor.
+  const rawRef = getRanksReferenceDate();
   const refParts = parseJalaliRefDate(rawRef) || parseJalaliRefDate(todayJalali()) || [ (new Date()).getFullYear(), 1, 1 ];
-  // compute exact age on ref date if birthdate present
-  if (!age || typeof age !== 'object') return ranks[ranks.length-1].name;
-  let years = age.years;
-  // if birthdate provided, recalc age relative to reference date
-  if (age.birthdate) {
+  // compute age relative to the authoritative reference date (Jalali)
+  if (!age) return ranks[ranks.length-1].name;
+
+  // helper: compute years difference between birth Jalali and refParts [y,m,d]
+  function yearsAtRef(birthJalali, refPartsLocal) {
     try {
-      const birthParts = String(age.birthdate).split('/').map(Number);
-      let y = Number(refParts[0]) - Number(birthParts[0]);
-      let m = Number(refParts[1]) - Number(birthParts[1]);
-      let d = Number(refParts[2]) - Number(birthParts[2]);
-      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) throw new Error('invalid parts');
+      if (!birthJalali || !String(birthJalali).includes('/')) return NaN;
+      const birthParts = String(birthJalali).split('/').map(Number);
+      let y = Number(refPartsLocal[0]) - Number(birthParts[0]);
+      let m = Number(refPartsLocal[1]) - Number(birthParts[1]);
+      let d = Number(refPartsLocal[2]) - Number(birthParts[2]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return NaN;
       if (d < 0) { m--; d += 30; }
       if (m < 0) { y--; m += 12; }
-      years = y;
-    } catch (e) { /* fallback to provided age.years */ }
+      return y;
+    } catch (e) { return NaN; }
   }
 
-  // Coerce to number and attempt a fallback if years is invalid (NaN/undefined)
+  let years = NaN;
+  // Determine birthdate source: age.birthdate (object), age as string, or fallback
+  if (typeof age === 'object' && age.birthdate) {
+    years = yearsAtRef(age.birthdate, refParts);
+  } else if (typeof age === 'string' && age.includes('/')) {
+    years = yearsAtRef(age, refParts);
+  } else if (typeof age === 'object' && Number.isFinite(age.years)) {
+    // Best-effort: use provided years only if we cannot compute from birthdate
+    years = Number(age.years);
+  }
   years = Number(years);
   if (!Number.isFinite(years)) {
     // try to compute from birthdate using calcExactAge helper if available
@@ -5250,6 +5312,92 @@ function determineCategory(age) {
   return ranks[ranks.length-1].name;
 }
 
+// Ensure the application's authoritative ranks reference date is initialized
+// This runs once during bootstrap (after loadState) to guarantee that
+// `state.settings.ranksReferenceDate` is set according to the selected
+// `ranksRefMode` and is safe to read by any UI or registration logic.
+function ensureRanksReferenceDateInitialized() {
+  try {
+    state.settings = state.settings || {};
+    state.settings.ranksRefMode = state.settings.ranksRefMode || 'auto';
+    console.log('ensureRanksReferenceDateInitialized: start', { mode: state.settings.ranksRefMode, ranksReferenceDate: state.settings.ranksReferenceDate, lastCategoryUpdate: state.settings.lastCategoryUpdate });
+
+    if (state.settings.ranksRefMode === 'auto') {
+      const todayJ = todayJalali();
+      const [ty, tm, td] = todayJ.split('/').map(Number);
+      const thisYearCutoff = `${ty}/${String(10).padStart(2,'0')}/${String(11).padStart(2,'0')}`;
+      const nextYearCutoff = `${ty+1}/${String(10).padStart(2,'0')}/${String(11).padStart(2,'0')}`;
+
+      // Determine stored reference year (normalize stored string first)
+      let stored = state.settings.ranksReferenceDate || state.settings.lastCategoryUpdate || thisYearCutoff;
+      stored = String(stored).replace(/^\s*خودکار\s+/i, '').replace(/^\s*ویرایش\s+دستی\s+/i, '').trim();
+      let refParts = parseJalaliRefDate(stored);
+      if (!refParts || refParts.length !== 3) refParts = [ty, 10, 11];
+      const refY = Number(refParts[0]);
+
+      // cutoff for the stored ref year
+      const refCutoffIso = jalaliToISO(`${refY}/10/11`);
+      const todayIso = jalaliToISO(todayJ);
+      let chosen;
+      if (todayIso > refCutoffIso) {
+        // if today is after the cutoff of the stored ref year, advance one year
+        chosen = `${refY + 1}/10/11`;
+      } else {
+        chosen = `${refY}/10/11`;
+      }
+
+      // Persist if different
+      const currentNormalized = String(state.settings.ranksReferenceDate || '').replace(/^\s*خودکار\s+/i, '').trim();
+      if (currentNormalized !== chosen) {
+        state.settings.ranksReferenceDate = chosen;
+        state.settings.lastCategoryUpdate = `خودکار ${chosen}`;
+        try { state.players.forEach(p => { if (p.birthdate) p.category = determineCategory(Object.assign(calcExactAge(p.birthdate), { birthdate: p.birthdate })); }); } catch(e) { console.warn('recomputing player categories failed', e); }
+        saveState();
+        console.log('ensureRanksReferenceDateInitialized: auto mode set cutoff', chosen);
+      } else {
+        console.log('ensureRanksReferenceDateInitialized: auto mode - existing kept', state.settings.ranksReferenceDate);
+      }
+      return;
+    }
+
+    // Manual mode: if ranksReferenceDate missing, try to parse it out of lastCategoryUpdate
+    if (!state.settings.ranksReferenceDate) {
+      let raw = String(state.settings.lastCategoryUpdate || '').trim();
+      raw = raw.replace(/^\s*خودکار\s+/i, '').replace(/^\s*ویرایش\s+دستی\s+/i, '');
+      const parts = parseJalaliRefDate(raw);
+      if (parts && parts.length === 3) {
+        const refIso = `${parts[0]}/${String(parts[1]).padStart(2,'0')}/${String(parts[2]).padStart(2,'0')}`;
+        state.settings.ranksReferenceDate = refIso;
+        saveState();
+        console.log('ensureRanksReferenceDateInitialized: set from lastCategoryUpdate', refIso);
+      } else {
+        // fallback to today if nothing parseable found
+        state.settings.ranksReferenceDate = todayJalali();
+        state.settings.lastCategoryUpdate = state.settings.lastCategoryUpdate || todayJalali();
+        saveState();
+        console.log('ensureRanksReferenceDateInitialized: fallback to today', state.settings.ranksReferenceDate);
+      }
+    } else {
+      console.log('ensureRanksReferenceDateInitialized: manual mode - existing kept', state.settings.ranksReferenceDate);
+    }
+  } catch (e) {
+    console.warn('ensureRanksReferenceDateInitialized error', e);
+  }
+}
+
+// Developer helper: clear local storage, re-run load and initializer, and log result
+window._debug_init_after_clear = async function() {
+  try {
+    if (typeof STORAGE_KEY !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+    console.log('Debug: cleared', STORAGE_KEY);
+    await new Promise(r => setTimeout(r, 40));
+    loadState();
+    ensureRanksReferenceDateInitialized();
+    console.log('Debug: after init', { ranksReferenceDate: state.settings.ranksReferenceDate, lastCategoryUpdate: state.settings.lastCategoryUpdate });
+    if (state.players && state.players.length) console.log('Debug sample player:', state.players[0].name, state.players[0].category);
+  } catch (e) { console.warn('debug init helper failed', e); }
+};
+
 // تابع محاسبه زمان باقی‌مانده تا رده بعدی
 function calculateTimeToNextCategory(age, category) {
   // تعریف سن هدف برای رده بعدی
@@ -5266,8 +5414,13 @@ function calculateTimeToNextCategory(age, category) {
   let nextAge = nextAgeMap[category];
   if (!nextAge) return 'این آخرین رده است.';
 
-  // تاریخ مرجع
-  let refDateStr = state.settings.lastCategoryUpdate || '11 دی 1404'; // پیش‌فرض اصلاح‌شده
+  // تاریخ مرجع: از accessor استفاده کن (canonical ISO) و برای نمایش یک پیشوند براساس حالت اضافه کن
+  let rawRefIso = getRanksReferenceDate() || '1404/10/11';
+  let refPartsArr = parseJalaliRefDate(rawRefIso) || parseJalaliRefDate(todayJalali()) || [ (new Date()).getFullYear(), 10, 11 ];
+  const refYear = Number(refPartsArr[0]), refMonth = Number(refPartsArr[1]), refDay = Number(refPartsArr[2]);
+  let refDateJ = `${refYear}/${String(refMonth).padStart(2,'0')}/${String(refDay).padStart(2,'0')}`;
+  const refMode = (state.settings && state.settings.ranksRefMode) ? state.settings.ranksRefMode : 'auto';
+  let refDateStr = (refMode === 'auto' ? 'خودکار ' : 'ویرایش دستی ') + refDateJ;
 
   // تاریخ تولد از age.birthdate (فرمت جلالی: '1380/01/01')
   let birthParts = age.birthdate.split('/').map(Number); // [سال, ماه, روز]
@@ -5310,13 +5463,7 @@ function calculateTimeToNextCategory(age, category) {
   // رده بعدی
   let nextCategory = determineCategory({ years: nextAge });
 
-  // تنظیم نسبت به تاریخ مرجع
-  // اگر تولد بعدی قبل از تاریخ مرجع باشد، رده تا مرجع بعدی تغییر نمی‌کند
-  let refParts = refDateStr.split(' ');
-  let refDay = parseInt(refParts[0]);
-  let refMonth = monthNameToNumber(refParts[1]);
-  let refYear = parseInt(refParts[2]);
-  let refDateJ = `${refYear}/${refMonth.toString().padStart(2, '0')}/${refDay.toString().padStart(2, '0')}`;
+  // تنظیم نسبت به تاریخ مرجع (از refDateJ که بالاتر تولید شد استفاده کن)
   let refDateISO = jalaliToISO(refDateJ);
   let refDate = new Date(refDateISO);
 
@@ -6798,7 +6945,14 @@ function loadState() {
   });
   // بروزرسانی تاریخ آخرین آپدیت رده‌ها
   let todayParts = todayJalali().split('/').map(Number);
-  let updateYear = parseInt(state.settings.lastCategoryUpdate.split(' ')[2] || '1403');
+  // derive the update year from the canonical reference date (normalized)
+  let updateYear;
+  try {
+    const refIsoForYear = getRanksReferenceDate() || todayJalali();
+    updateYear = Number(String(refIsoForYear).split('/')[0]) || todayParts[0];
+  } catch (e) {
+    updateYear = todayParts[0];
+  }
   if (todayParts[1] > 10 || (todayParts[1] === 10 && todayParts[2] >= 11)) {
     if (updateYear < todayParts[0]) {
       state.settings.lastCategoryUpdate = `11 دی ${todayParts[0]}`;
@@ -7815,7 +7969,7 @@ function renderRankEditor() {
       state.settings.ranksReferenceDate = state.settings.lastCategoryUpdate || todayJalali();
     }
   }
-  const refDate = state.settings.ranksReferenceDate;
+  const refDate = getRanksReferenceDate();
   content.innerHTML = `
     <style>
       /* Rank Editor responsive tweaks - tightened per user request */
@@ -9906,8 +10060,8 @@ function renderPlayerForm(player = null) {
     const birthVal = qs('#p_birth') ? qs('#p_birth').value : '';
     if (!birthVal) { noteEl.innerHTML = 'برای تعیین رده لطفاً تاریخ تولد را وارد کنید.'; return; }
     try {
-      // compute age relative to ranks reference date (use settings ref if present)
-      const rawRef = (state.settings && state.settings.ranksReferenceDate) ? state.settings.ranksReferenceDate : ((state.settings && state.settings.lastCategoryUpdate) ? state.settings.lastCategoryUpdate : todayJalali());
+      // compute age relative to ranks reference date (use canonical accessor)
+      const rawRef = getRanksReferenceDate() || todayJalali();
       let refJ = String(rawRef || todayJalali()).trim();
       // helper: map Persian month names to month numbers
       const persianMonths = { 'فروردین':1,'اردیبهشت':2,'خرداد':3,'تیر':4,'مرداد':5,'شهریور':6,'مهر':7,'آبان':8,'آذر':9,'دی':10,'بهمن':11,'اسفند':12 };
@@ -11954,6 +12108,13 @@ function updateCategoryReferenceDate() {
   let [todayYear, todayMonth, todayDay] = today.split('/').map(Number);
   
   let lastUpdate = state.settings.lastCategoryUpdate || todayJalali();
+  // Normalize stored lastCategoryUpdate: remove user-visible prefixes like
+  // 'خودکار ' or 'ویرایش دستی ' so parsing logic can rely on consistent formats.
+  try {
+    lastUpdate = String(lastUpdate || '').trim();
+    lastUpdate = lastUpdate.replace(/^\s*خودکار\s+/i, '');
+    lastUpdate = lastUpdate.replace(/^\s*ویرایش\s+دستی\s+/i, '');
+  } catch (e) { lastUpdate = String(lastUpdate || ''); }
   let refDay, refMonth, refYear, refMonthStr;
 
   // If ranksRefMode is 'auto' prefer the yearly cutoff used in Rank Editor (yyyy/10/11)
@@ -12040,7 +12201,8 @@ function updateCategoryReferenceDate() {
 document.addEventListener('DOMContentLoaded', () => {
   
   loadState();
-  updateCategoryReferenceDate();  // اضافه شده اینجا
+  // Ensure ranks reference date is initialized before any UI or calculations run
+  try { ensureRanksReferenceDateInitialized(); } catch(e) { console.warn('ensureRanksReferenceDateInitialized failed on bootstrap', e); }
   if ('serviceWorker' in navigator) {
     try {
       const origin = window.location && window.location.origin;
