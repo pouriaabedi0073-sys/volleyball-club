@@ -11956,6 +11956,23 @@ function updateCategoryReferenceDate() {
   let lastUpdate = state.settings.lastCategoryUpdate || todayJalali();
   let refDay, refMonth, refYear, refMonthStr;
 
+  // If ranksRefMode is 'auto' prefer the yearly cutoff used in Rank Editor (yyyy/10/11)
+  // This makes the app's automatic mode consistent across renderRankEditor and updateCategoryReferenceDate
+  if (state.settings && state.settings.ranksRefMode === 'auto') {
+    const todayJ = todayJalali();
+    const parts = todayJ.split('/').map(Number);
+    const cutoffThisYear = `${parts[0]}/${String(10).padStart(2,'0')}/${String(11).padStart(2,'0')}`;
+    const cutoffNextYear = `${parts[0]+1}/${String(10).padStart(2,'0')}/${String(11).padStart(2,'0')}`;
+    const chosen = (jalaliToISO(todayJ) <= jalaliToISO(cutoffThisYear)) ? cutoffThisYear : cutoffNextYear;
+    state.settings.ranksReferenceDate = chosen;
+    state.settings.lastCategoryUpdate = `خودکار ${chosen}`;
+    // re-evaluate player categories immediately
+    try { state.players.forEach(p => { if (p.birthdate) p.category = determineCategory(Object.assign(calcExactAge(p.birthdate), { birthdate: p.birthdate })); }); } catch(e){ console.warn('recomputing player categories failed', e); }
+    saveState();
+    console.log('updateCategoryReferenceDate: auto mode chosen cutoff', chosen);
+    return;
+  }
+
   // بررسی فرمت‌های مختلف تاریخ مرجع
   if (lastUpdate.includes('/')) {
     // فرمت: 1403/10/11
@@ -11993,10 +12010,13 @@ function updateCategoryReferenceDate() {
     refMonthStr = 'دی';
   }
 
-  // اگر سال امروز بزرگتر از سال مرجع است، یا در همان سال اما بعد از تاریخ مرجع
-  if (todayYear > refYear || 
-      (todayYear === refYear && (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay)))) {
-    refYear = todayYear + (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay) ? 1 : 0);
+  // اگر حالت رده‌ها دستی است، از تغییر سال جلوگیری کن (مقدار کاربر دست‌نخورده بماند)
+  if (!state.settings || state.settings.ranksRefMode !== 'manual') {
+    // اگر سال امروز بزرگتر از سال مرجع است، یا در همان سال اما بعد از تاریخ مرجع
+    if (todayYear > refYear || 
+        (todayYear === refYear && (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay)))) {
+      refYear = todayYear + (todayMonth > refMonth || (todayMonth === refMonth && todayDay >= refDay) ? 1 : 0);
+    }
   }
   // normalized reference string
   const newRefStr = `${refDay} ${refMonthStr} ${refYear}`;
