@@ -13684,5 +13684,39 @@ navigator.serviceWorker.addEventListener('message', (event) => {
       console.log('backup-storage test helper installed: run `await window.testBackupStorage()` in the console');
     </script>
   <script src="pwa-test.js"></script>
+  <script src="pwa-test.js"></script>
+
+  <!-- Emergency reset helper: visit URL with #reset-app to clear app storage and reload -->
+  <script>
+    (function(){
+      try {
+        // If the user opens the app with #reset-app appended, remove the stored app state and reload.
+        if (location.hash === '#reset-app' || new URLSearchParams(location.search).get('reset') === '1') {
+          try { localStorage.removeItem('vb_dashboard_v8'); } catch(e){}
+          try { localStorage.removeItem('backup:pendingUploads'); } catch(e){}
+          alert('داده‌های محلی پاک شدند — بارگذاری مجدد');
+          // navigate to same path without hash/query to avoid loop
+          location.href = location.origin + location.pathname;
+          return;
+        }
+
+        // Expose a global emergency reset function. Call hardResetApp('RESET') from console to force.
+        window.hardResetApp = function(confirmToken){
+          try {
+            if (confirmToken !== 'RESET') {
+              if (!confirm('آیا از پاک کردن کامل داده‌ها اطمینان دارید؟ این عمل غیرقابل بازگشت است.')) return false;
+            }
+            localStorage.removeItem('vb_dashboard_v8');
+            localStorage.removeItem('backup:pendingUploads');
+            // also clear any app-specific flags that might cause issues
+            try { localStorage.removeItem('backup:periodicEnabled'); } catch(_){}
+            alert('داده‌ها پاک شد — بارگذاری مجدد');
+            location.reload();
+            return true;
+          } catch (e) { console.warn('hardResetApp failed', e); return false; }
+        };
+      } catch (err) { console.warn('Emergency reset helper init failed', err); }
+    })();
+  </script>
 </body>
 </html>
