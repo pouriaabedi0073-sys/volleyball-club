@@ -11582,12 +11582,53 @@ function renderSettings() {
       let file = e.target.files[0];
       if (!file) return;
       try {
+        // helper: sanitize imported raw object and merge into a safe state shape
+        function sanitizeImportedBackup(raw) {
+          if (!raw || typeof raw !== 'object') throw new Error('فرمت بک‌آپ نامعتبر است');
+          const base = {
+            players: [], coaches: [], sessions: [], payments: [], settings: { title: 'مدیریت باشگاه والیبال', logo: 'icons/icon-192.png', style: 'modern', lastCategoryUpdate: todayJalali(), ranks: null, ranksReferenceDate: null }, competitions: [], privateClasses: [], trainingPlans: [], user: { loggedIn: false }, notifications: []
+          };
+          const out = Object.assign({}, base);
+          // allowed top-level arrays
+          if (Array.isArray(raw.players)) out.players = raw.players.filter(p => p && typeof p.id === 'string');
+          if (Array.isArray(raw.coaches)) out.coaches = raw.coaches.filter(c => c && typeof c.id === 'string');
+          if (Array.isArray(raw.sessions)) out.sessions = raw.sessions;
+          if (Array.isArray(raw.payments)) out.payments = raw.payments;
+          if (Array.isArray(raw.competitions)) out.competitions = raw.competitions;
+          if (Array.isArray(raw.privateClasses)) out.privateClasses = raw.privateClasses;
+          if (Array.isArray(raw.trainingPlans)) out.trainingPlans = raw.trainingPlans;
+          if (Array.isArray(raw.notifications)) out.notifications = raw.notifications;
+          // teams or categories may be present but are optional; copy to out if they exist
+          if (Array.isArray(raw.teams)) out.teams = raw.teams;
+          if (Array.isArray(raw.categories)) out.categories = raw.categories;
+          // settings: merge known fields only
+          if (raw.settings && typeof raw.settings === 'object') {
+            out.settings = Object.assign(out.settings, raw.settings);
+          } else {
+            // also accept legacy flat keys
+            if (typeof raw.ranksReferenceDate === 'string') out.settings.ranksReferenceDate = raw.ranksReferenceDate;
+            if (typeof raw.ranksRefMode === 'string') out.settings.ranksRefMode = raw.ranksRefMode;
+          }
+          // ensure string fields exist
+          out.settings.title = out.settings.title || 'مدیریت باشگاه والیبال';
+          out.settings.lastCategoryUpdate = out.settings.lastCategoryUpdate || out.settings.ranksReferenceDate || todayJalali();
+          // normalize players: ensure events array
+          out.players = out.players.map(p => {
+            try { if (!p.events) p.events = []; return p; } catch(_) { return null; }
+          }).filter(Boolean);
+          // final basic sanity checks
+          if (!Array.isArray(out.players) || out.players.length > 20000) throw new Error('بک‌آپ غیرمعمول یا بزرگ است');
+          return out;
+        }
+
         if (file.name.endsWith('.zip')) {
           const jszip = new JSZip();
           const z = await jszip.loadAsync(file);
           if (z.files['volleyball_backup.json']) {
             const txt = await z.files['volleyball_backup.json'].async('string');
-            state = JSON.parse(txt);
+            const parsed = JSON.parse(txt);
+            const safe = sanitizeImportedBackup(parsed);
+            state = safe;
             saveState();
             alert('بک‌آپ وارد شد');
             location.reload();
@@ -11596,14 +11637,16 @@ function renderSettings() {
           }
         } else {
           const text = await file.text();
-          state = JSON.parse(text);
+          const parsed = JSON.parse(text);
+          const safe = sanitizeImportedBackup(parsed);
+          state = safe;
           saveState();
           alert('بک‌آپ وارد شد');
           location.reload();
         }
       } catch (err) {
         console.error(err);
-        alert('خطا در وارد کردن بک‌آپ');
+        alert('خطا در وارد کردن بک‌آپ: ' + (err && err.message ? err.message : 'فرمت نامعتبر'));
       }
     };
     input.click();
