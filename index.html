@@ -9711,6 +9711,7 @@ function exportPlayersToExcel(category) {
   saveState();
 } */
 function renderPlayerForm(player = null) {
+  try { updateCategoryReferenceDate(); } catch(e) { console.warn('updateCategoryReferenceDate failed in renderPlayerForm', e); }
   let isEdit = !!player;
   let title = qs('#playerFormTitle');
   title.textContent = isEdit ? 'ویرایش بازیکن' : 'ثبت بازیکن';
@@ -10040,7 +10041,12 @@ function renderPlayerForm(player = null) {
     } catch(e) { console.warn('birth sanitization failed', e); }
     let join = qs('#p_join').value.trim() || todayJalali();
     let insurance = qs('#p_insurance').value.trim();
+    // prefer authoritative category computed from current settings reference date
     let category = qs('#p_category').value;
+    try {
+      const computed = determineCategory(Object.assign(calcExactAge(birth), { birthdate: birth }));
+      if (computed) category = computed;
+    } catch(e) { console.warn('computed category failed, falling back to selected category', e); }
     let pos = qs('#p_position').value;
   let phone = qs('#p_phone').value;
   let parentPhone = qs('#p_parentPhone') ? qs('#p_parentPhone').value.trim() : '';
@@ -13684,39 +13690,5 @@ navigator.serviceWorker.addEventListener('message', (event) => {
       console.log('backup-storage test helper installed: run `await window.testBackupStorage()` in the console');
     </script>
   <script src="pwa-test.js"></script>
-  <script src="pwa-test.js"></script>
-
-  <!-- Emergency reset helper: visit URL with #reset-app to clear app storage and reload -->
-  <script>
-    (function(){
-      try {
-        // If the user opens the app with #reset-app appended, remove the stored app state and reload.
-        if (location.hash === '#reset-app' || new URLSearchParams(location.search).get('reset') === '1') {
-          try { localStorage.removeItem('vb_dashboard_v8'); } catch(e){}
-          try { localStorage.removeItem('backup:pendingUploads'); } catch(e){}
-          alert('داده‌های محلی پاک شدند — بارگذاری مجدد');
-          // navigate to same path without hash/query to avoid loop
-          location.href = location.origin + location.pathname;
-          return;
-        }
-
-        // Expose a global emergency reset function. Call hardResetApp('RESET') from console to force.
-        window.hardResetApp = function(confirmToken){
-          try {
-            if (confirmToken !== 'RESET') {
-              if (!confirm('آیا از پاک کردن کامل داده‌ها اطمینان دارید؟ این عمل غیرقابل بازگشت است.')) return false;
-            }
-            localStorage.removeItem('vb_dashboard_v8');
-            localStorage.removeItem('backup:pendingUploads');
-            // also clear any app-specific flags that might cause issues
-            try { localStorage.removeItem('backup:periodicEnabled'); } catch(_){}
-            alert('داده‌ها پاک شد — بارگذاری مجدد');
-            location.reload();
-            return true;
-          } catch (e) { console.warn('hardResetApp failed', e); return false; }
-        };
-      } catch (err) { console.warn('Emergency reset helper init failed', err); }
-    })();
-  </script>
 </body>
 </html>
