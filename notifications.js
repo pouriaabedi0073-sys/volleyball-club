@@ -349,10 +349,10 @@
           view.appendChild(actions);
         }
       } catch(e) { /* ignore */ }
-      // cleanup notifications older than 3 days
+      // cleanup notifications older than 7 days
       try {
         if (window.state && Array.isArray(window.state.notifications)) {
-          const cutoff = Date.now() - (3 * 24 * 60 * 60 * 1000);
+          const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
           window.state.notifications = window.state.notifications.filter(n => (n && n.ts && n.ts >= cutoff) || !n.ts);
           try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
         }
@@ -367,59 +367,147 @@
   }
 
   // expose
+  // helpers for new UI
+  function getTypeLabel(type) {
+    const labels = { birthday: 'تولد', session: 'جلسه تمرینی', match: 'مسابقه', training: 'تمرین', competition: 'مسابقه', general: 'عمومی' };
+    return labels[type] || 'اعلان';
+  }
+
+  function formatRelativeTime(timestamp) {
+    try {
+      const now = Date.now();
+      const diff = Math.floor((now - (timestamp || 0)) / 1000);
+      if (diff < 60) return 'همین الان';
+      if (diff < 3600) return `${Math.floor(diff/60)} دقیقه پیش`;
+      if (diff < 86400) return `${Math.floor(diff/3600)} ساعت پیش`;
+      if (diff < 172800) return 'دیروز';
+      return `${Math.floor(diff/86400)} روز پیش`;
+    } catch(e) { return '' + timestamp; }
+  }
+
+  function closeNotification(id) {
+    try {
+      const card = document.querySelector(`.notification-card[data-id="${id}"]`);
+      if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(-20px)';
+        card.style.transition = 'all 0.3s ease';
+      }
+      setTimeout(() => {
+        try {
+          if (!window.state) window.state = {};
+          window.state.notifications = (window.state.notifications||[]).filter(n => n.id !== id);
+          try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
+          renderNotificationsList();
+          try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
+        } catch(e) { console.warn('closeNotification error', e); }
+      }, 320);
+    } catch(e) { console.warn('closeNotification failed', e); }
+  }
+
   // helper to render the in-app notifications list inside #notificationsContent
   function renderNotificationsList(){
     try {
       const container = document.getElementById('notificationsContent');
       if (!container) return;
-      // clear
-      container.innerHTML = '';
+
+      // cleanup older than 7 days
+      const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      try { if (window.state && Array.isArray(window.state.notifications)) { window.state.notifications = window.state.notifications.filter(n => (n && n.ts && n.ts > oneWeekAgo)); if (typeof window.saveState === 'function') window.saveState(); } } catch(e){}
+
       const notes = (window.state && Array.isArray(window.state.notifications)) ? window.state.notifications.slice() : [];
-      if (notes.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'no-notifications';
-        empty.textContent = 'هیچ اعلانی موجود نیست';
-        empty.style.cssText = 'padding:12px;color:var(--muted);text-align:center;';
-        container.appendChild(empty);
+      const unread = notes.filter(n => !n.read);
+      const sorted = [...unread, ...notes.filter(n => n.read)];
+      // If there are no notifications, show an explicit empty state
+      if (!notes || notes.length === 0) {
+        container.innerHTML = `
+          <div class="notifications-header">
+            <h3>اعلان‌ها <span class="badge">0</span></h3>
+          </div>
+          <div style="text-align:center;padding:40px 20px;color:#999;font-size:16px;background:#fafafa;border-radius:12px;margin:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+            <i class="fa-solid fa-bell-slash" style="font-size:32px;margin-bottom:12px;display:block;color:#ccc;"></i>
+            <div>اعلانی موجود نیست</div>
+            <div style="font-size:13px;margin-top:8px;color:#777;">وقتی اعلان جدیدی بیاد، اینجا نمایش داده می‌شه</div>
+          </div>
+        `;
+        try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
         return;
       }
-      notes.forEach(n => {
+
+      container.innerHTML = `
+        <div class="notifications-header">
+          <h3>اعلان‌ها <span class="badge">${unread.length}</span></h3>
+          <div class="notif-actions">
+            <button id="notificationsCloseAll"><i class="fa-solid fa-trash"></i> حذف همه</button>
+            <select id="notifFilter"><option value="all">همه</option><option value="unread">خوانده‌نشده</option></select>
+          </div>
+        </div>
+        <div id="notificationsList"></div>
+      `;
+
+      const list = container.querySelector('#notificationsList');
+      if (!list) return;
+
+      sorted.forEach(notif => {
         try {
+          const iconMap = { birthday: 'fa-cake-candles', session: 'fa-dumbbell', match: 'fa-trophy', training: 'fa-dumbbell', competition: 'fa-flag', general: 'fa-bell' };
+          const icon = iconMap[notif.type] || 'fa-bell';
+          const time = formatRelativeTime(notif.ts || Date.now());
+
           const card = document.createElement('div');
           card.className = 'notification-card';
-          card.style.cssText = 'position:relative;padding:12px;border-radius:10px;background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,0.04);';
-          const closeBtn = document.createElement('button');
-          closeBtn.className = 'notification-close';
-          closeBtn.setAttribute('aria-label','بستن اعلان');
-          closeBtn.innerHTML = '&times;';
-          // place close button in top-right corner (respect RTL)
-          closeBtn.style.cssText = 'position:absolute;top:8px;left:8px;';
-          if (document.documentElement && document.documentElement.getAttribute('dir') !== 'rtl') {
-            closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;';
-          }
-          closeBtn.addEventListener('click', () => {
-            try {
-              if (!window.state) window.state = {};
-              window.state.notifications = (window.state.notifications||[]).filter(x => x.id !== n.id);
-              try { if (typeof window.saveState === 'function') window.saveState(); } catch(e){}
-              renderNotificationsList();
-              try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
-            } catch (e) { console.warn('remove notification failed', e); }
-          });
-          const title = document.createElement('div');
-          title.className = 'notification-title';
-          title.textContent = n.title || '';
-          title.style.cssText = 'font-weight:700;margin-bottom:6px;';
-          const body = document.createElement('div');
-          body.className = 'notification-body';
-          body.textContent = n.body || '';
-          body.style.cssText = 'color:var(--muted);font-size:14px;';
-          card.appendChild(closeBtn);
-          card.appendChild(title);
-          card.appendChild(body);
-          container.appendChild(card);
-        } catch(e){ console.warn('render single notification failed', e); }
+          card.setAttribute('data-id', notif.id);
+          card.setAttribute('data-type', notif.type || 'general');
+
+          card.innerHTML = `
+            <div class="notif-icon"><i class="fa-solid ${icon}"></i></div>
+            <div class="notif-content">
+              <div class="notif-title">${escapeHtml ? escapeHtml(notif.title||'') : (notif.title||'')}</div>
+              <div class="notif-body">${escapeHtml ? escapeHtml(notif.body||'') : (notif.body||'')}</div>
+              <div class="notif-meta"><span>${getTypeLabel(notif.type)}</span><span>${time}</span></div>
+            </div>
+            <button class="notif-close" aria-label="بستن اعلان">&times;</button>
+          `;
+
+          list.appendChild(card);
+
+          const closeBtn = card.querySelector('.notif-close');
+          if (closeBtn) closeBtn.addEventListener('click', () => closeNotification(notif.id));
+
+        } catch(e) { console.warn('renderNotificationsList: single notification failed', e); }
       });
+
+      // wire up Close All
+      const closeAll = container.querySelector('#notificationsCloseAll');
+      if (closeAll) closeAll.addEventListener('click', () => {
+        try { if (!window.state) window.state = {}; window.state.notifications = []; if (typeof window.saveState === 'function') window.saveState(); renderNotificationsList(); updateNotificationsBadge(); } catch(e) { console.warn('closeAll failed', e); }
+      });
+
+      // filter
+      const filter = container.querySelector('#notifFilter');
+      if (filter) filter.addEventListener('change', (e) => {
+        try {
+          const v = e.target.value;
+          if (v === 'all') renderNotificationsList();
+          else if (v === 'unread') {
+            const only = (window.state && Array.isArray(window.state.notifications)) ? window.state.notifications.filter(n => !n.read) : [];
+            const prev = container.querySelector('#notificationsList');
+            if (prev) prev.innerHTML = '';
+            only.forEach(notif => {
+              const card = document.createElement('div');
+              card.className = 'notification-card';
+              card.setAttribute('data-id', notif.id);
+              card.setAttribute('data-type', notif.type || 'general');
+              card.innerHTML = `<div class="notif-icon"><i class="fa-solid ${iconMap[notif.type]||'fa-bell'}"></i></div><div class="notif-content"><div class="notif-title">${escapeHtml?escapeHtml(notif.title||''):notif.title||''}</div><div class="notif-body">${escapeHtml?escapeHtml(notif.body||''):notif.body||''}</div><div class="notif-meta"><span>${getTypeLabel(notif.type)}</span><span>${formatRelativeTime(notif.ts)}</span></div></div><button class="notif-close" aria-label="بستن اعلان">&times;</button>`;
+              prev.appendChild(card);
+              const closeBtn = card.querySelector('.notif-close'); if (closeBtn) closeBtn.addEventListener('click', () => closeNotification(notif.id));
+            });
+          }
+        } catch(e) { console.warn('filter change failed', e); }
+      });
+
+      try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e){}
+
     } catch (e) { console.warn('renderNotificationsList failed', e); }
   }
 
@@ -439,9 +527,110 @@
   // attempt to render on load if notifications exist
   try { renderNotificationsList(); } catch(e){}
 
-  window.initNotifications = initNotifications;
+  // Prevent multiple initializations
+  let notificationsInitialized = false;
+  window.initNotifications = function(opts) {
+    try {
+      if (notificationsInitialized) {
+        console.log('initNotifications: قبلاً اجرا شده — رد شد');
+        return;
+      }
+      notificationsInitialized = true;
+      console.log('initNotifications: اولین اجرا');
+      return initNotifications(opts);
+    } catch (e) {
+      console.warn('initNotifications wrapper failed', e);
+    }
+  };
   window.notifyNow = window.notifyNow || function(){ runCheck(); };
   // expose helpers for console testing
   window.showLocalNotification = showLocalNotification;
   window.renderInPageNotice = renderInPageNotice;
+  // --- Swipe to dismiss handlers ---
+  (function(){
+    let swipeStartX = 0;
+    let currentSwipeCard = null;
+    const SWIPE_THRESHOLD = 80;
+
+    function findCardFromEvent(e) {
+      try {
+        const t = e.target;
+        return t && t.closest ? t.closest('.notification-card') : null;
+      } catch(e) { return null; }
+    }
+
+    function handleTouchStart(e) {
+      try {
+        const card = findCardFromEvent(e);
+        if (!card) return;
+        const touch = (e.touches && e.touches[0]);
+        if (!touch) return;
+        swipeStartX = touch.clientX;
+        currentSwipeCard = card;
+        currentSwipeCard.style.transition = 'none';
+      } catch(e) {}
+    }
+
+    function handleTouchMove(e) {
+      try {
+        if (!currentSwipeCard) return;
+        const touch = (e.touches && e.touches[0]);
+        if (!touch) return;
+        const currentX = touch.clientX;
+        const diffX = currentX - swipeStartX;
+        if (Math.abs(diffX) > 10) {
+          e.preventDefault();
+          currentSwipeCard.style.transform = `translateX(${diffX}px)`;
+          currentSwipeCard.style.opacity = String(Math.max(0.35, 1 - Math.abs(diffX) / 300));
+          // add direction class
+          if (diffX > 0) {
+            currentSwipeCard.classList.add('swiping-right');
+            currentSwipeCard.classList.remove('swiping-left');
+          } else {
+            currentSwipeCard.classList.add('swiping-left');
+            currentSwipeCard.classList.remove('swiping-right');
+          }
+        }
+      } catch(e) {}
+    }
+
+    function handleTouchEnd(e) {
+      try {
+        if (!currentSwipeCard) return;
+        const touch = (e.changedTouches && e.changedTouches[0]);
+        const endX = touch ? touch.clientX : null;
+        const diffX = (endX !== null) ? (endX - swipeStartX) : 0;
+        // if sufficient swipe, dismiss
+        if (Math.abs(diffX) > SWIPE_THRESHOLD) {
+          const dir = diffX > 0 ? 1 : -1;
+          currentSwipeCard.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+          currentSwipeCard.style.transform = `translateX(${dir * 120}%)`;
+          currentSwipeCard.style.opacity = '0';
+          const id = currentSwipeCard.getAttribute('data-id');
+          // after animation, remove from state via closeNotification
+          setTimeout(() => {
+            try { if (id) closeNotification(id); }
+            catch(e) { try { closeNotification(id); } catch(_){} }
+          }, 300);
+        } else {
+          // restore
+          currentSwipeCard.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+          currentSwipeCard.style.transform = '';
+          currentSwipeCard.style.opacity = '';
+          currentSwipeCard.classList.remove('swiping-left','swiping-right');
+        }
+      } catch(e) {}
+      currentSwipeCard = null;
+    }
+
+    // Attach listeners to document (delegation). Use passive:false where we call preventDefault.
+    try {
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    } catch(e) {
+      // older browsers fallback
+      try { document.addEventListener('touchstart', handleTouchStart); document.addEventListener('touchmove', handleTouchMove); document.addEventListener('touchend', handleTouchEnd); } catch(_) {}
+    }
+  })();
 })();

@@ -217,4 +217,31 @@
     }
     return outputArray;
   }
+
+  // Request notification permission immediately after SW is ready / after install
+  async function requestNotificationPermissionOnInstall() {
+    try {
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'default') return; // already decided
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Notification permission granted on install. Showing welcome notification.');
+        try {
+          if (typeof window.showLocalNotification === 'function') {
+            window.showLocalNotification('اعلان‌ها فعال شدند!', 'از این پس اعلان‌های مهم را دریافت خواهید کرد.', 'general');
+          } else if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+            const reg = await navigator.serviceWorker.ready;
+            try { reg.showNotification && reg.showNotification('اعلان‌ها فعال شدند!', { body: 'از این پس اعلان‌های مهم را دریافت خواهید کرد.' }); } catch(e) {}
+          }
+        } catch(e) { console.warn('show welcome notification failed', e); }
+      }
+    } catch (e) { console.warn('requestNotificationPermissionOnInstall failed', e); }
+  }
+
+  // Run after SW ready (this will also cover immediate post-install runs)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(() => {
+      try { requestNotificationPermissionOnInstall(); } catch(e) { console.warn('requestNotificationPermissionOnInstall error', e); }
+    }).catch(() => {});
+  }
 })();

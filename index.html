@@ -21,6 +21,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap" rel="stylesheet">
 <!-- Use Google Material Icons (more reliably available) -->
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<!-- Font Awesome for notification icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-K1qjQ+NcF6z4g3b4x+F1Q6Qe1Kq9VZV6z0b1e1Y5X1k1z2a3b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
     /* inline small spinner used next to buttons */
     .inline-spinner {
@@ -38,6 +40,121 @@
     .profile-status-box .status-item{ display:flex; gap:8px; align-items:center; color:#065f46; font-size:0.95em; margin:4px 0 }
     .profile-status-box .status-item .status-text{ color: #064e3b }
   </style>
+  
+  <!-- Notifications CSS: single canonical block (replaced) -->
+  <style>
+  /* === اعلان‌ها: فیکس نهایی — دکمه × سمت چپ === */
+  #view-notifications {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background: #f5f5f5;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+  }
+
+  #notificationsContent {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    margin: 0;
+  }
+
+  .notifications-header {
+    background: white;
+    padding: 12px 16px;
+    margin: 0 0 8px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    width: 100%;
+    box-sizing: border-box;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .notification-card {
+    width: 100%;
+    margin: 0 0 12px 0;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: 12px;
+    position: relative;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-right: 4px solid #4CAF50;
+  }
+
+  .notification-card[data-type="birthday"] { border-color: #FF9800; }
+  .notification-card[data-type="session"] { border-color: #2196F3; }
+  .notification-card[data-type="match"] { border-color: #F44336; }
+  .notification-card[data-type="general"] { border-color: #9C27B0; }
+
+  /* دکمه × در سمت چپ */
+  .notif-close {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.9);
+    border-radius: 50%;
+    color: #999;
+    z-index: 5;
+    cursor: pointer;
+  }
+
+  .notif-close:hover {
+    background: #f44336;
+    color: white;
+  }
+
+  /* اسکرول نرم */
+  #notificationsContent::-webkit-scrollbar {
+    width: 6px;
+  }
+  #notificationsContent::-webkit-scrollbar-track { background: transparent; }
+  #notificationsContent::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+  #notificationsContent::-webkit-scrollbar-thumb:hover { background: #999; }
+
+  /* موبایل */
+  @media (max-width: 480px) {
+    #notificationsContent { padding: 8px; }
+    .notification-card { padding: 10px; }
+    .notif-close { width: 28px; height: 28px; font-size: 14px; }
+  }
+  /* Swipe-to-dismiss helpers */
+  .notification-card {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    touch-action: pan-y;
+    -ms-touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .notification-card.swiping-left {
+    transform: translateX(-100%);
+    opacity: 0.5;
+  }
+  .notification-card.swiping-right {
+    transform: translateX(100%);
+    opacity: 0.5;
+  }
+  </style>
+
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -8298,6 +8415,17 @@ function showView(viewId, params = {}, noPush = false) {
   // اضافه کردن شرط برای ویو تبریک تولد
   if (viewId === 'birthday-greeting') renderBirthdayGreeting(params.playerId);
 
+  // Initialize notifications view when navigated to #notifications
+  if (viewId === 'notifications') {
+    try {
+      if (typeof initNotifications === 'function') initNotifications();
+      if (typeof renderNotificationsList === 'function') renderNotificationsList();
+    } catch (e) {
+      console.error('Failed to initialize notifications view', e);
+    }
+    if (typeof updateNotificationsBadge === 'function') updateNotificationsBadge();
+  }
+
   // کنترل منوی پایین
   const mobileMenu = qs('#mobileMenu');
   if (['home', 'account'].includes(viewId)) {
@@ -8315,6 +8443,26 @@ function showView(viewId, params = {}, noPush = false) {
   window.scrollTo(0, 0); // اسکرول به بالا
   if (!noPush) history.pushState({ view: viewId, params }, '', `#${viewId}`);
 }
+// Lightweight wrapper: ensure notifications are initialized and rendered when navigating to view
+(function(){
+  const originalShowView = window.showView;
+  window.showView = function(viewId, params, noPush) {
+    try {
+      if (typeof originalShowView === 'function') originalShowView(viewId, params, noPush);
+    } catch (e) {
+      // keep original error logging separate
+    }
+
+    if (viewId === 'notifications' || viewId === '#notifications') {
+      // Call init once (initNotifications has its own guard)
+      try { if (typeof window.initNotifications === 'function') window.initNotifications(); } catch(e) {}
+      // Render immediately
+      try { if (typeof window.renderNotificationsList === 'function') window.renderNotificationsList(); } catch(e) {}
+      try { if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge(); } catch(e) {}
+    }
+  };
+})();
+
 function applySettings() {
   qs('#appTitle').textContent = state.settings.title;
   qs('#appLogo').src = state.settings.logo || 'icons/logo.png';
@@ -12404,136 +12552,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { console.warn('updateNotificationsBadge failed', e); }
   }
 
-  function renderNotifications() {
-    try {
-      const el = document.getElementById('notificationsContent');
-      if (!el) return;
-      // mark all as read when opening the notifications view
-      try {
-        if (state && Array.isArray(state.notifications)) {
-          state.notifications.forEach(n => { if (n) n.read = true; });
-          try { if (typeof saveState === 'function') saveState(); } catch(e){}
-          try { updateNotificationsBadge(); } catch(e){}
-        }
-      } catch(e){}
-      el.innerHTML = '';
-      const arr = (state.notifications || []).slice().sort((a,b)=> (b && b.ts? b.ts:0) - (a && a.ts? a.ts:0));
-      if (!arr.length) {
-        el.innerHTML = '<div class="muted" style="padding:12px;">هیچ اعلانی وجود ندارد</div>';
-        return;
-      }
-  // render newest first (arr already sorted desc)
-      arr.forEach(n => {
-        try {
-          const r = document.createElement('div');
-          const typeClass = n && n.type ? 'type-' + String(n.type).replace(/[^a-z0-9\-]/gi,'').toLowerCase() : '';
-          r.className = 'notif-card ' + typeClass;
-          // full width card styling (keeps existing theme classes but enforces full width)
-          r.style.width = '100%';
-          r.style.boxSizing = 'border-box';
-          r.style.padding = '12px 14px';
-          r.style.marginBottom = '10px';
-          r.style.position = 'relative';
 
-          // close button positioned top-left (won't overlap content)
-          const btn = document.createElement('button');
-          btn.className = 'close-btn';
-          btn.title = 'حذف';
-          btn.setAttribute('data-id', String(n.id));
-          btn.textContent = '✖';
-          // style: top-left corner, subtle, non-intrusive
-          btn.style.position = 'absolute';
-          btn.style.top = '8px';
-          btn.style.left = '8px';
-          btn.style.background = 'transparent';
-          btn.style.border = 'none';
-          btn.style.cursor = 'pointer';
-          btn.style.fontSize = '14px';
-          btn.style.padding = '4px';
-          btn.style.lineHeight = '1';
-
-          // content wrapper with left padding so the close button doesn't overlap (RTL aware)
-          const content = document.createElement('div');
-          content.style.paddingLeft = '36px';
-          content.style.paddingRight = '6px';
-          content.style.textAlign = 'right';
-
-          const titleDiv = document.createElement('div');
-          titleDiv.className = 'title';
-          titleDiv.innerHTML = escapeHtml(n.title || 'بدون عنوان');
-          titleDiv.style.fontWeight = '700';
-          titleDiv.style.marginBottom = '6px';
-
-          const bodyDiv = document.createElement('div');
-          bodyDiv.className = 'body';
-          bodyDiv.innerHTML = escapeHtml(n.body || '');
-          bodyDiv.style.marginBottom = '8px';
-
-          // Format timestamp to Jalali if helper exists
-          let tsStr = '';
-          try {
-            if (n.ts && typeof window.isoToJalali === 'function') {
-              // convert numeric ts -> ISO -> jalali
-              const iso = new Date(Number(n.ts)).toISOString();
-              tsStr = isoToJalali(iso) + ' - ' + new Date(Number(n.ts)).toLocaleTimeString();
-            } else {
-              tsStr = new Date(Number(n.ts||Date.now())).toLocaleString();
-            }
-          } catch(e){ tsStr = new Date(Number(n.ts||Date.now())).toLocaleString(); }
-
-          const tsDiv = document.createElement('div');
-          tsDiv.className = 'ts';
-          tsDiv.textContent = tsStr;
-          tsDiv.style.color = 'var(--muted)';
-          tsDiv.style.fontSize = '13px';
-
-          content.appendChild(titleDiv);
-          content.appendChild(bodyDiv);
-          content.appendChild(tsDiv);
-
-          // click on card (but not on close btn) marks as read and triggers optional onClick
-          r.addEventListener('click', (ev)=>{
-            if (ev.target && ev.target.classList && ev.target.classList.contains('close-btn')) return;
-            try { if (n) n.read = true; } catch(_){}
-            try{ if (typeof saveState === 'function') saveState(); } catch(e){}
-            try{ updateNotificationsBadge(); } catch(e){}
-            try{ if (n && typeof n.onClick === 'function') n.onClick(n); } catch(e){}
-            // keep view showing; do not auto-close view
-            renderNotifications();
-          });
-
-          // close button handler: remove and persist
-          btn.addEventListener('click', (e)=>{
-            e.stopPropagation();
-            try { state.notifications = (state.notifications || []).filter(x=>String(x.id) !== String(btn.getAttribute('data-id'))); } catch(_){ }
-            try{ if (typeof saveState === 'function') saveState(); } catch(e){}
-            try{ updateNotificationsBadge(); } catch(e){}
-            renderNotifications();
-          });
-
-          r.appendChild(btn);
-          r.appendChild(content);
-          el.appendChild(r);
-        } catch (e) { console.warn('renderNotifications: item render failed', e); }
-      });
-      // toggle visibility of the floating close-all button
-      try {
-        const floatBtn = document.getElementById('closeAllNotificationsFloat');
-        if (floatBtn) {
-          floatBtn.style.display = (state.notifications && state.notifications.length) ? 'block' : 'none';
-        }
-      } catch(e){}
-    } catch(e) { console.warn('renderNotifications failed', e); }
-  }
-
-    // expose for console testing
-    window.renderNotifications = renderNotifications;
 
   // wire notifications button in account area to the view
   try {
   // notifications button inside settings area
   const nbSettings = document.getElementById('notificationsFromSettings');
-  if (nbSettings) nbSettings.addEventListener('click', ()=>{ showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+  if (nbSettings) nbSettings.addEventListener('click', ()=>{ showView('notifications'); renderNotificationsList(); updateNotificationsBadge(); });
   // back button in notifications view: navigate directly to account view
   const backNot = document.getElementById('backNotifications'); if (backNot) backNot.addEventListener('click', ()=> { showView('account'); });
     // floating close-all button in notifications view (bottom-right)
@@ -12545,7 +12570,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try { const cnt = (state.notifications||[]).length; state.notifications = []; } catch(_){ state.notifications = []; }
           try{ if (typeof saveState === 'function') saveState(); } catch(e){}
           try{ updateNotificationsBadge(); } catch(e){}
-          try{ renderNotifications(); } catch(e){}
+          try{ renderNotificationsList(); } catch(e){}
           try { if (typeof showToast === 'function') showToast('همهٔ اعلان‌ها بسته شد'); } catch(e){}
         });
       }
@@ -12586,7 +12611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.notifications = state.notifications.filter(n => { try { return !(String(n.id||'').startsWith('test-') || (n && n.type === 'test')); } catch(e){ return true; } });
         try{ if (typeof saveState === 'function') saveState(); } catch(e){}
         try{ updateNotificationsBadge(); } catch(e){}
-        try{ renderNotifications(); } catch(e){}
+        try{ renderNotificationsList(); } catch(e){}
       }
     } catch(e) { /* silent */ }
   } catch(e){}
@@ -12620,7 +12645,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // BMI filter: use dropdown #filterBmi on players page
   on('#filterBmi', 'change', renderPlayersPage);
   // settings button is created dynamically for confirmed users; notifications quick-action remains
-  on('#notificationsFromSettings', 'click', () => { showView('notifications'); renderNotifications(); updateNotificationsBadge(); });
+  on('#notificationsFromSettings', 'click', () => { showView('notifications'); renderNotificationsList(); updateNotificationsBadge(); });
   // transient DOM toast fallback: guaranteed visible popup for a few seconds
   function showTransientMessage(msg, ms = 5000) {
     try {
@@ -13442,69 +13467,8 @@ navigator.serviceWorker.addEventListener('message', (event) => {
   </script>
 
   <!-- ✅ لود بعد از همه‌ی فایل‌های دیگر -->
-  <!-- Ensure a container for in-page notifications exists -->
-  <style>
-    #view-notifications {
-      position: fixed;
-      bottom: 1rem;
-      right: 1rem;
-      max-width: 360px;
-      z-index: 9999;
-      font-family: Vazirmatn, sans-serif;
-      direction: rtl;
-    }
-    #view-notifications h2 { display:none; }
-    #notificationsList { display:flex;flex-direction:column;gap:0.75rem; }
-    .notif-card {
-      background:#fff3cd;
-      padding:0.75rem 1rem;
-      border-radius:10px;
-      box-shadow:0 2px 5px rgba(0,0,0,0.12);
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      align-items:stretch;
-      animation:slidein 0.22s ease;
-      border-left:6px solid #ffc107;
-      width:95%;
-      margin:0 auto;
-      position:relative;
-      box-sizing:border-box;
-    }
-    .notif-card.type-birthday { border-left-color: #ff9800; }
-    .notif-card.type-session, .notif-card.type-training { border-left-color: #4caf50; }
-    .notif-card.type-competition { border-left-color: #2196f3; }
-    .notif-card .title { font-weight:700; text-align:right; }
-    .notif-card .body { color:var(--muted); font-size:14px; text-align:right; }
-    .notif-card .ts { color:var(--muted); font-size:12px; text-align:right; }
-    .notif-card .actions { display:flex; justify-content:flex-start; gap:8px; }
-  .notif-card button { background:transparent;border:none;font-size:16px;cursor:pointer;color:#555; }
-  .notif-card .close-btn { position:absolute; top:8px; right:8px; background:transparent;border:none;font-size:16px;cursor:pointer;color:#555; }
-  /* account dot overlay */
-  .account-notif-dot { position:absolute; width:10px; height:10px; border-radius:999px; background:#dc3545; right:8px; top:8px; box-shadow:0 0 0 2px rgba(255,255,255,0.5); display:none; }
-    @keyframes slidein { from { opacity:0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
-    .notifications-badge { background:#dc3545;color:#fff;border-radius:999px;padding:2px 6px;font-size:12px;display:none;margin-left:6px; }
-    .badge-pop { transform: scale(1.15); transition: transform 0.25s ease; }
-  </style>
-  <div id="view-notifications" style="display:block;padding:8px;">
-    <h2>📢 اعلان‌ها</h2>
-    <div id="notificationsList"></div>
-  </div>
+  <!-- Notifications script (UI markup is part of main views; keep script loaded) -->
   <script src="./notifications.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.initNotifications) {
-        try {
-          window.initNotifications();
-          console.log("✅ notifications initialized from index.html");
-        } catch(e) {
-          console.warn("⚠️ initNotifications failed:", e);
-        }
-      } else {
-        console.warn("⚠️ notifications.js not loaded yet.");
-      }
-    });
-  </script>
   <!-- Touch-fix for player images: robust delegated handlers (tap vs scroll) -->
   <script>
     (function(){
@@ -13872,5 +13836,37 @@ navigator.serviceWorker.addEventListener('message', (event) => {
       console.log('backup-storage test helper installed: run `await window.testBackupStorage()` in the console');
     </script>
   <script src="pwa-test.js"></script>
+    <script>
+      // === فیکس نهایی: درخواست دسترسی + رندر خودکار ===
+      setTimeout(() => {
+        try {
+          // 1. درخواست دسترسی اعلان (اگر هنوز پرسیده نشده)
+          if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(perm => {
+              if (perm === 'granted') {
+                console.log('دسترسی به اعلان داده شد');
+                try { new Notification('اعلان‌ها فعال شدند!', { body: 'از این پس اعلان‌های مهم را دریافت خواهید کرد.', icon: '/icon-192.png' }); } catch(e){}
+              }
+            }).catch(e => console.warn('requestPermission failed', e));
+          }
+
+          // 2. رندر خودکار بعد از هر showLocalNotification
+          const originalShowLocal = window.showLocalNotification;
+          if (typeof originalShowLocal === 'function') {
+            window.showLocalNotification = function(title, body, type) {
+              try { originalShowLocal(title, body, type); } catch(e) { try { originalShowLocal.call(window, title, body, type); } catch(_){} }
+              setTimeout(() => {
+                try {
+                  if (typeof window.renderNotificationsList === 'function') window.renderNotificationsList();
+                  if (typeof window.updateNotificationsBadge === 'function') window.updateNotificationsBadge();
+                } catch (e) { console.warn('post-showLocalNotification render failed', e); }
+              }, 100);
+            };
+          }
+        } catch (e) {
+          console.warn('notifications auto-init helper failed', e);
+        }
+      }, 1000);
+    </script>
 </body>
 </html>
