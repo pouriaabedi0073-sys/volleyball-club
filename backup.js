@@ -17,7 +17,19 @@
   const LOG = (...args) => { try { console.debug('[backup.js]', ...args); } catch(e) {} };
   const BUCKET = 'backups';
   const PENDING_KEY = 'backup:pendingUploads';
-  const SNAPSHOT_TABLES = ['players','sessions','payments','devices'];
+  const SNAPSHOT_TABLES = [
+    'players',
+    'coaches',
+    'matches',
+    'trainingPlans',
+    'privateClasses',
+    'notifications',
+    'volleyballGames',
+    'recentLoginEmails',
+    'sessions',
+    'payments',
+    'devices'
+  ];
 
   function uid(prefix='b_') { try { return (crypto && crypto.randomUUID) ? crypto.randomUUID() : prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,8); } catch(e){ return prefix + Date.now(); } }
 
@@ -83,29 +95,30 @@
   // This async version will optionally process embedded images: resize + convert to WebP
   async function buildSnapshot(opts = {}) {
     const { image = { enabled: true, maxWidth: 256, quality: 0.7 } } = opts || {};
-    const snapshot = { meta: { created_at: new Date().toISOString() }, tables: {} };
+    const mainKey = window.STORAGE_KEY || 'vb_dashboard_v8';
+    let fullData = {};
+    try { fullData = JSON.parse(localStorage.getItem(mainKey) || '{}'); } catch(e){ fullData = {}; }
+
+    const snapshot = { meta: { created_at: new Date().toISOString(), source: window.backupClient && window.backupClient.getDeviceId ? window.backupClient.getDeviceId() : '' }, tables: {} };
     try {
       window.state = window.state || {};
+
       // helper: attempts to fetch/convert an image (data: URL or remote URL) to a WebP data URL
       async function convertImageToWebP(input, maxWidth, quality) {
         try {
           if (!input) return input;
           if (typeof input !== 'string') return input;
-          // quick reject if already a small inline webp data url
           if (input.startsWith('data:image/webp')) return input;
 
           let blob = null;
           if (input.startsWith('data:')) {
-            // data URL -> fetch to get blob
             try { const r = await fetch(input); if (!r.ok) throw new Error('dataURL fetch failed'); blob = await r.blob(); } catch(e) { LOG('convertImageToWebP: dataURL->blob failed', e); return input; }
           } else if (/^https?:\/\//i.test(input)) {
-            // remote URL: try to fetch (CORS required)
             try { const r = await fetch(input, { mode: 'cors' }); if (!r.ok) throw new Error('fetch failed ' + r.status); blob = await r.blob(); } catch(e) { LOG('convertImageToWebP: fetch remote image failed', e); return input; }
           } else {
-            return input; // not a data or http URL
+            return input;
           }
 
-          // createImageBitmap for efficient decode
           let imgBitmap = null;
           try { imgBitmap = await createImageBitmap(blob); } catch(e) { LOG('createImageBitmap failed', e); return input; }
 
@@ -122,7 +135,6 @@
             } catch(e) { rej(e); }
           });
 
-          // convert blob -> dataURL so it fits naturally inside JSON
           const dataUrl = await new Promise((res, rej) => {
             try {
               const fr = new FileReader();
@@ -132,17 +144,15 @@
             } catch(e) { rej(e); }
           });
           return dataUrl;
-        } catch(e) {
-          LOG('convertImageToWebP failed', e); return input;
-        }
+        } catch(e) { LOG('convertImageToWebP failed', e); return input; }
       }
 
-      // determine candidate image keys to process
       const imageKeys = ['photo','photo_url','photoUrl','avatar','avatar_url','avatarUrl','image','image_url','imageUrl','picture','picture_url','pictureUrl'];
 
+      // Collect explicit tables first (prefer window.state, then fullData)
       for (const t of SNAPSHOT_TABLES) {
-        const arr = window.state[t] || window.state[t.replace('_','')] || [];
-        if (!Array.isArray(arr)) { snapshot.tables[t] = []; continue; }
+        const arr = window.state[t] || fullData[t] || [];
+        if (!Array.isArray(arr)) { snapshot.tables[t] = Array.isArray(fullData[t]) ? fullData[t] : []; continue; }
         const out = [];
         for (const rec of arr) {
           try {
@@ -153,15 +163,12 @@
                   const val = copy[k];
                   if (!val || typeof val !== 'string') continue;
                   const lowk = k.toLowerCase();
-                  const looksLikeImageKey = imageKeys.includes(lowk) || imageKeys.includes(k) || /photo|avatar|image|picture/i.test(k);
+                  const looksLikeImageKey = imageKeys.includes(lowk) || /photo|avatar|image|picture/i.test(k);
                   const looksLikeImageValue = /^data:image\//i.test(val) || /^https?:\/\//i.test(val) || /\.(png|jpe?g|gif|bmp|webp)(\?|$)/i.test(val);
                   if (looksLikeImageKey && looksLikeImageValue) {
-                    try {
-                      const converted = await convertImageToWebP(val, image.maxWidth || 1024, image.quality || 0.7);
-                      if (converted && typeof converted === 'string') copy[k] = converted;
-                    } catch(e) { LOG('image conversion per-field failed', e); }
+                    try { copy[k] = await convertImageToWebP(val, image.maxWidth || 1024, image.quality || 0.7); } catch(e){}
                   }
-                } catch(e) { /* per-field tolerant */ }
+                } catch(e){}
               }
             }
             out.push(copy);
@@ -169,6 +176,17 @@
         }
         snapshot.tables[t] = out;
       }
+
+      // Include any remaining top-level keys from fullData to avoid data loss
+      for (const key of Object.keys(fullData || {})) {
+        if (snapshot.tables[key]) continue;
+        try {
+          const maybe = fullData[key];
+          // preserve arrays as tables, and also include non-array keys under tables for completeness
+          snapshot.tables[key] = maybe;
+        } catch(e){}
+      }
+
     } catch(e) { LOG('buildSnapshot failed', e); }
     return snapshot;
   }
@@ -310,6 +328,21 @@
       LOG('createBackup: saved pending upload', id);
       return { ok: 'pending', id };
     } catch (e) { LOG('createBackup: save pending failed', e); throw e; }
+  }
+
+  // Combined helper: ensure both snapshot-based backup and full localStorage backup are saved
+  async function createAndSaveBackup(options = {}) {
+    try {
+      // create snapshot-based backup first
+      const res = await createBackup(options).catch(e => { LOG('createBackup failed inside createAndSaveBackup', e); return null; });
+      // best-effort: call saveBackup to persist full localStorage mainKey (if available)
+      try {
+        if (window.backupClient && typeof window.backupClient.saveBackup === 'function') {
+          await window.backupClient.saveBackup(options).catch(e => LOG('saveBackup failed inside createAndSaveBackup', e));
+        }
+      } catch(e) { LOG('createAndSaveBackup: saveBackup call failed', e); }
+      return res;
+    } catch(e) { LOG('createAndSaveBackup failed', e); throw e; }
   }
 
   // flushPendingUploads: attempt to upload any pending items
@@ -468,7 +501,7 @@
     try {
       if (window._backupDailyInterval) return window._backupDailyInterval;
       window._backupDailyInterval = setInterval(() => {
-        try { createBackup().catch(e => LOG('daily createBackup failed', e)); } catch(e) { LOG('daily schedule error', e); }
+        try { createAndSaveBackup().catch(e => LOG('daily createAndSaveBackup failed', e)); } catch(e) { LOG('daily schedule error', e); }
       }, 86400000);
       return window._backupDailyInterval;
     } catch (e) { LOG('scheduleDaily failed', e); }
@@ -477,6 +510,7 @@
   // Expose functions on window
   window.backupClient = {
     createBackup,
+    createAndSaveBackup,
     flushPendingUploads,
     mergeGroupBackups,
     restoreBackup,

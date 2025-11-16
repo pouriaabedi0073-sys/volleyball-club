@@ -79,7 +79,15 @@
           try { if (window.backupClient && typeof window.backupClient.flushPendingUploads === 'function') window.backupClient.flushPendingUploads(); } catch(e){}
         }
         if (data.type === 'backup:create') {
-          try { if (window.backupClient && typeof window.backupClient.createBackup === 'function') window.backupClient.createBackup().catch(e => console.warn('periodic createBackup failed', e)); } catch(e){}
+          try {
+            if (window.backupClient) {
+              if (typeof window.backupClient.createAndSaveBackup === 'function') {
+                window.backupClient.createAndSaveBackup().catch(e => console.warn('periodic createAndSaveBackup failed', e));
+              } else if (typeof window.backupClient.createBackup === 'function') {
+                window.backupClient.createBackup().catch(e => console.warn('periodic createBackup failed', e));
+              }
+            }
+          } catch(e){}
         }
         // Notifications from service worker (push forwarded to clients)
         if (data.type === 'notifier:push' && data.payload) {

@@ -12,6 +12,7 @@
 - `index.html` : صفحه اصلی
 - `manifest.json` : تنظیمات اپلیکیشن
 - `sw-advanced.js` : سرویس ورکر پیشرفته برای مدیریت کش و حالت آفلاین ( **فایل اصلی** )
+- `sw-advanced.js` حذف شد (غیرفعال بود)
 - `sw-register.js` : اسکریپت ثبت Service Worker
 - `offline.html` : صفحه آفلاین
 - پوشه `icons/` و `assets/icons/` : شامل آیکون‌ها

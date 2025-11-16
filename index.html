@@ -8337,7 +8337,27 @@ function renderRankEditor() {
   // initial UI update
   try{ updateRefModeUI(); } catch(e){}
 }
+// Prevent accidental "ghost" clicks when a new view or modal appears
+function suppressNextClicks(ms) {
+  try {
+    window._suppressClicksUntil = Date.now() + (ms || 350);
+    if (!window._suppressClicksListenerAdded) {
+      document.addEventListener('click', function(ev) {
+        try {
+          if (window._suppressClicksUntil && Date.now() < window._suppressClicksUntil) {
+            ev.stopPropagation(); ev.preventDefault(); return true;
+          }
+        } catch(e) {}
+      }, true); // capture phase
+      window._suppressClicksListenerAdded = true;
+    }
+  } catch(e) { console.debug('suppressNextClicks failed', e); }
+}
+
 function showView(viewId, params = {}, noPush = false) {
+  // briefly ignore follow-up clicks to avoid browser forwarding the previous
+  // tap/click to newly-rendered controls that appear at the same coordinates.
+  suppressNextClicks(350);
   qsa('#view-root > section').forEach(s => s.classList.add('hide'));
   qs(`#view-${viewId}`).classList.remove('hide');
   // toggle visibility of page-specific FABs
@@ -8542,7 +8562,7 @@ function renderHome() {
   <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div class="meta"><strong>${escapeHtml(p.name)}</strong><small>${dist} روز مانده</small></div>
       `;
-      row.addEventListener('click', () => openBirthdayModal(p.id));
+      row.addEventListener('click', (ev) => { try{ ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch(_){ } openBirthdayModal(p.id); });
       // add blue overlay layer to indicate upcoming
       let thumb = row.querySelector('.player-thumb');
       let overlay = document.createElement('div');
@@ -8568,7 +8588,7 @@ function renderHome() {
   <div class="player-thumb">${p.photo ? `<img class="player-image" src="${p.photo}" alt="${escapeHtml(p.name)}">` : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e2e8f0"/></svg>'}</div>
         <div class="meta"><strong>${escapeHtml(p.name)}</strong><small>${ageText}</small></div>
       `;
-      row.addEventListener('click', () => openBirthdayModal(p.id));
+      row.addEventListener('click', (ev) => { try{ ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch(_){ } openBirthdayModal(p.id); });
       birthdaysToday.appendChild(row);
     });
     if (todayPlayers.length > 4) {
@@ -13035,6 +13055,11 @@ function showSettingsAndRankInfo() {
 function openBirthdayModal(playerId) {
   const modal = qs('#birthdayModal');
   const content = qs('#birthdayModalContent');
+  // defensive guards: require modal/content and close any previously-open modal
+  if (!modal || !content) return; 
+  if (modal.getAttribute && modal.getAttribute('aria-hidden') === 'false') {
+    try { closeBirthdayModal(); } catch(e) { /* ignore */ }
+  }
   const p = state.players.find(x => x.id === playerId);
   if (!p) return alert('بازیکن پیدا نشد');
   const age = calcExactAge(p.birthdate);
@@ -13171,11 +13196,13 @@ function openBirthdayModal(playerId) {
       try { imgBtn.disabled = false; imgBtn.innerHTML = origHtml; } catch(_){}
     }
   });
-  // scroll to top to ensure modal is visible above menu
-  setTimeout(() => {
-    window.scrollTo(0, 0);
-    document.body.style.overflow = 'hidden';
-  }, 0);
+  // scroll to top and lock background only for the full 'today' greeting.
+  if (todayFlag) {
+    setTimeout(() => {
+      try { window.scrollTo(0, 0); } catch (e) { }
+      try { document.body.style.overflow = 'hidden'; } catch (e) { }
+    }, 0);
+  }
   modal.classList.remove('hide');
   modal.setAttribute('aria-hidden','false');
   on('#birthdayModalClose', 'click', closeBirthdayModal);
