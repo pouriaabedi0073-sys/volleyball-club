@@ -171,15 +171,42 @@ self.addEventListener('message', e => {
 });
 
 // Network with cache fallback, and offline fallback for navigations
-// --- fetch: Cache-First برای سرعت ---
+// --- fetch: Cache-First + safe cloning to avoid "Response body is already used" ---
 self.addEventListener('fetch', e => {
   const req = e.request;
+
+  // Only handle GET requests
+  if (req.method !== 'GET') return;
+
+  // Navigation requests -> serve cached index.html (or network)
   if (req.mode === 'navigate') {
-    e.respondWith(caches.match('/volleyball-club/index.html').then(c => c || fetch(req)));
-  } else {
-    e.respondWith(caches.match(req).then(c => c || fetch(req).then(r => {
-      if (r.ok) caches.open(CACHE_NAME).then(cache => cache.put(req, r.clone()));
-      return r;
-    })));
+    e.respondWith(
+      caches.match('/volleyball-club/index.html').then(cached => cached || fetch(req))
+    );
+    return;
   }
+
+  // Other requests -> Cache-First with background update; clone before caching
+  e.respondWith(
+    caches.match(req).then(cached => {
+      if (cached) {
+        // Update cache in background
+        fetch(req).then(fresh => {
+          if (fresh && fresh.ok) {
+            const clone = fresh.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(req, clone)).catch(() => {});
+          }
+        }).catch(() => {});
+        return cached;
+      }
+
+      // If not cached, fetch from network and cache a clone
+      return fetch(req).then(resp => {
+        if (!resp || !resp.ok) return resp;
+        const respClone = resp.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(req, respClone)).catch(() => {});
+        return resp;
+      }).catch(() => cached);
+    })
+  );
 });
