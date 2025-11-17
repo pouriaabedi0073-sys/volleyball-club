@@ -56,38 +56,23 @@ export class SupabaseClient {
       // Generate unique ID and storage path
       const backupId = crypto.randomUUID();
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const storagePath = `${email}/${backupId}-${timestamp}.json.gz`;
+      // prefer user.id as storage folder
+      const { data: userRes } = await this.supabase.auth.getUser().catch(() => ({}));
+      const userId = userRes && userRes.data && userRes.data.user ? userRes.data.user.id : null;
+      const storagePath = `${userId || email}/${backupId}-${timestamp}.json.gz`;
 
-      // Upload compressed snapshot
+      // Upload compressed snapshot to Storage (storage-only backups)
       const { error: uploadError } = await this.supabase.storage
         .from(this.bucket)
-        .upload(storagePath, compressed, {
+        .upload(storagePath, compressed instanceof Blob ? compressed : new Blob([compressed]), {
           contentType: 'application/gzip',
           cacheControl: '3600'
         });
 
       if (uploadError) throw uploadError;
 
-      // Record backup metadata
-      const { error: insertError } = await this.supabase
-        .from('backups')
-        .insert({
-          id: backupId,
-          group_email: email,
-          storage_path: storagePath,
-          snapshot_summary: summary,
-          size_bytes: compressed.byteLength
-        });
-
-      if (insertError) throw insertError;
-
-      // Mark as latest shared backup
-      await this.supabase.rpc('mark_shared_backup', {
-        p_group_email: email,
-        p_backup_id: backupId
-      });
-
-      return { backupId, summary };
+      // Storage-only: we do not insert metadata into DB. Return the storage path.
+      return { backupId, summary, storagePath };
 
     } catch (error) {
       console.error('Backup failed:', error);
@@ -98,25 +83,21 @@ export class SupabaseClient {
   // Merge downloaded backup with current state
   async mergeBackup(backupId) {
     try {
-      // Get backup metadata
-      const { data: backup, error: fetchError } = await this.supabase
-        .from('backups')
-        .select('*')
-        .eq('id', backupId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (!backup) throw new Error(`Backup ${backupId} not found`);
-
-      // Download and decompress
-      const { data, error: downloadError } = await this.supabase.storage
-        .from(this.bucket)
-        .download(backup.storage_path);
-
-      if (downloadError) throw downloadError;
-
-      const decompressed = await this.decompressData(data);
-      const snapshot = JSON.parse(decompressed);
+      // Try to find a storage file that contains the backupId under the user's prefix
+      const { data: userRes } = await this.supabase.auth.getUser().catch(() => ({}));
+      const userId = userRes && userRes.data && userRes.data.user ? userRes.data.user.id : null;
+      const prefix = userId || this.groupEmail;
+      let snapshot = null;
+      try {
+        const { data: files } = await this.supabase.storage.from(this.bucket).list(prefix, { limit: 100 });
+        const candidate = (files || []).find(f => f.name && f.name.indexOf(backupId) !== -1);
+        if (!candidate) throw new Error('backup not found');
+        const fp = `${prefix}/${candidate.name}`;
+        const { data: fileData, error: downloadError } = await this.supabase.storage.from(this.bucket).download(fp);
+        if (downloadError) throw downloadError;
+        const text = await fileData.text();
+        try { snapshot = JSON.parse(text); } catch (_) { snapshot = JSON.parse(await this.decompressData(fileData)); }
+      } catch (e) { throw e; }
 
       // Merge each table into window.state
       for (const table of Object.keys(snapshot)) {
@@ -141,23 +122,36 @@ export class SupabaseClient {
   async getLatestGroupBackup() {
     try {
       const email = await this.getCurrentUserEmail();
-      
-      const { data, error } = await this.supabase
-        .from('shared_backups')
-        .select(\`
-          group_email,
-          latest_backup_id,
-          backups!inner (
-            id,
-            snapshot_summary,
-            created_at
-          )
-        \`)
-        .eq('group_email', email)
-        .single();
+      // حذف شد: direct DB join query against `shared_backups` and `backups`
+      // const { data, error } = await this.supabase
+      //   .from('shared_backups')
+      //   .select(`
+      //     group_email,
+      //     latest_backup_id,
+      //     backups!inner (
+      //       id,
+      //       snapshot_summary,
+      //       created_at
+      //     )
+      //   `)
+      //   .eq('group_email', email)
+      //   .single();
+      // if (error) throw error;
+      // return data;
 
-      if (error) throw error;
-      return data;
+      // Storage-based fallback: list files under user's prefix and return latest file info
+      try {
+        const { data: userRes } = await this.supabase.auth.getUser().catch(() => ({}));
+        const userId = userRes && userRes.data && userRes.data.user ? userRes.data.user.id : null;
+        const prefix = userId || email;
+        const { data: files, error } = await this.supabase.storage.from(this.bucket).list(prefix, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+        if (error) throw error;
+        if (!files || files.length === 0) return null;
+        return { group_email: email, latest_file: files[0].name, created_at: files[0].created_at };
+      } catch (se) {
+        console.error('Failed to get latest backup from storage:', se);
+        throw se;
+      }
 
     } catch (error) {
       console.error('Failed to get latest backup:', error);
@@ -168,30 +162,23 @@ export class SupabaseClient {
   // Restore state from a backup (overwrites current state)
   async restoreBackup(backupId) {
     try {
-      // Get backup metadata
-      const { data: backup, error: fetchError } = await this.supabase
-        .from('backups')
-        .select('*')
-        .eq('id', backupId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (!backup) throw new Error(`Backup ${backupId} not found`);
-
-      // Download and decompress
-      const { data, error: downloadError } = await this.supabase.storage
-        .from(this.bucket)
-        .download(backup.storage_path);
-
-      if (downloadError) throw downloadError;
-
-      const decompressed = await this.decompressData(data);
-      const snapshot = JSON.parse(decompressed);
-
-      // Replace entire state with snapshot
-      window.state = { ...window.state, ...snapshot };
-
-      return backup.snapshot_summary;
+      // Find and download storage file by scanning user's prefix for backupId
+      const { data: userRes } = await this.supabase.auth.getUser().catch(() => ({}));
+      const userId = userRes && userRes.data && userRes.data.user ? userRes.data.user.id : null;
+      const prefix = userId || this.groupEmail;
+      try {
+        const { data: files } = await this.supabase.storage.from(this.bucket).list(prefix, { limit: 100 });
+        const candidate = (files || []).find(f => f.name && f.name.indexOf(backupId) !== -1);
+        if (!candidate) throw new Error(`Backup ${backupId} not found`);
+        const fp = `${prefix}/${candidate.name}`;
+        const { data: fileData, error: downloadError } = await this.supabase.storage.from(this.bucket).download(fp);
+        if (downloadError) throw downloadError;
+        const text = await fileData.text();
+        const snapshot = JSON.parse(text);
+        // Replace entire state with snapshot
+        window.state = { ...window.state, ...snapshot };
+        return candidate;
+      } catch (e) { throw e; }
 
     } catch (error) {
       console.error('Restore failed:', error);
@@ -239,14 +226,13 @@ export class SupabaseClient {
     try {
       const email = await this.getCurrentUserEmail();
       
-      const { data, error } = await this.supabase
-        .from('backups')
-        .select('*')
-        .eq('group_email', email)
-        .order('created_at', { ascending: false });
-
+      // List files in storage under user's prefix
+      const { data: userRes } = await this.supabase.auth.getUser().catch(() => ({}));
+      const userId = userRes && userRes.data && userRes.data.user ? userRes.data.user.id : null;
+      const prefix = userId || email;
+      const { data: files, error } = await this.supabase.storage.from(this.bucket).list(prefix, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
       if (error) throw error;
-      return data;
+      return files;
 
     } catch (error) {
       console.error('Failed to list backups:', error);
