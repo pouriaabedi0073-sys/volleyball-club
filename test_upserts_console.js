@@ -20,7 +20,8 @@
       console.log('devices upsert result', dev);
     } catch(e) { console.warn('Skipping devices upsert (table may not exist)', e); }
 
-    console.log('Running shared_backups upsert...');
+    console.log('Running shared_backups upsert... (skipped in storage-only mode)');
+    /*
     const sb = await client.from('shared_backups').upsert([{
       group_email: 'team@example.com',
       data: { players: [], sessions: [] },
@@ -28,10 +29,13 @@
       last_sync_at: new Date().toISOString()
     }], { onConflict: 'group_email' }).select();
     console.log('shared_backups upsert result', sb);
+    */
 
     console.log('Attempting to insert backup metadata (legacy `data` column may not exist)...');
     try {
       // Probe backups table for 'data' column by selecting it
+      // Probe and insert into backups table skipped in storage-only mode
+      /*
       const probe = await client.from('backups').select('data').limit(1);
       if (probe && probe.error) throw probe.error;
       const bk = await client.from('backups').insert([{
@@ -43,6 +47,7 @@
         revision: 1
       }]).select();
       console.log('backups insert result', bk);
+      */
     } catch(e) { console.warn('Skipping legacy backups.data insert (table/column may be absent)', e); }
 
     console.log('Done tests.');

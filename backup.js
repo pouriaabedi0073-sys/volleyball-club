@@ -211,58 +211,149 @@
 
   async function uploadToStorage(client, path, bytesU8) {
     try {
-      // Legacy storage upload removed. Instead insert a row into backups with backup_data JSON
-      const json = (typeof bytesU8 === 'string') ? bytesU8 : (typeof bytesU8 === 'object' ? bytesU8 : null);
-      // If bytesU8 is Uint8Array, attempt to decode to string
+      // Upload bytes (or JSON string) to Supabase Storage if possible.
+      let json = (typeof bytesU8 === 'string') ? bytesU8 : null;
       if (!json && bytesU8 && typeof bytesU8.buffer !== 'undefined') {
         try { json = new TextDecoder().decode(bytesU8); } catch(_) { json = null; }
       }
       if (!json) throw new Error('uploadToStorage: unable to decode bytes to JSON');
-      // attempt to parse json to object
-      let obj = null;
-      try { obj = JSON.parse(json); } catch(_) { obj = json; }
-      const id = uid();
+      const obj = (() => { try { return JSON.parse(json); } catch(_) { return json; } })();
+      // prefer client.storage if available
       try {
-        // attempt to attach user_id from session
-        let uid = null;
-        try { const su = await client.auth.getUser(); const suUser = su && su.data && su.data.user; if (suUser && suUser.id) uid = suUser.id; } catch(_){ }
-        const row = { id, backup_id: id, group_email: path.split('/')[0] || null, backup_data: obj, created_at: new Date().toISOString() };
-        if (uid) row.user_id = uid;
-        const insertRes = await client.from('backups').insert([row]);
-        
-      } catch (e) { throw e; }
-      if (insertRes && insertRes.error) throw insertRes.error;
-      return true;
+        if (client && client.storage && typeof client.storage.from === 'function') {
+          const user = await client.auth.getUser().catch(() => null);
+          const uid = user && user.data && user.data.user ? user.data.user.id : null;
+          const fileName = `backup_${new Date().toISOString().replace(/[:.]/g,'-')}.json.gz`;
+          // Use user.id as the folder prefix (RLS expects uid). If uid is not available, fall back to filename at root.
+          const filePath = uid ? `${uid}/${fileName}` : fileName;
+          // compress JSON using pako.gzip helper
+          const compressed = compressJson(obj);
+          const file = new File([compressed], fileName, { type: 'application/gzip' });
+          const { error: uploadError } = await client.storage.from(BUCKET).upload(filePath, file, { upsert: true });
+          if (uploadError) throw uploadError;
+          // Client-side prune: keep only the last 2 backups for this user (Storage triggers don't fire for API uploads)
+          try {
+            if (uid) await pruneOldBackups(uid, client);
+          } catch (pe) { LOG('uploadToStorage: pruneOldBackups failed', pe); }
+          // return storage path for callers
+          return filePath;
+        }
+      } catch (e) {
+        LOG('uploadToStorage: storage upload failed', e);
+      }
+      // fallback: try using existing uploadBackupToStorage helper (which also uses storage)
+      try {
+        const res = await uploadBackupToStorage(obj);
+        return res || true;
+      } catch (e) {
+        LOG('uploadToStorage: uploadBackupToStorage fallback failed', e);
+        throw e;
+      }
     } catch(e) { LOG('uploadToStorage (DB insert) failed', e); throw e; }
+  }
+
+  // --- آپلود بک‌آپ به Supabase Storage + فقط ۲ بک‌آپ آخر ---
+  // --- آپلود بک‌آپ با ایمیل (emailSafe) + فقط ۲ فایل آخر ---
+  async function uploadBackupToStorage(backupJson) {
+    try {
+      if (!window.supabase) return console.warn('Supabase client not available');
+      const sup = window.supabase;
+      const user = (await sup.auth.getUser()).data?.user;
+
+      if (!user) return console.warn('کاربر لاگین نیست');
+
+      const userId = user.id; // use auth.uid() as folder prefix
+      const fileName = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json.gz`;
+      // compress backup JSON to gzip
+      const compressed = compressJson(backupJson);
+      const file = new File([compressed], fileName, { type: 'application/gzip' });
+      const filePath = `${userId}/${fileName}`;
+
+      // آپلود
+      const { error: uploadError } = await sup.storage.from('backups').upload(filePath, file, { upsert: true });
+      if (uploadError && uploadError.message !== 'The resource already exists') throw uploadError;
+
+      // Prune: keep only last 2 backups for this user
+      try {
+        await pruneOldBackups(userId, sup);
+      } catch (pe) {
+        LOG('pruneOldBackups failed', pe);
+      }
+
+      console.log('بک‌آپ آپلود شد — userId:', userId);
+      return filePath;
+    } catch (err) {
+      console.error('خطا در آپلود بک‌آپ:', err);
+      return false;
+    }
+  }
+
+  // Prune helper: keep only newest 2 backup files in user's folder
+  async function pruneOldBackups(userId, supClient) {
+    try {
+      const sup = supClient || window.supabase;
+      if (!sup) throw new Error('Supabase client required for prune');
+
+      const { data: files, error: listError } = await sup.storage
+        .from('backups')
+        .list(userId, { limit: 100, offset: 0, sortBy: { column: 'created_at', order: 'desc' } });
+
+      if (listError) {
+        LOG('pruneOldBackups: list error', listError);
+        return;
+      }
+      if (!files || files.length <= 2) return;
+
+      // consider only .json or .json.gz backup files
+      const backupFiles = files.filter(f => f && f.name && (f.name.endsWith('.json.gz') || f.name.endsWith('.json')));
+      if (backupFiles.length <= 2) return;
+
+      // If created_at is present, rely on it; otherwise fall back to name sorting
+      const enriched = backupFiles.map(f => ({ f, ts: f.created_at ? new Date(f.created_at).getTime() : 0 }));
+      enriched.sort((a, b) => {
+        if (a.ts && b.ts) return b.ts - a.ts; // desc
+        return b.f.name.localeCompare(a.f.name);
+      });
+
+      const toDelete = enriched.slice(2).map(x => `${userId}/${x.f.name}`);
+      if (toDelete.length === 0) return;
+
+      const { error: removeError } = await sup.storage.from('backups').remove(toDelete);
+      if (removeError) LOG('pruneOldBackups: remove error', removeError);
+      else LOG('pruneOldBackups: removed', toDelete.length, 'files');
+    } catch (e) { LOG('pruneOldBackups failed', e); }
   }
 
   async function downloadFromStorage(client, path) {
     try {
-      // path expected to include group/email prefix and backup id. We'll try to find by storage_path or backup_id
-      // Try by storage_path field first
-      let q = await client.from('backups').select('backup_data').eq('storage_path', path).maybeSingle();
-      if (q && !q.error && q.data && q.data.backup_data) return q.data.backup_data;
-      // fallback: try by id (last segment of path)
-      const maybeId = (path || '').split('/').pop();
-      if (maybeId) {
-        const r = await client.from('backups').select('backup_data').eq('backup_id', maybeId).maybeSingle();
-        if (r && !r.error && r.data && r.data.backup_data) return r.data.backup_data;
+      // Try to download the file from Supabase Storage
+      if (client && client.storage && typeof client.storage.from === 'function') {
+        try {
+          const { data, error } = await client.storage.from(BUCKET).download(path);
+          if (error) throw error;
+          // If the file is gzipped (we upload .json.gz), prefer arrayBuffer and decompress
+          try {
+            const ab = await data.arrayBuffer();
+            const u8 = new Uint8Array(ab);
+            try {
+              const parsed = decompressToJson(u8);
+              return parsed;
+            } catch (de) {
+              // fallback: try treat as text
+              try { const txt = new TextDecoder().decode(u8); return JSON.parse(txt); } catch(_) { return txt; }
+            }
+          } catch (rErr) {
+            // older clients may only provide stream/text; fallback to text()
+            const text = await data.text();
+            try { return JSON.parse(text); } catch(_) { return text; }
+          }
+        } catch (e) {
+          LOG('downloadFromStorage: storage download failed, trying alternatives', e);
+        }
       }
+      // If storage download failed, attempt to treat path as an id and list files under that folder
       throw new Error('downloadFromStorage: backup not found');
     } catch(e) { LOG('downloadFromStorage (DB) failed', e); throw e; }
-  }
-
-  // Upsert backups table entry (and mark shared_backups)
-  async function recordBackupMeta(client, id, groupEmail, storagePath, summary, sizeBytes, revision) {
-    try {
-      const payload = { id, group_email: groupEmail, storage_path: storagePath, snapshot_summary: summary, size_bytes: sizeBytes, revision };
-      // Insert backup row
-      const up = await client.from('backups').upsert([payload], { onConflict: 'id' }).select();
-      if (up && up.error) throw up.error;
-      // mark shared_backups for discovery
-      try { await client.rpc('mark_shared_backup', { p_group_email: groupEmail, p_backup_id: id }); } catch(e) { LOG('mark_shared_backup rpc failed', e); }
-      return up;
-    } catch(e) { LOG('recordBackupMeta failed', e); throw e; }
   }
 
   // createBackup: snapshot -> compress -> upload or persist pending
@@ -284,31 +375,16 @@
       // if TextEncoder unavailable, fall back to string storage later
     } catch (e) { throw e; }
 
-    // Try to insert directly into backups table when online
+    // Try to upload snapshot to Supabase Storage when online
     if (navigator.onLine && window.supabase) {
       try {
-        try {
-          let uid = null;
-          try { const su = await window.supabase.auth.getUser(); const suUser = su && su.data && su.data.user; if (suUser && suUser.id) uid = suUser.id; } catch(_){ }
-          const row = { id, backup_id: id, group_email: groupEmail, backup_data: snapshot, snapshot_summary: summary, size_bytes: bytes.length, created_at: new Date().toISOString() };
-          if (uid) row.user_id = uid;
-          const up = await window.supabase.from('backups').insert([row]);
-          if (up && up.error) throw up.error;
-          LOG('createBackup: inserted into backups table', id);
-          // call cleanup RPC best-effort
-          try { await window.supabase.rpc('cleanup_old_backups', { p_email: groupEmail }); } catch(e){ LOG('cleanup_old_backups rpc failed', e); }
-          return { ok: true, id };
-        } catch (e) {
-          LOG('createBackup insert failed, saving pending', e);
-          // fall through to save pending
-        }
-        if (up && up.error) throw up.error;
-        LOG('createBackup: inserted into backups table', id);
-        // call cleanup RPC best-effort
-        try { await window.supabase.rpc('cleanup_old_backups', { p_email: groupEmail }); } catch(e){ LOG('cleanup_old_backups rpc failed', e); }
+        const backupJson = { userId: (await window.supabase.auth.getUser()).data?.user?.id || null, timestamp: Date.now(), data: snapshot };
+        const filePath = await uploadBackupToStorage(backupJson).catch(e => { throw e; });
+        LOG('createBackup: uploaded snapshot to storage', filePath);
+        // cleanup_old_backups RPC removed in storage-only migration (no-op)
         return { ok: true, id };
       } catch (e) {
-        LOG('createBackup insert failed, saving pending', e);
+        LOG('createBackup storage upload failed, saving pending', e);
         // fall through to save pending
       }
     }
@@ -379,13 +455,14 @@
         let obj = null;
         try { obj = JSON.parse(json); } catch(_) { obj = json; }
         try {
-          let uid = null;
-          try { const su = await window.supabase.auth.getUser(); const suUser = su && su.data && su.data.user; if (suUser && suUser.id) uid = suUser.id; } catch(_){ }
-          const row = { id: item.id, backup_id: item.id, group_email: item.groupEmail, backup_data: obj, created_at: new Date().toISOString() };
-          if (uid) row.user_id = uid;
-          const up = await window.supabase.from('backups').insert([row]);
-          if (up && up.error) throw up.error;
-          LOG('flushPendingUploads: inserted pending backup', item.id);
+          // Upload pending item to storage instead of inserting into DB
+          try {
+            await uploadBackupToStorage({ userId: (await window.supabase.auth.getUser()).data?.user?.id || null, timestamp: Date.now(), data: obj });
+            LOG('flushPendingUploads: uploaded pending backup', item.id);
+          } catch (uErr) {
+            LOG('flushPendingUploads: storage upload failed', uErr);
+            throw uErr;
+          }
         } catch (e) { throw e; }
         // remove from pending store
         try { await removePendingById(item.id); } catch(e){ LOG('flushPendingUploads: removePending failed', item.id, e); }
@@ -396,23 +473,29 @@
     return true;
   }
 
-  // mergeGroupBackups: fetch latest via shared_backups, download, decompress, merge into window.state
+  // mergeGroupBackups: fetch latest backup file from Storage and merge into window.state
   async function mergeGroupBackups(groupEmail, options = {}) {
     if (!groupEmail) throw new Error('groupEmail required');
     if (!window.supabase) throw new Error('Supabase client required');
 
     try {
-      // read shared_backups record
-      const r = await window.supabase.from('shared_backups').select('latest_backup_id').eq('group_email', groupEmail).maybeSingle();
-      if (r.error) throw r.error;
-      const latestId = r && r.data ? r.data.latest_backup_id : null;
-      if (!latestId) { LOG('mergeGroupBackups: no latest backup id for', groupEmail); return { ok: false, reason: 'no_latest' }; }
+      const user = (await window.supabase.auth.getUser()).data?.user;
+      if (!user) throw new Error('کاربر لاگین نیست');
+      const prefix = user.id;
 
-  // fetch backup_data directly from backups table
-  const bm = await window.supabase.from('backups').select('backup_data').eq('backup_id', latestId).maybeSingle();
-  if (bm.error) throw bm.error;
-  const snap = bm && bm.data ? bm.data.backup_data : null;
-      // merge by id/last_modified
+      const { data: files, error: listError } = await window.supabase.storage
+        .from(BUCKET)
+        .list(prefix, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+
+      if (listError || !files || files.length === 0) {
+        LOG('mergeGroupBackups: no backup found');
+        return { ok: false, reason: 'no_backup' };
+      }
+
+      const latestPath = `${prefix}/${files[0].name}`;
+      const snap = await downloadFromStorage(window.supabase, latestPath);
+      if (!snap) throw new Error('snapshot not found');
+
       mergeSnapshotIntoState(snap, options);
       return { ok: true, snapshot: snap };
     } catch (e) {
@@ -458,9 +541,28 @@
     if (!backupId) throw new Error('backupId required');
     if (!window.supabase) throw new Error('Supabase client required');
     try {
-      const bm = await window.supabase.from('backups').select('backup_data').eq('backup_id', backupId).maybeSingle();
-      if (bm.error) throw bm.error;
-      const snap = bm && bm.data ? bm.data.backup_data : null;
+      // Try to download backup from Storage. Accept multiple candidate paths.
+      let snap = null;
+      const client = window.supabase;
+      const candidates = [ `${backupId}.json`, backupId ];
+      for (const p of candidates) {
+        try { snap = await downloadFromStorage(client, p).catch(() => null); if (snap) break; } catch(_){}
+      }
+      if (!snap) {
+        // try list under user's id folder
+        try {
+          const su = await window.supabase.auth.getUser().catch(() => null);
+          const user = su && su.data && su.data.user ? su.data.user : null;
+          if (user && user.id) {
+            const userId = user.id;
+            const { data: files } = await window.supabase.storage.from(BUCKET).list(userId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+            if (files && files.length) {
+              const tryPath = `${userId}/${files[0].name}`;
+              snap = await downloadFromStorage(client, tryPath).catch(() => null);
+            }
+          }
+        } catch(e) { LOG('restoreBackup: list/download failed', e); }
+      }
       if (!snap) throw new Error('backup not found');
       mergeSnapshotIntoState(snap, options);
 
@@ -495,6 +597,23 @@
   // small helpers for base64 conversions
   function bytesToB64(u8) { let s=''; for (let i=0;i<u8.length;i+=0x8000) s += String.fromCharCode.apply(null, u8.slice(i, i+0x8000)); return btoa(s); }
   function b64ToBytes(b64) { const bin = atob(b64); const len = bin.length; const u8 = new Uint8Array(len); for (let i=0;i<len;i++) u8[i]=bin.charCodeAt(i); return u8; }
+
+  // Persist a backup JSON to IndexedDB (or fall back to localStorage)
+  async function saveBackupToIndexedDB(backupJson) {
+    try {
+      if (window.indexedDBQueue && typeof window.indexedDBQueue.saveBackup === 'function') {
+        return await window.indexedDBQueue.saveBackup(backupJson);
+      }
+      // fallback: localStorage archives
+      const key = 'backup:archives';
+      let arr = [];
+      try { arr = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_) { arr = []; }
+      arr.unshift(backupJson);
+      if (arr.length > 50) arr = arr.slice(0,50);
+      try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e){ LOG('saveBackupToIndexedDB: localStorage save failed', e); }
+      return true;
+    } catch(e) { LOG('saveBackupToIndexedDB failed', e); return false; }
+  }
 
   // schedule daily backups
   function scheduleDaily() {
@@ -550,9 +669,15 @@
           created_at: new Date().toISOString()
         };
 
-        const res = await window.supabase.from('backups').insert([payload]);
-        if (res && res.error) throw res.error;
-        LOG('saveBackup: saved', payload.backup_id);
+        // Prepare a lightweight backup JSON, persist locally, and upload to Storage
+        const backupJson = { userId: user_id, timestamp: Date.now(), data: localData };
+        try {
+          await saveBackupToIndexedDB(backupJson);
+        } catch(e) { LOG('saveBackup: save to indexedDB failed', e); }
+        try {
+          await uploadBackupToStorage(backupJson);
+        } catch(e) { LOG('uploadBackupToStorage failed', e); }
+        LOG('saveBackup: saved (storage-only)', payload.backup_id);
         return { ok: true, id: payload.backup_id };
       } catch (e) { LOG('saveBackup failed', e); throw e; }
     },
@@ -563,9 +688,20 @@
         const email = options.groupEmail || user.email || (window.currentUser && window.currentUser.email) || null;
         if (!email) throw new Error('groupEmail required to load backup');
 
-        const q = await window.supabase.from('backups').select('backup_data, created_at').eq('group_email', email.toLowerCase()).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (q.error) throw q.error;
-        const data = q && q.data ? q.data.backup_data : null;
+        // Attempt to find latest backup in Storage for the current user
+        const sup = window.supabase;
+        const su = await sup.auth.getUser().catch(() => null);
+        const uid = su && su.data && su.data.user ? su.data.user.id : null;
+        let data = null;
+        if (uid) {
+          try {
+            const { data: files } = await sup.storage.from(BUCKET).list(uid, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+            if (files && files.length) {
+              const fp = `${uid}/${files[0].name}`;
+              data = await downloadFromStorage(sup, fp).catch(() => null);
+            }
+          } catch(e) { LOG('loadLatestBackup: storage list failed', e); }
+        }
         if (!data) return { ok: false, reason: 'no_backup' };
 
         // Safe restore: write only the main app key and device id entries
@@ -585,6 +721,18 @@
       } catch (e) { LOG('loadLatestBackup failed', e); throw e; }
     }
   };
+
+  // Expose upload helper globally for compatibility with other modules
+  try {
+    window.uploadBackupToStorage = uploadBackupToStorage;
+    // also expose on backupClient for consistency
+    if (window.backupClient) window.backupClient.uploadBackupToStorage = uploadBackupToStorage;
+    // expose prune so UI buttons or other modules can call it directly
+    if (typeof pruneOldBackups === 'function') {
+      window.pruneOldBackups = pruneOldBackups;
+      if (window.backupClient) window.backupClient.pruneOldBackups = pruneOldBackups;
+    }
+  } catch (e) { LOG('expose uploadBackupToStorage failed', e); }
 
   // Attempt flush pending when coming online
   window.addEventListener && window.addEventListener('online', () => { try { flushPendingUploads(); } catch(_){} });

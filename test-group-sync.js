@@ -99,8 +99,11 @@ async function runGroupSyncTest() {
       } catch(e) { log('backupSync create failed, falling back', e); }
     } else {
       try {
+        log('shared_backups upsert skipped (storage-only mode)');
+        /*
         const sb = await client.from('shared_backups').upsert([{ group_email: TEST_GROUP_EMAIL, data: TEST_DATA, device_id: 'test-device', last_sync_at: new Date().toISOString() }], { onConflict: 'group_email' }).select();
         log('shared_backups upsert result', sb);
+        */
       } catch(e) { log('shared_backups upsert failed', e); }
     }
 
@@ -130,7 +133,7 @@ async function cleanupTestData() {
   log('پاک‌سازی داده‌های تست...');
   
   try {
-    const tables = ['players', 'coaches', 'sessions', 'payments', 'competitions', 'training_plans', 'shared_backups'];
+    const tables = ['players', 'coaches', 'sessions', 'payments', 'competitions', 'training_plans'];
     
     for (const table of tables) {
       await window.supabase

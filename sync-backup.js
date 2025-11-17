@@ -200,39 +200,64 @@ export class BackupSync {
 
       const deviceId = await this.getOrCreateDeviceId();
 
-      const { error: insertError } = await this.client
-        .from('backups')
-        .insert({
-          backup_id: backupId,
-          user_id: userId,
-          device_id: deviceId,
-          group_email: this.groupEmail,
-          backup_data: snapshot,
-          snapshot_summary: summary,
-          size_bytes: (snapshotJson && snapshotJson.length) ? snapshotJson.length : null
-        });
-
-      if (insertError) throw insertError;
-
-      // Call cleanup RPC to keep only last N backups (server-side cleanup function)
+      // Upload snapshot to Supabase Storage (storage-only backups)
       try {
-        await this.client.rpc('cleanup_old_backups', { p_email: this.groupEmail });
+        // use user.id as the storage folder prefix
+        const folder = userId || this.groupEmail || 'anon';
+        const fileName = `${backupId}.json.gz`;
+        const filePath = `${folder}/${fileName}`;
+        // prefer compressed payload when compression enabled
+        let blob;
+        try {
+          if (this.options.compression) {
+            const compressed = await this.compressData(snapshot);
+            blob = compressed instanceof Blob ? compressed : new Blob([compressed], { type: 'application/gzip' });
+          } else {
+            blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+          }
+        } catch (cErr) {
+          blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+        }
+        const { error: uploadError } = await this.client.storage.from(this.options.bucketName).upload(filePath, blob, { upsert: true });
+        if (uploadError) throw uploadError;
+        // Best-effort: try cleanup/mark RPCs but do not fail backup if they error
+        // cleanup_old_backups RPC removed in storage-only migration (no-op)
+        // mark_shared_backup RPC removed in storage-only migration (no-op)
+
+        // success: update lastBackupTime/hash and clear pending
+        this._lastBackupTime = Date.now();
+        this._lastSnapshotHash = snapshotHash;
+        this._pendingBackup = false;
+
+        // Best-effort client-side prune: keep only the 2 newest backups for this user
+        try {
+          const folderPrefix = userId || this.groupEmail || 'anon';
+          if (typeof window !== 'undefined' && typeof window.pruneOldBackups === 'function') {
+            try { await window.pruneOldBackups(folderPrefix); } catch(e) { console.debug('window.pruneOldBackups failed', e); }
+          } else {
+            try {
+              const { data: files, error: listError } = await this.client.storage.from(this.options.bucketName).list(folderPrefix, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+              if (!listError && files && files.length > 2) {
+                const backups = files.filter(f => f && f.name && (f.name.endsWith('.json.gz') || f.name.endsWith('.json')));
+                if (backups.length > 2) {
+                  const toDelete = backups.slice(2).map(f => `${folderPrefix}/${f.name}`);
+                  if (toDelete.length) {
+                    try { await this.client.storage.from(this.options.bucketName).remove(toDelete); } catch(remE) { console.debug('prune remove failed', remE); }
+                  }
+                }
+              }
+            } catch(e) { console.debug('client-side prune failed', e); }
+          }
+        } catch (e) { console.debug('prune after upload failed', e); }
+
+        return { ok: true, backupId, summary };
       } catch (e) {
-        // Non-fatal: cleanup failure shouldn't block backup success
-        console.debug('cleanup_old_backups rpc failed', e);
+        console.error('Storage upload failed, saving pending locally', e);
+        // save pending locally as fallback (use user.id folder and .json.gz suffix)
+        try { savePendingBackupLocal(`${userId || this.groupEmail}/${backupId}.json.gz`, JSON.stringify(snapshot), { created_at: new Date().toISOString(), snapshot }); } catch(_){ }
+        this._pendingBackup = false;
+        return { ok: false, reason: 'pending' };
       }
-
-      // Mark shared backup pointer (best-effort)
-      try {
-        await this.client.rpc('mark_shared_backup', { p_group_email: this.groupEmail, p_backup_id: backupId });
-      } catch (e) { console.debug('mark_shared_backup rpc failed', e); }
-
-      // success: update lastBackupTime/hash and clear pending
-      this._lastBackupTime = Date.now();
-      this._lastSnapshotHash = snapshotHash;
-      this._pendingBackup = false;
-
-      return { ok: true, backupId, summary };
 
     } catch (error) {
       console.error('Backup creation failed:', error);
@@ -246,19 +271,29 @@ export class BackupSync {
     const email = await this.getCurrentUserEmail();
     if (!email) throw new Error('No user email available');
 
-    const { data, error } = await this.client
-      .from('backups')
-      .select('backup_data')
-      .eq('group_email', email)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !data) throw new Error('No backup found');
-
-    await this.restoreData(data.backup_data);
-    console.log('✅ Backup restored successfully');
-    return { ok: true };
+    // Attempt to find latest backup in Storage for the user
+      try {
+        const uid = (await this.client.auth.getUser()).data?.user?.id;
+        if (!uid) throw new Error('No user');
+        const folder = uid;
+        const { data: files, error: listError } = await this.client.storage.from(this.options.bucketName).list(folder, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+        if (listError || !files || files.length === 0) throw new Error('No backup found');
+        const fp = `${folder}/${files[0].name}`;
+        const { data: fileData, error: downloadError } = await this.client.storage.from(this.options.bucketName).download(fp);
+        if (downloadError) throw downloadError;
+        // try decompressing if gzipped, otherwise parse text
+        try {
+          const ab = await fileData.arrayBuffer();
+          const parsed = await this.decompressData(new Uint8Array(ab));
+          await this.restoreData(parsed);
+        } catch (inner) {
+          const text = await fileData.text();
+          const snap = JSON.parse(text);
+          await this.restoreData(snap);
+        }
+        console.log('✅ Backup restored successfully');
+        return { ok: true };
+      } catch (e) { throw e; }
   }
 
   // Restore from a specific backup_id
@@ -267,17 +302,29 @@ export class BackupSync {
     const email = await this.getCurrentUserEmail();
     if (!email) throw new Error('No user email available');
 
-    const { data, error } = await this.client
-      .from('backups')
-      .select('backup_data')
-      .eq('group_email', email)
-      .eq('backup_id', backupId)
-      .single();
-
-    if (error || !data) throw new Error('Backup not found');
-    await this.restoreData(data.backup_data);
-    console.log('✅ Backup restored from ID:', backupId);
-    return { ok: true };
+    try {
+      const uid = (await this.client.auth.getUser()).data?.user?.id;
+      if (!uid) throw new Error('No user');
+      const folder = uid;
+      const candidate = `${folder}/${backupId}.json.gz`;
+      let snap = null;
+      try {
+        const { data: fileData, error: downloadError } = await this.client.storage.from(this.options.bucketName).download(candidate);
+        if (!downloadError) {
+          try {
+            const ab = await fileData.arrayBuffer();
+            const parsed = await this.decompressData(new Uint8Array(ab));
+            snap = parsed;
+          } catch (dErr) {
+            const text = await fileData.text(); snap = JSON.parse(text);
+          }
+        }
+      } catch (_) { /* ignore */ }
+      if (!snap) throw new Error('Backup not found');
+      await this.restoreData(snap);
+      console.log('✅ Backup restored from ID:', backupId);
+      return { ok: true };
+    } catch (e) { throw e; }
   }
 
   // Helper: get current user's email (resolve via auth/profile if possible)
@@ -464,9 +511,20 @@ export class BackupSync {
   async hasRemoteBackup() {
     if (!this.groupEmail) return false;
     try {
-      const { data, error } = await this.client.from('shared_backups').select('latest_backup_id').eq('group_email', this.groupEmail).maybeSingle();
-      if (error) { console.debug('hasRemoteBackup query error', error); return false; }
-      return !!(data && data.latest_backup_id);
+      // حذف شد: direct DB read from `shared_backups` (storage-only)
+      // const { data, error } = await this.client.from('shared_backups').select('latest_backup_id').eq('group_email', this.groupEmail).maybeSingle();
+      // if (error) { console.debug('hasRemoteBackup query error', error); return false; }
+      // return !!(data && data.latest_backup_id);
+      // Fallback: check Storage for any backup files under the current user's prefix
+      try {
+        const su = await this.client.auth.getUser().catch(() => null);
+        const user = su && su.data && su.data.user ? su.data.user : null;
+        if (!user || !user.email) return false;
+        const prefix = String(user.email).replace(/[@.]/g, '_');
+        const { data: files, error } = await this.client.storage.from('backups').list(prefix, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+        if (error) { console.debug('hasRemoteBackup storage list error', error); return false; }
+        return !!(files && files.length > 0);
+      } catch (se) { console.debug('hasRemoteBackup storage fallback failed', se); return false; }
     } catch (e) { console.warn('hasRemoteBackup failed', e); return false; }
   }
 

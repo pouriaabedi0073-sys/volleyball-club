@@ -161,7 +161,8 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <!-- Ensure Supabase library is loaded early for auth UI -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    <script>
+  <script src="./backup.js"></script>
+  <script>
       // Minimal Supabase client initializer: prefer window vars if set, otherwise use project defaults
       (function(){
         try {
@@ -3829,24 +3830,8 @@ window.handleManualBackup = async function handleManualBackup() {
     if (res && res.ok) {
       alert('✅ بک‌آپ با موفقیت ذخیره شد');
     } else if (res && res.ok === 'pending' && res.id) {
-      const client = window.supabase;
-      let uploaded = false;
-      if (client) {
-        const pollInterval = 2000;
-        const maxAttempts = 15;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          try {
-            const { data, error } = await client.from('backups').select('backup_id').eq('backup_id', res.id).maybeSingle();
-            if (!error && data && data.backup_id) { uploaded = true; break; }
-          } catch (e) { /* ignore and retry */ }
-          await new Promise(r => setTimeout(r, pollInterval));
-        }
-      }
-      if (uploaded) {
-        alert('✅ بک‌آپ با موفقیت روی سرور ذخیره شد');
-      } else {
-        alert('⚠️ بک‌آپ در حالت انتظار ذخیره شد و پس از اتصال آپلود خواهد شد');
-      }
+      // Pending backups are handled by the background flush; notify user and return.
+      alert('⚠️ بک‌آپ در حالت انتظار ذخیره شد و پس از اتصال آپلود خواهد شد');
     } else if (res && res.reason === 'nochange') {
       alert('ℹ️ داده‌ها از آخرین بک‌آپ تغییری نکرده‌اند');
     } else {
@@ -3877,25 +3862,25 @@ window.showBackupHistory = async function showBackupHistory() {
     if (!email) return alert('کاربر لاگین نشده است');
     // ensure group email set for consistency
     window.backupSync.setGroupEmail(email);
-    const { data, error } = await client
-      .from('backups')
-      .select('backup_id, created_at')
-      .eq('group_email', email)
-      .order('created_at', { ascending: false })
-      .limit(5);
-    if (error) {
-      console.warn('showBackupHistory failed', error);
-      return alert('⚠️ خطا در دریافت تاریخچه');
-    }
-    const box = document.getElementById('backupHistoryBox');
-    box.innerHTML = (data && data.length === 0)
-      ? '<p>هیچ بک‌آپی وجود ندارد</p>'
-      : data.map(b => `
-      <div style="margin-bottom:8px;padding:8px;border-bottom:1px solid rgba(0,0,0,0.04);">
-        <b>${new Date(b.created_at).toLocaleString()}</b> — ${b.backup_id}
-        <button style="margin-left:8px;" onclick="restoreBackup('${b.backup_id}')">🔁 بازیابی</button>
-      </div>
-    `).join('');
+    // List recent backup files from Storage for the current user
+    try {
+      const sup = window.supabase;
+      const su = await sup.auth.getUser().catch(() => null);
+      const user = su && su.data && su.data.user ? su.data.user : null;
+      if (!user || !user.email) return alert('کاربر لاگین نشده است');
+      const emailSafe = user.email.replace(/[@.]/g, '_');
+      const { data: files, error: listError } = await sup.storage.from('backups').list(emailSafe, { limit: 50, sortBy: { column: 'created_at', order: 'desc' } });
+      if (listError) { console.warn('showBackupHistory storage list failed', listError); return alert('⚠️ خطا در دریافت تاریخچه'); }
+      const box = document.getElementById('backupHistoryBox');
+      box.innerHTML = (files && files.length === 0)
+        ? '<p>هیچ بک‌آپی وجود ندارد</p>'
+        : files.slice(0,5).map(f => `
+        <div style="margin-bottom:8px;padding:8px;border-bottom:1px solid rgba(0,0,0,0.04);">
+          <b>${new Date(f.created_at || Date.now()).toLocaleString()}</b> — ${f.name}
+          <button style="margin-left:8px;" onclick="(async()=>{ try{ await window.backupClient.restoreBackup && window.backupClient.restoreBackup(emailSafe + '/' + f.name); }catch(e){console.error(e);} })()">🔁 بازیابی</button>
+        </div>
+      `).join('');
+    } catch (e) { console.warn('showBackupHistory failed', e); return alert('⚠️ خطا در دریافت تاریخچه'); }
     // Toggle the box: if hidden, open it; if visible, close it
     if (box.style.display === 'none' || box.style.display === '') toggleBackupHistory(); else toggleBackupHistory();
   } catch (err) {
@@ -6337,11 +6322,13 @@ function calculateTimeToNextCategory(age, category) {
               const displayEmail = ((profile && profile.email) ? profile.email : (user.email || '')) || '';
               const displayEmailLower = displayEmail ? displayEmail.toLowerCase() : '';
               if (displayEmailLower) {
-                const sres = await client.from('shared_backups').select('data,last_sync_at,device_id').eq('group_email', displayEmailLower).order('last_sync_at', { ascending: false }).limit(1).maybeSingle();
-                if (sres && !sres.error && sres.data && sres.data.data) {
-                  payload = sres.data.data;
-                  try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(sres.data.last_sync_at || sres.data.created_at).toLocaleString()} • ${sres.data.device_id || 'دستگاه دیگر'}`; } catch(_){ }
-                }
+                // حذف شد: direct read from `shared_backups` table (storage-only)
+                // const sres = await client.from('shared_backups').select('data,last_sync_at,device_id').eq('group_email', displayEmailLower).order('last_sync_at', { ascending: false }).limit(1).maybeSingle();
+                // if (sres && !sres.error && sres.data && sres.data.data) {
+                //   payload = sres.data.data;
+                //   try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(sres.data.last_sync_at || sres.data.created_at).toLocaleString()} • ${sres.data.device_id || 'دستگاه دیگر'}`; } catch(_){ }
+                // }
+                console.log('shared_backups read skipped (storage-only migration)');
               }
             } catch (sharedErr) { console.warn('shared_backups read failed', sharedErr); }
             if (!payload) {
@@ -6352,10 +6339,22 @@ function calculateTimeToNextCategory(age, category) {
                 payload = res.data && res.data.last_sync_payload;
                 if (!payload) {
                   try {
-                    const bres = await client.from('backups').select('data,created_at,device_id').eq('user_id', pUid).order('created_at', { ascending: false }).limit(1).maybeSingle();
-                    if (bres && !bres.error && bres.data && bres.data.data) {
-                      payload = bres.data.data;
-                      try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(bres.data.created_at).toLocaleString()} • ${bres.data.device_id || '—'}`; } catch(_){ }
+                        // Try reading latest backup from Storage under email-safe prefix (fallback to userId)
+                        const su = await client.auth.getUser().catch(() => null);
+                        const authUser = su && su.data && su.data.user ? su.data.user : null;
+                        const prefix = (authUser && authUser.email) ? String(authUser.email).replace(/[@.]/g, '_') : pUid;
+                        const { data: files, error: listErr } = await client.storage.from('backups').list(prefix, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+                        if (!listErr && files && files.length) {
+                          const f = files[0];
+                          const fp = `${prefix}/${f.name}`;
+                      try {
+                        const { data: fileData, error: dlErr } = await client.storage.from('backups').download(fp);
+                        if (!dlErr && fileData) {
+                          const text = await fileData.text();
+                          payload = JSON.parse(text);
+                          try { const lastSyncLine = document.getElementById('lastSyncLineHeader') || document.getElementById('lastSyncLine') || document.getElementById('lastSyncLineFallback'); if (lastSyncLine) lastSyncLine.textContent = `آخرین همگام‌سازی: ${new Date(f.created_at || Date.now()).toLocaleString()} • ${f.metadata?.device_id || '—'}`; } catch(_){ }
+                        }
+                      } catch (dlE) { console.warn('backup file download failed', dlE); }
                     }
                   } catch(be) { console.warn('backup fallback read failed', be); }
                 }

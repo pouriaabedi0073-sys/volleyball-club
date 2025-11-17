@@ -1067,11 +1067,23 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
                 }
               } catch(_){ }
               const payload = { user_id: (meta && meta.user_id) || null, group_email: group, backup_id: name, backup_data: meta && meta.snapshot ? meta.snapshot : {}, device_id: (typeof getDeviceId === 'function') ? getDeviceId() : null, created_at: meta.created_at };
-              const ins = await client.from('backups').insert([payload]).select();
-              if (ins && ins.error) throw ins.error;
-              path = group ? `${group}/${name}` : name;
-              uploadResp = { data: ins.data };
-              break;
+              try {
+                // upload snapshot to Supabase Storage instead of DB insert
+                const su = await client.auth.getUser().catch(() => null);
+                const suUser = su && su.data && su.data.user ? su.data.user : null;
+                const emailSrc = (suUser && suUser.email) ? suUser.email : (group || 'anon');
+                const prefix = String(emailSrc).replace(/[@.]/g, '_');
+                const fileName = `${name}.json`;
+                const filePath = `${prefix}/${fileName}`;
+                const blob = new Blob([JSON.stringify(payload.backup_data || payload)], { type: 'application/json' });
+                const { error: uploadError } = await client.storage.from('backups').upload(filePath, blob, { upsert: true });
+                if (uploadError) throw uploadError;
+                path = filePath;
+                uploadResp = { data: [] };
+                break;
+              } catch (e) {
+                throw e;
+              }
             } catch (dbErr) {
               throw dbErr;
             }
@@ -1111,11 +1123,16 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
                 try { const su = await client.auth.getUser(); const suUser = su && su.data && su.data.user; if (suUser && suUser.id) insertRow.user_id = suUser.id; } catch(_){ }
               }
             } catch(_){ }
-            const dbIns = await client.from('backups').insert([insertRow]).select();
-            if (dbIns && dbIns.error) throw dbIns.error;
-            saveLastBackupMeta({ path, publicUrl: null, created_at: meta.created_at, storedLocal: false, fallbackInserted: true });
-            _log('backup inserted directly into backups table as fallback', dbIns && dbIns.data ? dbIns.data[0] : null);
-            return { path, publicUrl: null, storedLocal: false, fallbackInserted: true };
+            try {
+              // as fallback, save pending locally instead of DB insert
+              savePendingBackupLocal(path, json, meta);
+              saveLastBackupMeta({ path, publicUrl: null, created_at: meta.created_at, storedLocal: true, fallbackInserted: true });
+              _log('backup saved locally as fallback (no DB insert)');
+              return { path, publicUrl: null, storedLocal: true, fallbackInserted: true };
+            } catch (innerErr) {
+              _log('backup fallback save failed', innerErr);
+              return { path, publicUrl: null, storedLocal: true, error: String(innerErr) };
+            }
           } catch (dbErr) {
             _log('backup fallback DB insert failed; saving pending local backup', dbErr);
             savePendingBackupLocal(path, json, meta);
@@ -1129,7 +1146,7 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
           saveLastBackupMeta({ path, publicUrl: null, created_at: meta.created_at, storedLocal: false });
           const groupEmail = (meta && meta.group_email) ? String(meta.group_email).toLowerCase() : null;
           if (groupEmail) {
-            try { await client.rpc('mark_shared_backup', { p_group_email: groupEmail, p_backup_id: name }); } catch(e){ _log('mark_shared_backup rpc failed', e); }
+            // mark_shared_backup RPC removed in storage-only migration (no-op)
           }
           _log('backup recorded in backups table', path);
         // Also upsert a shared backup for this group email so other devices using the same
@@ -1144,10 +1161,17 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
               last_sync_at: new Date().toISOString()
             };
             try {
-              const su = await client.from('shared_backups').upsert([Object.assign({}, sb, { created_at: sb.last_sync_at })], { onConflict: 'group_email' });
-              if (su && su.error) _log('shared_backups upsert error', su.error);
-              else _log('shared_backups upserted', su && su.data ? su.data : null);
-            } catch (sErr) { _log('shared_backups upsert failed', sErr); }
+              // migrate: store discovery info in shared_backups if available, otherwise ignore
+              // حذف شد: direct DB upsert into `shared_backups` (storage-only migration)
+              // if (client && client.from) {
+              //   try {
+              //     const su = await client.from('shared_backups').upsert([Object.assign({}, sb, { created_at: sb.last_sync_at })], { onConflict: 'group_email' });
+              //     if (su && su.error) _log('shared_backups upsert error', su.error);
+              //     else _log('shared_backups upserted', su && su.data ? su.data : null);
+              //   } catch (sErr) { _log('shared_backups upsert failed', sErr); }
+              // }
+              _log('shared_backups upsert skipped (storage-only migration)');
+            } catch (sErr) { _log('shared_backups upsert skipped with error', sErr); }
           }
         } catch (_) { /* ignore */ }
 
@@ -1272,16 +1296,24 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
     },
     // Fetch latest shared backup for current user's group_email
     async fetchSharedBackup() {
+      // Storage-only migration: list files in the user's backups storage prefix
       const client = await waitForClient();
       const { data: u } = await client.auth.getUser();
       const user = u && u.user;
       if (!user) throw new Error('Not signed in');
-      const groupEmail = await getGroupEmail(client, user);
-      if (!groupEmail) throw new Error('Group email not resolved');
       try {
-        const res = await client.from('shared_backups').select('id,data,last_sync_at,device_id').eq('group_email', groupEmail).order('last_sync_at', { ascending: false }).limit(1).maybeSingle();
-        if (res && res.error) throw res.error;
-        return res && res.data ? res.data : null;
+        const emailSrc = user.email || (user && user.id) || null;
+        const prefix = emailSrc ? String(emailSrc).replace(/[@.]/g, '_') : (user.id || 'anon');
+        const { data: files, error } = await client.storage.from('backups').list(prefix, { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+        if (error) throw error;
+        if (!files || files.length === 0) return null;
+        const fp = `${prefix}/${files[0].name}`;
+        const { data: fileData, error: dlErr } = await client.storage.from('backups').download(fp);
+        if (dlErr) throw dlErr;
+        const text = await fileData.text();
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch (_) { parsed = text; }
+        return { id: files[0].name, data: parsed, path: fp, created_at: files[0].created_at };
       } catch (e) { _log('fetchSharedBackup failed', e); throw e; }
     },
     
@@ -1449,11 +1481,17 @@ async function loadTableIntoState(client, userId, table, groupEmail) {
               // attach user_id if available
               let tmpUserId = null;
               try { const su = await client.auth.getUser(); const suUser = su && su.data && su.data.user; if (suUser && suUser.id) tmpUserId = suUser.id; } catch(_){ }
-              const r = await client.from('backups').insert([{ id: item.id, backup_id: item.id, user_id: tmpUserId, group_email: item.groupEmail, backup_data: obj, created_at: new Date().toISOString() }]);
-            } catch (e) { await client.from('backups').insert([{ id: item.id, backup_id: item.id, group_email: item.groupEmail, backup_data: obj, created_at: new Date().toISOString() }]); }
-            if (r && r.error) throw r.error;
-            arr.splice(i, 1); i--;
-            _log('flushPendingBackups: inserted pending backup', item.path);
+              // upload pending backup to storage
+              try {
+                const prefix = tmpUserId || item.groupEmail || 'anon';
+                const fileName = `${item.id}.json`;
+                const filePath = `${prefix}/${fileName}`;
+                const blobToUpload = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+                const { error: uploadError } = await client.storage.from('backups').upload(filePath, blobToUpload, { upsert: true });
+                if (uploadError) throw uploadError;
+                arr.splice(i, 1); i--;
+                _log('flushPendingBackups: uploaded pending backup to storage', filePath);
+              } catch (uploadErr) { throw uploadErr; }
           } catch (e) {
             throw e;
           }

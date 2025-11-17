@@ -1,5 +1,5 @@
 // --- نسخه جدید: 2025-11-16 ---
-const CACHE_NAME = 'volleyball-club-v20251116'; // ← هر بار افزایش بده
+const CACHE_NAME = 'volleyball-club-v20251117'; // ← هر بار افزایش بده
 
 const PRECACHE_URLS = [
   '/volleyball-club/',
