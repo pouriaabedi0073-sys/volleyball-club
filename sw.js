@@ -46,8 +46,8 @@ self.addEventListener('fetch', (event) => {
         const networkResponse = await fetch(req);
         return networkResponse;
       } catch (err) {
-        const cached = await caches.match('./index.html');
-        return cached || Response.error();
+          const cached = await caches.match('./index.html');
+          return cached || Response.error();
       }
     })());
     return;

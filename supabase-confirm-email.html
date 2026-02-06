@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="">
     <title>تأیید ایمیل - {{ .SiteName }}</title>
     <style>
       body{font-family:Tahoma, Arial, sans-serif;background:#fff;color:#111;padding:20px}
@@ -17,9 +18,9 @@
         <h2>تأیید ایمیل</h2>
         <p>سلام،</p>
         <p>برای تکمیل ثبت‌نام، لطفاً روی دکمهٔ زیر کلیک کنید:</p>
-  <p style="text-align:center;margin:18px 0"><a href="https://wtycgduarwpgnxxvwtgz.supabase.co/auth/v1/verify?token={{ .Token }}&amp;type=signup&amp;redirect_to=https://pouriaabedi0073-sys.github.io/volleyball-club/confirm-signup.html" style="display:inline-block;padding:10px 14px;background:#0ea5e9;color:#fff;border-radius:6px;text-decoration:none">تأیید ایمیل</a></p>
-  <p>اگر لینک بالا به درستی کار نکرد، می‌توانید آدرس تأیید زیر را در مرورگر باز کنید (این لینک Supabase را برای تأیید صدا می‌زند و سپس شما را به صفحهٔ تأیید هدایت می‌کند):</p>
-  <pre>https://wtycgduarwpgnxxvwtgz.supabase.co/auth/v1/verify?token={{ .Token }}&amp;type=signup&amp;redirect_to=https://pouriaabedi0073-sys.github.io/volleyball-club/confirm-signup.html</pre>
+        <p style="text-align:center;margin:18px 0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:10px 14px;background:#0ea5e9;color:#fff;border-radius:6px;text-decoration:none">تأیید ایمیل</a></p>
+  <p>اگر لینک بالا به درستی کار نکرد، می‌توانید آدرس تأیید زیر را در مرورگر باز کنید:</p>
+        <pre>{{ .ConfirmationURL }}</pre>
   <p>همچنین این مقدارِ استاندارد (برای پشتیبان‌گیری) را نگه داشته‌ام:</p>
   <pre>{{ .ConfirmationURL }}</pre>
         <p>بعد از تأیید، به صفحهٔ تأیید هدایت می‌شوید و پیام «ایمیل شما تایید شد» را خواهید دید.</p>

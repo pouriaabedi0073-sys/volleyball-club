@@ -1,4 +1,4 @@
-$path = 'c:\Users\m-pc\Desktop\project_fixed_\sync-hybrid.js'
+$path = '..\sync-hybrid.js'
 $src = Get-Content -Raw $path
 $len = $src.Length
 function isIdent([char]$c){ return ($c -match '[A-Za-z0-9_$]') }

@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="./">
     <title>تأیید ایمیل ثبت‌نام</title>
     <style>
       body{font-family:Tahoma, Arial, sans-serif;background:#f7f7f9;color:#111;padding:24px}
@@ -21,31 +22,50 @@
       <h1>ایمیل شما تایید شد</h1>
   <p>ایمیل شما با موفقیت تأیید شد.</p>
         <div id="confirmStatus" style="margin-top:12px;color:var(--muted);font-size:13px">اگر این صفحه را بعد از کلیک روی لینک تأیید دیدید، منتظر بمانید — در حال بررسی وضعیت تأیید...</div>
+        <div style="margin-top:18px;">
+          <a class="btn" href="./">← بازگشت به برنامه</a>
+        </div>
         <script>
           (function(){
-            // If the page was opened with a token parameter (query or fragment), call Supabase verify endpoint
-            const svc = 'https://wtycgduarwpgnxxvwtgz.supabase.co/auth/v1/verify';
-            const redirectTo = 'https://pouriaabedi0073-sys.github.io/volleyball-club/confirm-signup.html';
-            function getParam(name){
-              try{
-                const s = window.location.search ? window.location.search : '';
-                const h = (window.location.hash && window.location.hash.indexOf('?')!==-1) ? window.location.hash.slice(window.location.hash.indexOf('?')) : (window.location.hash||'');
-                const params = new URLSearchParams(s + '&' + h.replace(/^\?/, ''));
-                return params.get(name);
-              }catch(e){return null}
-            }
-            const token = getParam('token') || getParam('access_token');
-            if (token){
-              try{
-                const verifyUrl = svc + '?token=' + encodeURIComponent(token) + '&type=signup&redirect_to=' + encodeURIComponent(redirectTo);
-                // Replace location with verify endpoint. Supabase will validate token then redirect back to confirm-signup.html
-                document.getElementById('confirmStatus').textContent = 'در حال ارسال برای تأیید... اگر مرورگر شما از بازنشانی پشتیبانی کند، پس از تأیید به همین صفحه باز می‌گردید.';
-                window.location.replace(verifyUrl);
-              }catch(e){ console.warn('verify redirect failed', e); }
-            } else {
-              // no token — inform the user to use the verify link in the email (the template includes a direct Supabase verify URL)
-              document.getElementById('confirmStatus').textContent = 'اگر حساب شما تأیید نشده است، لطفاً روی لینک تأیید داخل ایمیل کلیک کنید یا از لینک کمکی ارسال‌شده در ایمیل استفاده کنید.';
-            }
+            // Load config first to get Supabase URL
+            const script = document.createElement('script');
+            script.src = './config.js';
+            script.onload = () => {
+              if (!window.SUPABASE_URL) {
+                document.getElementById('confirmStatus').textContent = 'خطا: Supabase URL تنظیم نشده. لطفاً config.js را بررسی کنید.';
+                return;
+              }
+              
+              // If the page was opened with a token parameter (query or fragment), call Supabase verify endpoint
+              const svc = window.SUPABASE_URL + '/auth/v1/verify';
+              const redirectTo = window.location.origin + window.location.pathname + '?verified=true';
+              
+              function getParam(name){
+                try{
+                  const s = window.location.search ? window.location.search : '';
+                  const h = (window.location.hash && window.location.hash.indexOf('?')!==-1) ? window.location.hash.slice(window.location.hash.indexOf('?')) : (window.location.hash||'');
+                  const params = new URLSearchParams(s + '&' + h.replace(/^\?/, ''));
+                  return params.get(name);
+                }catch(e){return null}
+              }
+              
+              const token = getParam('token') || getParam('access_token');
+              if (token){
+                try{
+                  const verifyUrl = svc + '?token=' + encodeURIComponent(token) + '&type=signup&redirect_to=' + encodeURIComponent(redirectTo);
+                  // Replace location with verify endpoint. Supabase will validate token then redirect back to confirm-signup.html
+                  document.getElementById('confirmStatus').textContent = 'در حال ارسال برای تأیید... اگر مرورگر شما از بازنشانی پشتیبانی کند، پس از تأیید به همین صفحه باز می‌گردید.';
+                  window.location.replace(verifyUrl);
+                }catch(e){ console.warn('verify redirect failed', e); }
+              } else {
+                // no token — inform the user to use the verify link in the email (the template includes a direct Supabase verify URL)
+                document.getElementById('confirmStatus').textContent = 'اگر حساب شما تأیید نشده است، لطفاً روی لینک تأیید داخل ایمیل کلیک کنید یا از لینک کمکی ارسال‌شده در ایمیل استفاده کنید.';
+              }
+            };
+            script.onerror = () => {
+              document.getElementById('confirmStatus').textContent = 'خطا: فایل config.js لود نشد.';
+            };
+            document.head.appendChild(script);
           })();
         </script>
     </div>

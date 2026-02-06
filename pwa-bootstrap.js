@@ -2,15 +2,21 @@
 (function(){
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      // Register root-scoped service worker for offline support. Use relative paths
-      // so this works on different hosting setups (local file, root, or subpath).
-      const swPath = './service-worker.js';
-      const swScope = './';
+      // Compute basePath dynamically so packaged/local apps work (file:// or empty host)
+      const basePath = (function(){
+        try {
+          if (location.protocol === 'file:') return './';
+          const p = location.pathname;
+          return p.endsWith('/') ? p : p.slice(0, p.lastIndexOf('/') + 1);
+        } catch(e) { return './'; }
+      })();
+      const swPath = basePath + 'service-worker.js';
+      const swScope = basePath;
       navigator.serviceWorker.getRegistration(swScope).then(reg => {
         if (!reg) {
           navigator.serviceWorker.register(swPath, { scope: swScope })
-            .then(r => { console.log('Service Worker registered:', r); })
-            .catch(err => { console.error('Service Worker registration failed:', err); });
+            .then(r => { console.log('Service Worker registered:', r, 'basePath=', basePath); })
+            .catch(err => { console.error('Service Worker registration failed:', err, 'swPath=', swPath, 'swScope=', swScope); });
         } else {
           console.log('Service Worker already registered for scope', swScope, reg);
         }

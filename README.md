@@ -28,7 +28,7 @@
 
 **مرحله ۱: ساخت فایل‌های اولیه اندروید با PWABuilder**
 1.  به وب‌سایت [PWABuilder.com](https://www.pwabuilder.com) بروید.
-2.  آدرس کامل PWA خود را وارد کنید: `https://pouriaabedi0073-sys.github.io/volleyball-club/`
+2.  آدرس کامل PWA خود را وارد کنید: `https://club-management.ir/volleyball/`
 3.  روی دکمه **Start** کلیک کنید. PWABuilder اپلیکیشن شما را تحلیل می‌کند.
 4.  در بخش **Android**، روی دکمه **Package** کلیک کنید.
 5.  فایل‌های پروژه اندروید را دانلود کنید.
@@ -41,7 +41,7 @@
 3.  مهم‌ترین بخش، **SHA-256 Certificate Fingerprint** است. این کد پس از ساخت اولین نسخه از اپلیکیشن در اندروید استودیو یا ابزارهای دیگر به دست می‌آید. PWABuilder راهنمایی لازم برای یافتن این کد را ارائه می‌دهد.
 4.  پس از وارد کردن اطلاعات، PWABuilder فایل `assetlinks.json` را برای شما می‌سازد.
 5.  فایل `assetlinks.json` دانلود شده را در پروژه خود، داخل پوشه‌ای به نام `.well-known` قرار دهید. مسیر نهایی باید به این شکل باشد: `.well-known/assetlinks.json`.
-6.  تغییرات را در ریپازیتوری گیت‌هاب خود آپلود (push) کنید تا فایل در آدرس `https://pouriaabedi0073-sys.github.io/volleyball-club/.well-known/assetlinks.json` در دسترس باشد.
+6.  تغییرات را در ریپازیتوری خود آپلود (push) کنید تا فایل در آدرس `https://club-management.ir/volleyball/.well-known/assetlinks.json` در دسترس باشد (در صورت نیاز).
 
 **مرحله ۳: ساخت نهایی APK/AAB**
 1.  پروژه اندرویدی که از PWABuilder دانلود کرده‌اید را در **Android Studio** باز کنید.

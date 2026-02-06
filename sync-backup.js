@@ -578,8 +578,12 @@ function resolveSupabaseClient() {
     if (window.supabase && typeof window.supabase.from === 'function') return window.supabase;
     // Try to create a client if UMD factory 'supabase' exists
     if (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function') {
-      const url = window.SUPABASE_URL || 'https://wtycgduarwpgnxxvwtgz.supabase.co';
-      const key = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eWNnZHVhcndwZ254eHZ3dGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMDMyNzUsImV4cCI6MjA3Mzg3OTI3NX0.uqjl1qWII_Yzw86uOHlesjH0YP4AL4QMhjFItPb2DjU';
+      const url = window.SUPABASE_URL; // Must be set by host app
+      const key = window.SUPABASE_ANON_KEY; // Must be set by host app
+      if (!url || !key) {
+        console.warn('resolveSupabaseClient: SUPABASE_URL and SUPABASE_ANON_KEY must be set globally');
+        return null;
+      }
       const c = supabase.createClient(url, key);
       window.supabaseClient = c;
       return c;

@@ -1,23 +1,35 @@
 let newWorker;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/volleyball-club/service-worker.js')
-    .then(reg => {
-      reg.addEventListener('updatefound', () => {
-        newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            if (confirm('نسخه جدید آماده است! بروزرسانی شود؟')) {
-              newWorker.postMessage({ action: 'skipWaiting' });
-            }
-          }
-        });
-      });
-    });
+  (function(){
+    const base = (function(){
+      try {
+        if (location.protocol === 'file:') return './';
+        const p = location.pathname;
+        return p.endsWith('/') ? p : p.slice(0, p.lastIndexOf('/') + 1);
+      } catch(e){ return '/volleyball/'; }
+    })();
+    const swPath = base + 'service-worker.js';
+    const swScope = base;
 
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  });
+    navigator.serviceWorker.register(swPath, { scope: swScope })
+      .then(reg => {
+        reg.addEventListener('updatefound', () => {
+          newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              if (confirm('نسخه جدید آماده است! بروزرسانی شود؟')) {
+                newWorker.postMessage({ action: 'skipWaiting' });
+              }
+            }
+          });
+        });
+      }).catch(err => console.error('Service Worker registration failed:', err, 'swPath=', swPath, 'swScope=', swScope));
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  })();
 }
 
 /* Backup UI toggle injection

@@ -5,21 +5,72 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>تغییر رمز موفق</title>
     <style>
-      body{font-family:Tahoma, Arial, sans-serif;background:#f7f7f9;color:#111;padding:24px}
-      .card{max-width:720px;margin:40px auto;background:#fff;border-radius:10px;padding:30px;box-shadow:0 10px 30px rgba(12,14,20,0.06);text-align:center}
-      h1{font-size:22px;margin:0 0 12px}
-      p{color:#444;margin:8px 0}
-      a.btn{display:inline-block;margin-top:16px;padding:10px 16px;background:#0ea5e9;color:#fff;border-radius:8px;text-decoration:none}
+      body{
+        font-family:Tahoma,Arial,sans-serif;
+        background:#f7f9fc;
+        color:#111;
+        padding:24px;
+        margin:0;
+      }
+      .card{
+        max-width:720px;
+        margin:80px auto;
+        background:#fff;
+        border-radius:14px;
+        padding:40px 30px;
+        box-shadow:0 15px 40px rgba(0,0,0,0.08);
+        text-align:center;
+      }
+      h1{
+        font-size:26px;
+        color:#059669;
+        margin:0 0 16px;
+      }
+      p{
+        color:#444;
+        font-size:16px;
+        margin:12px 0;
+        line-height:1.6;
+      }
+      .icon{
+        font-size:60px;
+        margin-bottom:20px;
+      }
+      .btn{
+        display:inline-block;
+        margin-top:24px;
+        padding:12px 32px;
+        background:#0ea5e9;
+        color:#fff;
+        border-radius:10px;
+        text-decoration:none;
+        font-weight:bold;
+        font-size:16px;
+        transition:all 0.2s;
+      }
+      .btn:hover{background:#0d94d1}
       @media (max-width:520px){
-        .card{padding:18px;margin:18px}
-        h1{font-size:18px}
+        .card{padding:24px;margin:40px auto}
+        h1{font-size:22px}
       }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>رمز با موفقیت تغییر یافت</h1>
-  <p>رمز عبور شما با موفقیت تغییر کرد. اکنون می‌توانید از طریق برنامه وارد شوید.</p>
+      <div class="icon">Checkmark</div>
+      <h1>رمز عبور با موفقیت تغییر کرد!</h1>
+      <p>همه چیز آماده است. اکنون می‌توانید با رمز جدید وارد برنامه شوید.</p>
+      <p>در حال هدایت به صفحه اصلی...</p>
+      
+      <!-- هدایت خودکار بعد از ۳ ثانیه -->
+      <script>
+        setTimeout(() => {
+          window.location.href = './';
+        }, 3000);
+      </script>
+
+      <!-- دکمه دستی برای کسانی که اسکریپت بلاک شده -->
+      <a href="./" class="btn">بازگشت به برنامه</a>
     </div>
   </body>
 </html>

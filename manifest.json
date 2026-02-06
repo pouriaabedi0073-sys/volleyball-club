@@ -2,33 +2,102 @@
   "name": "مدیریت باشگاه والیبال",
   "short_name": "والیبال",
   "description": "اپلیکیشن PWA برای مدیریت باشگاه والیبال: بازیکنان، مربیان، پرداخت‌ها، جلسات و گزارش‌ها.",
-  "start_url": "/volleyball-club/index.html#home",
-  "scope": "/volleyball-club/",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "id": "./?source=pwa",
+  "lang": "fa",
+  "dir": "rtl",
   "display": "standalone",
   "display_override": [
     "window-controls-overlay",
-    "standalone"
+    "standalone",
+    "browser"
   ],
   "background_color": "#ffffff",
   "theme_color": "#1a73e8",
   "orientation": "portrait",
-  "icons": [
-    { "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/volleyball-club/assets/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/volleyball-club/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/volleyball-club/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ],
-  "id": "/volleyball-club/",
-  "lang": "fa",
-  "dir": "rtl",
   "categories": ["sports", "productivity"],
+  "icons": [
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
   "screenshots": [
-    { "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "label": "صفحه اصلی", "platform": "narrow" },
-    { "src": "/volleyball-club/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "label": "لیست بازیکنان", "platform": "wide" }
-  ],
+  {
+    "src": "./assets/screenshots/home-narrow.jpg",
+    "sizes": "648x1280",
+    "type": "image/jpeg",
+    "form_factor": "narrow",
+    "label": "صفحه اصلی"
+  }
+],
   "shortcuts": [
-    { "name": "بازیکنان", "url": "/volleyball-club/index.html#players", "icons": [{ "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "جلسات", "url": "/volleyball-club/index.html#sessions", "icons": [{ "src": "/volleyball-club/assets/icons/icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "بازیکنان",
+      "short_name": "بازیکنان",
+      "description": "لیست و مدیریت بازیکنان",
+      "url": "./index.html#players",
+      "icons": [
+        {
+          "src": "./assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "./assets/icons/icon-maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "name": "جلسات تمرینی",
+      "short_name": "جلسات",
+      "description": "برنامه و حضور و غیاب جلسات",
+      "url": "./index.html#sessions",
+      "icons": [
+        {
+          "src": "./assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "./assets/icons/icon-maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    }
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "protocol_handlers": [
+    {
+      "protocol": "web+volleyball",
+      "url": "./?scheme=%s"
+    }
+  ]
 }

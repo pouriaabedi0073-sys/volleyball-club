@@ -1,4 +1,4 @@
-$path = 'c:\Users\m-pc\Desktop\project_fixed_\sync-hybrid.js'
+$path = '..\sync-hybrid.js'
 $lines = Get-Content -Path $path -Raw -Encoding UTF8 -ErrorAction Stop -PipelineVariable line
 $chars = $lines.ToCharArray()
 $open = ($chars | Where-Object { $_ -eq '{' }).Count

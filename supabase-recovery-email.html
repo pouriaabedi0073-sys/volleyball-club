@@ -1,54 +1,41 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fa" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>بازیابی رمز عبور</title>
-    <style>
-      body { font-family: Tahoma, Arial, sans-serif; background:#f6f7f8; color:#111; padding:20px }
-      .card { max-width:640px; margin:18px auto; background:#fff; padding:20px; border-radius:10px; border:1px solid #eceff1 }
-      h1 { font-size:20px; margin:0 0 8px }
-      p { margin:8px 0; color:#333 }
-      a.btn { display:inline-block; background:#0ea5e9; color:#fff; padding:12px 18px; border-radius:8px; text-decoration:none; font-weight:700 }
-      .muted { color:#666; font-size:13px }
-      pre { background:#f3f4f6; padding:10px; border-radius:6px; overflow:auto }
-      .footer { font-size:12px; color:#8a8f95; margin-top:16px }
-      .note { background:#fffbeb; border:1px solid #fde3b7; padding:10px; border-radius:6px; margin-top:12px }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>بازیابی رمز عبور</h1>
+<head>
+  <meta charset="utf-8">
+  <title>بازیابی رمز عبور</title>
+  <base href="">
+  <style>
+    body {font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#1e293b;padding:20px;line-height:1.6}
+    .card {max-width:600px;margin:0 auto;background:#fff;padding:32px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.08)}
+    h1 {font-size:24px;color:#1e40af;margin-bottom:16px}
+    .btn {display:inline-block;background:#0ea5e9;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold}
+    pre {background:#f1f5f9;padding:12px;border-radius:8px;font-size:13px;direction:ltr;text-align:left;word-break:break-all}
+    .note {background:#fefce8;border:1px solid #facc15;padding:16px;border-radius:8px;margin:20px 0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>بازیابی رمز عبور</h1>
+    <p>سلام،</p>
+    <p>درخواست بازیابی رمز عبور برای حساب <strong>{{ .Email }}</strong> دریافت شد.</p>
 
-      <p>سلام،</p>
-      <p>درخواست بازیابی رمز عبور برای حساب <strong>{{ .Email }}</strong> ثبت شده است. برای تنظیم رمز جدید روی دکمهٔ زیر کلیک کنید:</p>
+    <p style="text-align:center;margin:40px 0">
+      <a class="btn" href="{{ .ConfirmationURL }}">بازنشانی رمز عبور</a>
+    </p>
 
-      <!-- Primary action: use the full confirmation URL that Supabase provides -->
-      <p style="margin:18px 0;text-align:center">
-        <a class="btn" href="{{ .ConfirmationURL }}">بازنشانی رمز عبور</a>
-      </p>
+    <p>اگر دکمه بالا کار نکرد، لینک زیر را کپی و در مرورگر باز کنید:</p>
+    <pre>{{ .ConfirmationURL }}</pre>
 
-      <p class="muted">اگر دکمه بالا کار نکرد، از لینک مستقیم زیر استفاده کنید یا آن را در مرورگر خود کپی و باز کنید:</p>
-      <pre>{{ .ConfirmationURL }}</pre>
-
-      <div class="note">
-        <strong>راهنمای پشتیبان (در صورت بروز مشکل)</strong>
-        <p class="muted">گاهی‌اوقات توکن‌ها در fragment (بعد از #) فرستاده می‌شوند و برخی سرویس‌دهنده‌ها یا نمایشگر ایمیل آن را حذف می‌کنند. در این حالت می‌توانید از دستورالعمل زیر استفاده کنید:</p>
-        <ul class="muted">
-          <li>توکن بازیابی: <code>{{ .Token }}</code></li>
-          <li>هَش توکن (TokenHash): <code>{{ .TokenHash }}</code></li>
-        </ul>
-        <p class="muted">در صورت مشاهده نکردن توکن در URL، آن را کپی کرده و در صفحهٔ بازنشانی رمز که قبلاً ساختید قرار دهید:</p>
-        <pre>https://pouriaabedi0073-sys.github.io/volleyball-club/reset-password.html</pre>
-        <p class="muted">مثلاً در پنل بازنشانی رمز، فیلد <code>access_token</code> را با مقدار <code>{{ .Token }}</code> پر کنید و سپس رمز جدید را وارد کنید.</p>
-      </div>
-
-      <hr />
-      <p class="muted">این ایمیل از طرف سایت: <a href="{{ .SiteURL }}">{{ .SiteURL }}</a></p>
-
-      <div class="footer">
-        <p>اگر شما این درخواست را نفرستاده‌اید، می‌توانید این ایمیل را نادیده بگیرید. لینک بازیابی پس از مدت کوتاهی منقضی می‌شود.</p>
-      </div>
+    <div class="note">
+      <strong>نکته مهم:</strong><br>
+      اگر جیمیل یا اوت‌لوک بخشی از لینک (بعد از #) را حذف کرد، فقط از این لینک استفاده کنید و توکن زیر را دستی وارد کنید:<br><br>
+      صفحه بازیابی: <a href="https://club-management.ir/volleyball/reset-password.html">باز کردن صفحه</a><br><br>
+      توکن دستی (access_token):<br>
+      <pre>{{ .Token }}</pre>
     </div>
-  </body>
+
+    <p>این لینک تا ۶۰ دقیقه معتبر است.</p>
+    <p>با احترام، تیم مدیریت باشگاه والیبال</p>
+  </div>
+</body>
 </html>

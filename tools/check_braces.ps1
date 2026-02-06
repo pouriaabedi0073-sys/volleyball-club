@@ -1,4 +1,4 @@
-$path = 'c:\Users\m-pc\Desktop\project_fixed_\sync-hybrid.js'
+$path = '..\sync-hybrid.js'
 $text = Get-Content -Raw $path
 $stack = @()
 $line = 1

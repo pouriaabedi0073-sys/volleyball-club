@@ -114,20 +114,18 @@ The volleyball club management PWA has been updated to meet **W3C PWA Standards*
 ## Configuration Updates
 
 ### manifest.json - Updated for Cross-Hosting
-**Changed from absolute paths** → **Relative paths**
+**Changed from absolute paths** → **Root-relative paths for new host**
 
 ```json
-// Before (only worked on /volleyball-club/)
-"start_url": "/volleyball-club/index.html#home"
-
-// After (works on any path - localhost or deployed)
-"start_url": "./index.html#home"
+// Before: example showed a GitHub Pages deployment path
+// After (works when hosted at the new domain path)
+"start_url": "/index.html#home"
 ```
 
 **All paths updated**:
-- Icons: `./assets/icons/...`
-- Scope: `./`
-- Protocol handlers: `./?protocol=%s`
+- Icons: `/assets/icons/...`
+- Scope: `/`
+- Protocol handlers: `/?protocol=%s`
 
 ---
 
@@ -219,8 +217,8 @@ runAllChecks()
 - Graceful degradation for unsupported features
 
 **manifest.json**:
-- Changed from absolute paths (`/volleyball-club/...`)
-- Changed to relative paths (`./...`)
+- Changed from absolute paths (GitHub Pages deployment examples)
+- Changed to root-relative paths (`/...`) for the new host
 - Now works on localhost:5500 AND any deployment path
 - All icons, scope, and URLs updated
 

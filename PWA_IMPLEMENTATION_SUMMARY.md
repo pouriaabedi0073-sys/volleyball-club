@@ -139,21 +139,17 @@ The implementation uses all three recommended PWA storage methods:
 ## Configuration Changes
 
 ### Manifest.json (Updated for Compatibility)
-**Before**:
+**Configuration (before → after)**
+
 ```json
-"start_url": "/volleyball-club/index.html#home",
-"scope": "/volleyball-club/",
-"icons": [{ "src": "/volleyball-club/assets/icons/icon-192.png", ... }]
+// Before: example used a GitHub Pages deployment path
+// After: normalized for the new host
+"start_url": "/index.html#home",
+"scope": "/",
+"icons": [{ "src": "/assets/icons/icon-192.png", ... }]
 ```
 
-**After** (relative paths):
-```json
-"start_url": "./index.html#home",
-"scope": "./",
-"icons": [{ "src": "./assets/icons/icon-192.png", ... }]
-```
-
-**Why**: Works on localhost:5500 AND on any deployment path
+**Why**: Works when the app is hosted at `https://club-management.ir/volleyball/` and when served from the site root
 
 ---
 
